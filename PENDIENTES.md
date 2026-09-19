@@ -125,6 +125,30 @@
 - Qué significa (para decidir más adelante): cuando el sistema esté listo, pasará del equipo de desarrollo a un **servidor de producción**, que en este caso sería una máquina virtual con **Proxmox 9.2**. Allí PostgreSQL se instala **nativo** (sin Docker) y la base se exporta/importa con `pg_dump` (no con `mysqldump` como se planeaba antes).
 - Se descarta por ahora mientras el proyecto siga en desarrollo local.
 
+## 12. [PENDIENTE] Revisión de seguridad contra ataques
+
+- **Estado:** pendiente (registrado 19/09/2026).
+- Revisar y endurecer el sistema contra ataques, al menos:
+  - **OWASP Top 10:** inyección (SQL/ORM), XSS, CSRF (ya hay token), autenticación/sesiones,
+    exposición de datos sensibles, cabeceras de seguridad (HSTS, CSP, X-Frame-Options, etc.).
+  - Backend Django: `DEBUG=False`, secretos por variable de entorno, `ALLOWED_HOSTS` restringido,
+    límites de tasa (rate limiting) en `/api/auth/`, validación estricta de entradas en registros
+    (CE 12: validación CIE por fecha, alcance multicentro, permisos).
+  - Frontend: sanitización de salida, no exponer tokens en el cliente, manejo de errores sin fuga
+    de info interna.
+  - Revisar `requirements.txt` y dependencias npm por vulnerabilidades conocidas
+    (pip-audit / npm audit).
+
+## 13. [PENDIENTE] Responsive (celular / tablet / computador)
+
+- **Estado:** pendiente (registrado 19/09/2026).
+- Validar que la aplicación sea **responsiva**: probar y ajustar vistas en celular, tablet y
+  computador (breakpoints de `styles.css`), especialmente:
+  - Panel lateral (`aside.panel-lateral`) y navegación en pantallas pequeñas.
+  - Tablas de registros, reportes y la matriz 13×2 del consolidado de vigilancia (scroll horizontal).
+  - Formularios de carga (Nacimientos, Defunciones, Fichas) y selectores CIE.
+  - `meta viewport` ya presente en `index.html`; revisar toques, zeugma de ancho y legibilidad.
+
 ---
 
 *Registro creado el 12/09/2026.*
