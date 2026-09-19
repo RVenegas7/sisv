@@ -1,0 +1,2656 @@
+          Manual de Normas
+ Vigilancia Epidemiológica de Muerte
+ Materna, Infantil, Maternas Críticas y
+Neonatos Críticos. (1-4 años de edad).
+
+          (SIS-05. SIVIGILA)
+
+
+
+
+                                          1
+                               INDICE
+
+I.   INTRODUCCIÓN
+
+II. ANTECEDENTES
+
+III. JUSTIFICACIÓN
+
+IV. VIGILANCIA DE LA MORTALIDAD MATERNA E INFANTIL.
+
+ A. ASPECTOS GENERALES
+            1. Descripción
+           2. Propósito
+           3. Objetivos
+           4. Metas
+           5. Estructura
+           6. Actividades De Vigilancia
+           7. Estrategias
+           8. Ámbito y Alcance de Aplicación
+           9. Responsabilidades a Nivel Regional
+           10. Duración
+           11. Funciones por niveles
+           12. Formularios o Instrumentos
+           13. Fuentes de Información
+
+      B. NORMAS PARA LA VIGILANCIA DE MUERTE MATERNA
+            14.1. Definiciones operativas
+                   14.1.1. Para notificación
+                   14.1.2. Para clasificación
+            14.2. Definiciones Técnicas:
+                     14.2.1. Causa de Muerte
+                     14.2.2. Determinantes
+                           Condición de Riesgo
+                           Vulnerabilidad
+                           Factores Sanitarios Protectores
+            14.3. Pautas para la Vigilancia de Muerte Materna
+                A. Detección de muerte materna probable
+                B. Notificación e información de Muerte Materna. Formularios
+                   EPI-14, MM-1 y MM-MI-3
+                C. Notificación negativa.
+                D. Investigación de muerte materna probable. Formulario MM-2.
+                E. Procesamiento y análisis de la información
+                F. Información de muerte materna a la autoridad sanitaria y
+                   Direccionamiento de información horizontal a los gerentes
+                   locales, regionales y nacionales según el nivel de vigilancia
+                   Formularios MM-MI-4 y M-MI-5.
+
+
+                                                                               2
+       14.4. Flujograma de Información en la Vigilancia Epidemiológica de
+             Muerte Materna.
+
+C. PAUTAS PARA LA VIGILANCIA DE MUERTE INFANTIL Y DE 1-4
+AÑOS DE EDAD.
+      15.1. Definiciones Operativas:
+             15.1.1. Para notificación
+             15.1.2. Para clasificación
+      15.2. Definiciones Técnicas:
+             15.2.1. Causa De Muerte:
+             15.2.2. Determinantes:
+                     A. Condición de Riesgo
+                     B. Vulnerabilidad
+                     C. Factores Sanitarios Protectores
+      15.3. Pautas para la Vigilancia de Muerte Infantil y de 1-4 años de
+      edad.
+             A. Detección de Muerte Infantil y de 1-4 años de edad.
+             B. Notificación e Información de Muerte Infantil y de 1-4 años
+             de edad. Formularios EPI-14, MI-1 y MM-MI-3.
+             C. Notificación Negativa.
+             D. Investigación de Muerte Infantil y de 1-4 años de edad.
+             Formulario MI-2.
+             E. Procesamiento y Análisis de la Información
+             F. Información de Mortalidad Infantil y de 1-4 años de edad
+                 a la Autoridad Sanitaria. Direccionamiento de Información
+                 Horizontal a los Gerentes Locales, Regionales y
+                 Nacionales. Formularios MM-MI-4 y MM-MI-5
+
+      15.4. Flujograma de Actividades de la Vigilancia Epidemiológica de
+      Muerte Infantil y de 1-4 años de edad
+      15.5. Vigilancia Materna Críticas y Neonatos Críticos
+V. FLUJOGRAMA DE NOTIFICACION SIVIGILA
+
+VI. INDICADORES PARA EVALUACIÓN DEL SISTEMA SIVIGILA.
+
+VII. BIBLIOGRAFÍA
+
+VII. ANEXO 1. FORMULARIOS DE VIGILANCIA MATERNA,
+INFANTIL Y DE 1-4 AÑOS DE EDAD.
+
+
+
+
+                                                                         3
+I. INTRODUCCIÓN
+
+El presente Manual “Vigilancia Epidemiológica de Muerte Materna, Infantil y de 1-4
+años de edad” edita la revisión-adaptación de las normas de vigilancia de muerte materna e
+infantil establecidas en el documento “Manual de Pautas y Procedimientos para Monitoreo y
+Vigilancia Epidemiológica de la Mortalidad Materno Infantil”, elaborado en el marco del
+Plan Nacional de Prevención y Control de la Mortalidad Materna e Infantil 2001 y publicado
+en mayo 2001 y de su posterior revisión y publicación en el documento SIVIGILA, incluido
+en el: “Manual de Pautas y Procedimientos para el Monitoreo y Seguimiento” implementado
+en el año 2006 para apoyar las decisiones y acciones implementadas por el Proyecto Madre.
+
+La evaluación 2005-2007 del sistema de vigilancia de muerte materna e infantil se realiza
+atendiendo al lineamiento institucional de “fortalecer la vigilancia e investigación
+epidemiológica de la mortalidad materna e infantil” y “disminuir las brechas sociales e
+inequidades en territorios sociales, grupos priorizados de la población o por ciclo de vida,
+contribuyendo a elevar la calidad de vida”, en el marco de la política nacional de “reducir
+la mortalidad materno infantil y en niños menores de cinco años”, fundamentada en los
+derechos sociales establecidos por la Constitución de la República Bolivariana de Venezuela
+(CRBV), la directriz de “Suprema Felicidad Social” del Plan Nacional 2007-2013, se
+mantiene en el Plan de la Patria 2025-2030 y Plan De La Patria de las 7T, la estrategia
+nacional para “profundizar la atención integral en salud de forma universal”, Reducción de
+mortandad y mortalidad. Reducir cargas de enfermedad, mortalidad prematura y mortalidad
+evitable, con énfasis en mortalidad materna y mortalidad en menores de 5 años.
+
+A partir de los resultados de la evaluación se introducen dos componentes en la vigilancia
+epidemiológica del impacto en salud materna e infantil: el primero, objeto del presente
+manual, consiste en la identificación, notificación y caracterización de las causas y
+determinantes de muertes maternas y de niños menores de 5 años de edad y el segundo,
+consiste en un sistema de monitoreo y vigilancia de emergencias obstétricas atendidas en el
+sistema de salud, que se edita en otro documento.
+
+Las modificaciones realizadas para la identificación, notificación y caracterización de las
+causas y determinantes de muertes maternas y de niños menores de 5 años de edad
+tienen como objetivo mejorar la oportunidad, confiabilidad y cobertura de la información
+epidemiológica y crear mecanismos que articulen horizontalmente la vigilancia
+epidemiológica materna e infantil con el nivel de decisión-control en todos los ámbitos
+jerárquicos de la gestión sanitaria; como una forma de contribuir con el uso de la información
+epidemiológica para orientar las intervenciones sanitarias en salud materna e infantil.
+
+Lograr el objetivo propuesto en la vigilancia de muerte materna y de niños y niñas menores
+de 5 años de edad, exige superar limitaciones, que se derivan, fundamentalmente, del retardo
+de la investigación de casos por dificultades en la articulación operativa entre las unidades
+de epidemiología, programas y comités de prevención y control en los diferentes niveles del
+sistema de salud y concentración de esfuerzos de vigilancia en acumular información
+biológica relacionada con cada caso y muy poco en la identificación de información sobre
+condiciones de vida y acceso, disponibilidad, oportunidad y calidad del modo de gestión y
+                                                                                            4
+atención de salud; que al ser analizadas por territorios indican espacios geográficos de
+inequidad social, orientadores de la participación comunitaria y la intersectorialidad.
+
+En el contexto de los Objetivos de Desarrollo Sostenible (ODS), los países han aunado
+esfuerzos para alcanzar la meta de acelerar la disminución de la mortalidad materna para
+2030. El ODS 3 incluye una ambiciosa meta: «reducir la tasa mundial de mortalidad materna
+a menos de 70 por cada 100 000 nacimientos» sin que ningún país tenga una razón de
+mortalidad materna que sea superior al doble del promedio mundial.
+
+La publicación del presente manual, como instrumento del Sistema Nacional de Vigilancia
+para contribuir con el logro de los objetivos institucionales de reducción de la mortalidad
+materna e infantil, tiene como objetivo poner a disposición de las Coordinaciones Regionales
+de Epidemiología, las normas que permitan armonizar las actividades de vigilancia
+epidemiológica de muerte materna e infantil en los niveles locales, municipales y regionales.
+Para contribuir con la disponibilidad a todos los niveles, se incluye como anexo una versión
+resumida para los diferentes establecimientos de atención de salud y fundamentalmente para
+los hospitales.
+
+II. ANTECEDENTES
+
+La salud del recién nacido y la salud materna están íntimamente relacionadas, ambas
+comparten causas básicas y factores subyacentes similares que determinan complicaciones
+obstétricas (CO) y perinatales (CP). Ambas complicaciones constituyen un problema de
+salud pública por su magnitud, gravedad y por la posibilidad científico tecnológica de ser
+prevenidas y/o detectadas oportunamente para orientar eficazmente el manejo de casos y
+evitar en alto porcentaje la mortalidad.
+
+Una importante proporción de muertes maternas e infantiles ocurre como consecuencia de
+condiciones individuales, familiares, comunitarias y sociales que conforman un contexto de
+riesgo y determinan, tanto en la futura madre como en el feto y recién nacido, condiciones
+de riesgo y de vulnerabilidad. Estudios realizados en América Latina concluyen que la
+evitabilidad de las muertes maternas oscila entre 52% y 92%, estimando que en condiciones
+similares a las de Canadá, la Región de las Américas reduciría hasta un 85% de la mortalidad
+materna.
+
+Las condiciones de riesgo materno se refieren a factores endógenos de la madre que
+incluyen factores biológicos, hábitos y estilos de vida individual y familiar que determinan
+peligros para la evolución natural del embarazo; entre los cuales destacan la condición
+nutricional (anemia, desnutrición y obesidad), multiparidad, intervalo intergenésico corto,
+adolescencia, enfermedades subyacentes ( diabetes, hipertensión, cardiopatías, tuberculosis,
+sida), hábito tabáquico, alcohólico y drogodependencias. La vulnerabilidad es el producto
+de la carencia o limitación de una condición o conjunto de condiciones protectoras (objeto
+de los derechos sociales) que debilitan las capacidades de la madre y su familia para
+anticiparse a los riesgos del embarazo, parto, puerperio o nacimiento, crecimiento y
+desarrollo e incluye aspectos geográficos, socioeconómicos, culturales, educativos y
+sanitarios.
+
+
+                                                                                           5
+En Venezuela, la mortalidad materna y la mortalidad infantil han disminuido de forma
+considerable; sin embargo, tanto la tasa de mortalidad materna (TMM) como la tasa de
+mortalidad infantil, se mantienen en cifras que triplican las tasas alcanzadas por otros países
+y muestran, al interior del país, importantes diferencias territorio poblacionales que reflejan
+desigualdades injustas en las condiciones de vida y entre ellas de disponibilidad y acceso
+oportuno a servicios de salud.
+
+Congruente con la política nacional de Salud Materna e Infantil, el Estado Venezolano
+adoptó, en el año 2000, la Declaración del Milenio, cuyos ocho objetivos están orientados a
+reducir las desigualdades, mejorar las condiciones de vida de la gente y en consecuencia
+superar la pobreza, concretando entre los objetivos: la reducción de la mortalidad materna y
+de niños y niñas menores de 1 año de edad.
+
+De acuerdo con los objetivos del Milenio las metas 2015 para Venezuela se concretan en:
+reducir la tasa de mortalidad materna (TMM) desde 53,10 hasta 13,3 por 100.000
+nacidos vivos registrados y reducir la mortalidad infantil desde 25,80 hasta 8,78 muertes
+por 1.000 nacidos vivos registrados.
+
+Entre las acciones desarrolladas por el Ministerio del Poder Popular la Salud para mejorar el
+conocimiento de la magnitud y los determinantes de muerte materna e infantil destaca la
+revisión realizada en el año 1999, con el replanteamiento del funcionamiento de los grupos
+de trabajo local, regional y nacional para la Prevención y Control de la Mortalidad Infantil y
+Materna; conformándolos como instancias que dan prioridad a la vigilancia, investigación y
+análisis de la mortalidad materna e infantil, desarrollando sus acciones, bajo los principios
+de reflexión y no culpa, responsabilidad colectiva para actuar, soluciones viables y creativas
+y pensamiento epidemiológico colectivo; principios que se concretaron en el documento
+“Sistema de Vigilancia de la Mortalidad Materna e Infantil” del año 2000.
+
+Dicho Manual explicita 8 componentes, entre los que destacan la notificación obligatoria
+inmediata y la investigación permanente de muerte materna e infantil.
+
+       La notificación semanal se inició incluyendo muerte materna y muerte infantil como
+       denunciables en el formulario de notificación epidemiológica semanal EPI-12.
+
+       En relación con la investigación permanente de muertes maternas e infantiles, el
+       procedimiento establecía la revisión documental e investigación de campo en cada
+       fallecimiento para identificar y calificar el porcentaje de riesgo y consecuentemente,
+       definir la condición de evitabilidad de la muerte ocurrida mediante el análisis de 10
+       características: alto riesgo social; alto riesgo biológico; diagnóstico clínico no
+       compatible con alto riesgo de muerte; asistencia tardía al servicio de salud; hábitos
+       de alto riesgo que se refieren a la presencia de estilos de vida, creencias o cultura
+       que potencian el riesgo de muerte; dificultad en el acceso, económico, social,
+       geográfico o ineficiencia del sistema de salud que haya retardado el primer contacto
+       con el equipo de salud; incumplimiento o retardo en el acceso a tratamiento oportuno
+       y adecuado; limitación para recursos humanos necesarios para el manejo de casos
+       según el nivel de atención necesario de acuerdo a las condiciones de eficiencia,;
+       incumplimiento o inoportunidad de normas, conductas o procedimientos de
+                                                                                             6
+       atención; y déficit de medicamentos, insumos o equipos que limitan la conducta o
+       tratamiento en forma oportuna y adecuada.
+
+En enero 2006, se publicó una nueva edición del documento anteriormente mencionado, que
+en esta ocasión de denominó “Manual de Pautas y Procedimientos para el Monitoreo y
+Seguimiento”, en el cual se implantó el Sistema de Vigilancia de la Mortalidad Materna e
+Infantil (SIVIGILA MM-MI) y explicitaba como objetivo principal: “apoyar las decisiones
+y acciones implementadas por el Proyecto Madre”.
+
+Simultáneamente, en el año 2006, se incorporaron profesionales de enfermería en 17
+Unidades de Epidemiología Hospitalaria bajo la denominación de “Enfermería Centinela”,
+como un esfuerzo de la Dirección de Epidemiología para el fortalecimiento de la vigilancia
+epidemiológica y el “acompañamiento hospitalario en la atención de mujeres embarazadas y
+recién nacidos” en el marco de las acciones desarrolladas por el Proyecto Madre, adscrito a
+la Dirección de Programas.
+
+En el año 2007 se evaluó el funcionamiento del componente SIVIGILA MM-MI durante el
+2006; evidenciando que la notificación inmediata y semanal de muerte había alcanzado una
+importante cobertura. En efecto, una vez cruzados los casos detectados por el SIVIGILA
+MM-MI 2006 y el Sistema Estadístico de Certificados de Defunción 2006 recibidos hasta el
+mes de marzo 2007 se encontró que SIVIGILA detectó el 88,78% del total de muertes
+maternas identificadas en el 2006 y 72,92% de las muertes infantiles conocidas por
+certificados de defunción; sensibilidad promedio que resulta de un espectro regional muy
+heterogéneo con límites inferiores hasta de 21,25%.
+
+A pesar de la importante cobertura y oportunidad del sistema para captar el número de
+muertes maternas e infantiles; no se obtuvo igual resultado en la caracterización de las
+muertes y de los indicadores de evitabilidad. De las 364 muertes maternas conocidas por el
+SIVIGILA 2006, solo en 57 se disponía de alguna información adicional y de ellas en 29 se
+disponía de información sobre criterios de evitabilidad; situación que se explicaba,
+informalmente, por las limitaciones de personal y transporte para realizar la investigación,
+sumado, entre otras causas a la indefinición de los responsables de la investigación y las
+múltiples tareas del personal; sin dejar de mencionar que la falta de integración entre la
+gerencia regional de programas y epidemiología está relacionada con obstáculos derivados
+de la tradicional organización parcelada. Así, por ejemplo: la necesidad de responder
+técnicamente a los indicadores de evitabilidad relacionados con la calidad de la atención,
+retarda el análisis y envío de la información epidemiológica porque se requiere la calificación
+por parte de especialistas en obstetricia y pediatría.
+
+De acuerdo con el documento “Manual de Pautas y Procedimientos para el Monitoreo y
+Seguimiento (SIVIGILA)”, enero 2006; es el Comité de Mortalidad Materna o Infantil del
+establecimiento donde ocurre el fallecimiento a quien corresponde iniciar el proceso de
+investigación mediante la revisión de historia clínica y la entrevista domiciliaria; este
+procedimiento no ha funcionado y explica los pocos informes recibidos a nivel central y en
+los que se detectaron problemas cuantitativos y cualitativos que ameritan ser corregidos para
+potenciar su utilidad en la toma de decisiones adecuadas, pertinentes y oportunas para
+prevenir y controlar la mortalidad materna e infantil; todo lo cual indica que las acciones de
+                                                                                             7
+prevención y control a nivel local, municipal, regional y nacional no están siendo orientadas
+estratégicamente.
+
+Con la información consolidada del SIVIGILA MM-MI, la Dirección Nacional de Vigilancia
+Epidemiológica elabora, desde el año 2006, el Boletín Informativo SIVIGILA, con un diseño
+de interés nacional, que no llega a la gerencia local y municipal y por tanto no contribuye
+con las acciones de prevención y control en el nivel local.
+
+El Boletín SIVIGILA monitorea semanalmente en la mortalidad infantil: la ocurrencia por
+grupos de edad, municipios y estados de procedencia y ocurrencia, establecimientos de salud
+donde ocurre, antecedentes de control prenatal de la madre, edad gestacional, causas de
+muerte y etnias indígenas y en la mortalidad materna los grupos de edad, la entidad de
+ocurrencia, tipo de parto, edad gestacional, causa de muerte y etnias indígenas.
+
+III. JUSTIFICACIÓN
+
+Accionar en el marco de la política nacional de “reducir la mortalidad materno infantil y en
+niños menores de cinco años”, demanda por información útil, pertinente, adecuada y
+oportuna; lo que significa poner a disposición de la gestión local, municipal y regional de los
+servicios de salud una imagen clara, actualizada y dinámica de la situación materna e infantil,
+que vincule la ocurrencia con eventos evitables asociados a las condiciones de vida y
+problemas en el acceso, oportunidad y calidad de atención para orientar las intervenciones;
+porque las evidencias acerca de los determinantes de la mortalidad materna e infantil obligan
+a centrar la vigilancia epidemiológica de estos acontecimientos en el concepto de muerte
+evitable y por tanto orientar la vigilancia a identificar causas y determinantes (condiciones
+de riesgo, vulnerabilidades y factores protectores sanitarios) de la mortalidad distribuidos
+espacialmente por unidades micro territoriales (sectores, barrios, comunidades, poblados),
+con la finalidad de indicar micro territorios con necesidades específicas y desigualdades y
+por tanto con vulnerabilidades, en el acceso, calidad, oportunidad y cobertura de servicios
+de promoción, prevención y atención a la madre y el niño que permitan concentrar
+estratégicamente los esfuerzos para mejorar el componente de atención sanitaria en las
+condiciones de vida.
+
+En este contexto, la vigilancia epidemiológica de muerte materno infantil tiene dos principios
+rectores: el primero de ellos, la identificación de riesgos y vulnerabilidades vinculadas a
+la muerte infantil y materna como eventos trazadores locales de riesgo y vulnerabilidad
+es el principio orientador de la vigilancia; y el segundo, la información epidemiológica
+analizada constituye el principio integrador horizontal entre la vigilancia epidemiológica y
+la gerencia del sistema de decisión-control (coordinadores locales, municipales, regionales y
+nacionales del programa), responsable de la prevención y control de muerte materna e
+infantil en el sistema de salud.
+
+Estos dos principios permitirán contribuir con la disminución de las brechas sociales e
+inequidades en territorios sociales, contribuyendo a elevar la calidad de vida.
+
+
+
+
+                                                                                             8
+IV. VIGILANCIA DE LA MORTALIDAD MATERNA, INFANTIL y DE 1-4 AÑOS
+DE EDAD
+
+El marco normativo para el funcionamiento del Sistema de Vigilancia de la Mortalidad
+Materna, de la Mortalidad Infantil y de la mortalidad de niños y niñas de 1 a 4 años de edad
+(SIVIGILA MM-MI); establece aspectos generales de vigilancia y particulariza pautas y
+definiciones para cada uno de los componentes según se detalla a continuación.
+
+   A. ASPECTOS GENERALES
+
+    1. Descripción:
+
+El sistema de vigilancia de la Mortalidad Materna, Infantil y de 1-4 años de edad (SIVIGILA
+MM-MI) es un sistema de vigilancia de modalidad universal, nominal y especializado, que
+integra al 100% de los establecimientos de salud, particularmente a todos los hospitales
+públicos y privados, en la detección, investigación, notificación, control epidemiológico y
+monitoreo de: todas las muertes ocurridas en mujeres durante el embarazo, el parto o el
+puerperio, denominadas “muertes maternas probables” y de todas las muertes de niños y
+niñas menores de 5 años de edad, de su distribución territorial, y de las causas y
+determinantes pertinentes y relevantes definidos.
+
+En este sistema los establecimientos de salud y particularmente los hospitales, deben
+desarrollar la totalidad de las actividades de vigilancia epidemiológica y por tanto, a la
+detección, registro e investigación se agrega la función de analizar, interpretar y direccionar
+horizontalmente, información analizada, para la gerencia local, como sistema inmediato de
+decisión- control conformado por el director del establecimiento y el equipo que gestiona u
+opera las normas de Ruta Materna y el Comité de Prevención y Control de Muerte Materna
+e Infantil del establecimiento..
+
+Con esta finalidad el nivel local se encargará de desarrollar técnicas de investigación y
+análisis, estudios de casos, historias de vida y mapas de riesgo entre otros, para disponer de
+la información necesaria que permitirá a los diferentes niveles de atención reevaluar
+estrategias, asignar recursos y definir nuevas intervenciones.
+
+A su vez las unidades de epidemiología municipales, regionales y la nacional desarrollaran
+en sus niveles correspondientes la función de direccionar, horizontalmente, la información
+analizada correspondiente a su dimensión geográfica, para la gerencia del nivel
+correspondiente, como sistema inmediato de decisión- control conformado por la máxima
+autoridad jerárquica de cada nivel (Directores municipales, Directores Regionales de Salud,
+Viceministro y Ministro de Salud), el equipo salud que gestiona u opera las normas del Ruta
+Materna y el Comité de Prevención y Control de Muerte Materna e Infantil como eje técnico
+articulador de la acciones en el nivel correspondiente.
+
+
+                                                                                             9
+En este sentido, la dinámica propuesta apunta a contribuir con información pertinente para
+que el sistema jerárquico de decisión control pueda ejercer direccionamiento estratégico de
+las acciones de prevención control de mortalidad materna e infantil.
+
+       2. Propósito:
+
+El propósito del Sistema de Vigilancia de la Mortalidad Materna, Infantil y de 1-4 años de
+edad (SIVIGILA) es el de contribuir con información estratégica que presente una imagen
+clara actualizada y dinámica de la situación materna e infantil, que se articule
+horizontalmente en los diferentes niveles del sistema y que sea útil (pertinente, adecuada y
+oportuna) a las necesidades de gestión local, municipal, regional y nacional en el marco de
+las políticas y planes nacionales, para orientar la toma de decisiones adecuadas en la selección
+de medidas de prevención y control dirigidas a reducir la muerte materna, infantil y de 1-
+4 años y mejorar las condiciones de vida de la población.
+
+   3. Objetivos:
+
+      Operativizar el funcionamiento adecuado de las actividades de vigilancia
+       epidemiológica de muerte materna, infantil y de 1-4 años de edad en todo el territorio
+       nacional de acuerdo con lo establecido en este documento.
+      Conocer la magnitud, causas y determinantes de la mortalidad materna. infantil y de
+       1-4 años de edad distribuidos espacialmente en unidades microterritoriales
+   
+       y unidad de espacios geopolíticos como información operativa para las
+       intervenciones.
+      Promover la orientación estratégica de las acciones de prevención y control de muerte
+       materna e infantil mediante el direccionamiento horizontal, periódico y formal de
+       información analizada al sistema jerárquico de decisión control.
+      Incorporar a nivel local la participación comunitaria en la vigilancia de muerte
+       materna, infantil y de 1-4 años de edad.
+
+   4. Metas:
+
+    A. Integrar el 100% de los establecimientos de salud al sistema de vigilancia
+       epidemiológica de mortalidad materna. infantil y de 1-4 años de edad.
+    B. Detectar y notificar el 100% de las muertes maternas, infantiles y de 1-4 años
+       ocurridas en el país.
+    C. Informar de manera confiable y oportuna las características de condiciones de riesgo,
+       vulnerabilidades y capacidades del 100% de las muertes maternas detectadas.
+    D. Informar de manera confiable y oportuna las características de condiciones de riesgo,
+       vulnerabilidades y capacidades del 100% de las muertes neonatales ocasionadas por
+       Afecciones originadas en el período perinatal.
+    E. Informar horizontal y oportunamente a las autoridades jerárquicas y gerencia técnica
+       la ocurrencia y características de ocurrencia de la mortalidad materna. infantil y de
+       1-4 años de edad.
+
+
+                                                                                             10
+    F. Integrar y motivar a la comunidad en el funcionamiento de la vigilancia
+       epidemiológica de mortalidad materna e infantil a nivel local.
+
+
+    5. Estructura:
+
+El SIVIGILA MM-MI constituye un subsistema especializado en mortalidad materna,
+Infantil y de 1-4 años de edad, adscrito al Sistema Nacional de Vigilancia Epidemiológica,
+por lo que está organizado en cuatro niveles de acción: el nivel local o de servicios, el nivel
+municipal, el nivel regional y el nivel central o nacional.
+
+       6. Actividades de Vigilancia:
+
+Para el cumplimiento de los objetivos, se desarrollarán ocho actividades principales en todas
+las unidades de epidemiología del sistema:
+
+      Detectar de forma activa muertes maternas, infantiles y de 1-4 años mediante la
+       revisión de registros de ingresos y egresos hospitalarios, atenciones de emergencia,
+       registro de partos, nacimientos, certificados de defunción, incluyendo los de todas las
+       mujeres en edad fértil y la incorporación de otras fuentes de información pertinentes
+       extra institucionales incluidas la participación comunitaria.
+      Investigar epidemiológicamente cada caso detectado con la finalidad de identificar
+       las causas, condiciones de riesgo y vulnerabilidad que determinaron de manera
+       directa o indirecta el fallecimiento.
+      Recopilar sistemáticamente los datos establecidos en los formularios de vigilancia.
+      Notificar oportunamente de acuerdo con las pautas establecidas
+      Analizar local, municipal, regional y nacionalmente condiciones de riesgo y
+       vulnerabilidades, cambios y tendencias en la magnitud de la mortalidad materna e
+       infantil para identificar en los diferentes niveles, aspectos críticos en condiciones de
+       vida, acceso, oportunidad, disponibilidad y adecuación de medidas de prevención,
+       diagnóstico y tratamiento de muerte materna e infantil.
+      Elaborar y publicar periódicamente informes de resultado de análisis
+      Direccionar oportunamente información a los gerentes locales, municipales,
+       regionales y nacionales según corresponda.
+      Evaluar el sistema para su adaptación oportuna y eficaz a las demandas operativas de
+       la prevención y el control.
+
+A cada nivel le corresponde desarrollar todas las actividades del sistema de vigilancia de
+manera oportuna, según se detalla a continuación.
+
+                                    ACTIVIDADES POR NIVELES
+           LOCAL             MUNICIPAL            REGIONAL                    NACIONAL
+
+
+
+
+                                                                                            11
+       Detectar             Consolidar               Consolidar                    Consolidar
+       Investigar           Detectar                 Detectar                      Detectar
+       Analizar             Investigar               Investigar                    Monitorear
+       Notificar            Analizar                 Analizar                       investigaciones
+       Informar a la        Notificar                Notificar                      Analizar
+        gerencia para        Informar a la            Informar a la gerencia        Informar a la gerencia
+        respuesta local       gerencia para             para respuesta regional.       para respuesta nacional.
+                              respuesta municipal      Evaluar                       Elaborar y publicar
+                             Evaluar                                                  informe
+                                                                                       Evaluar
+                                                                                       Normar el sistema
+
+
+        7. Estrategias
+
+El desarrollo exitoso de las actividades de vigilancia SIVIGILA y el logro de los objetivos
+requiere de mecanismos administrativos y técnicos en los diferentes niveles del sistema de
+salud para:
+       a) Disponibilidad del Manual de Vigilancia SIVIGILA 2008 y de los formularios
+            correspondientes en todos los niveles del sistema de vigilancia epidemiológica.
+       b) Identificar al responsable de SIVIGILA en todos los establecimientos de salud
+            con énfasis en los hospitales y en las unidades municipales y regionales de
+            epidemiología.
+       c) Actualización de la capacitación del personal de salud en análisis local de
+            mortalidad materna, infantil y de 1-4 años de edad.
+       d) Disponibilidad o accesibilidad continua a medios de comunicación (fax, teléfono,
+            Internet, etc.) para la notificación regular de casos detectados.
+       e) Facilitar la inclusión de las morgues forenses como fuentes de información
+            regular.
+       f) Incorporar la participación comunitaria en las actividades SIVGILA de detección,
+            notificación e investigación.
+       g) Supervisión de las actividades de vigilancia en las unidades locales y municipales
+            de vigilancia.
+       h) Facilitar al personal de salud local responsable del SIVIGILA la comunicación y
+            mecanismos de transporte adecuados para apoyar la investigación epidemiológica
+            de campo cuando corresponda.
+       i) Movilización al personal de salud.
+       j) Implementar, en cada nivel del sistema de salud, mecanismos de integración
+            operativa entre la máxima autoridad jerárquica, al equipo de salud que gestiona u
+            opera Ruta Materna y el Comité de Prevención y Control de Muerte Materna e
+            Infantil Municipal.
+
+        8. Ámbito y Alcance de Aplicación
+
+   Las pautas contenidas en esta guía están definidas para su aplicación en todos los
+   establecimientos de salud del territorio nacional, independientemente de su nivel de
+   complejidad, adscripción organizativa y tipo de administración o dependencia (pública o
+   privada).
+
+        9. Responsabilidades a Nivel Regional:
+
+
+                                                                                                             12
+   La responsabilidad regional para el desarrollo de la Vigilancia Epidemiológica
+   como línea estratégica de la política institucional de reducción de muerte materna e
+   infantil estará a cargo de las Direcciones Regionales de Salud a través de la
+   Coordinaciones Regionales de Epidemiología, como gestores del sistema de vigilancia
+   regional y por tanto del seguimiento de las acciones para la detección, investigación
+   epidemiológica, notificación y análisis de muerte materna y de niños y niñas menores de
+   5 años, desde los niveles locales hasta el nivel nacional y la entrega formal en cada nivel,
+   de información epidemiológica analizada, a la máxima autoridad jerárquica, al equipo
+   de salud que gestiona u opera Ruta Materna y al Comité de Prevención y Control de
+   Muerte Materna e Infantil.
+
+   Por otra parte, de acuerdo con las Normas de Ruta Materna, la responsabilidad
+   para desarrollar la investigación y calificación de manejo clínico en muerte materna
+   e infantil y el desarrollo de las acciones de prevención y control como línea
+   estratégica de la política institucional de reducción de muerte materna e infantil
+   estará a cargo de las Direcciones Regionales de Salud a través de los Comités de Muerte
+   Materna e Infantil, coordinados y supervisados por las Coordinaciones Regionales de
+   Ruta Materna.
+
+   En todos los niveles del Sistema de Salud, las Unidades de Epidemiología formarán
+   parte del Comité de Prevención y Control de Muerte Materna e Infantil y por tanto
+   participarán activamente en los escenarios de análisis de situación e identificación
+   de medidas de prevención.
+
+       10. Duración:
+
+La aplicación de estas pautas tiene duración indefinida y serán reformuladas de acuerdo con
+la situación epidemiológica y su confrontación con los resultados de la aplicación práctica en
+los diferentes niveles de la organización sanitaria.
+
+La evaluación de su aplicación será responsabilidad del Ministerio del Poder Popular para la
+Salud a través de la Dirección de Vigilancia Epidemiológica.
+
+Las sugerencias relacionadas con su contenido y aplicación pueden ser enviadas a la
+Dirección de Vigilancia Epidemiológica del Ministerio del Poder Popular para la Salud
+
+       11. Funciones SIVIGILA de las Unidades de Epidemiología:
+
+Nivel Local: El funcionario designado para ejecutar las funciones de SIVIGILA en cada
+establecimiento, es un miembro del equipo de salud responsable de la práctica de la
+epidemiología en el establecimiento de salud, de acuerdo con la organización de la unidad de
+epidemiología correspondiente. Para el desarrollo de las funciones SIVILA tiene cuatro
+funciones principales:
+
+ Desarrollar regular y sistemáticamente todas las actividades inherentes al sistema de
+vigilancia especializado SIVIGILA, de acuerdo con las instrucciones del presente manual.
+
+
+                                                                                            13
+ Incorporar localmente la participación comunitaria en la vigilancia de muerte materna y
+otras fuentes de información pertinentes de acuerdo con la realidad local.
+ Informar sobre la situación epidemiológica de muerte materna y del menor de 5 años a la
+máxima autoridad jerárquica del establecimiento (Director o Coordinador del
+establecimiento), al equipo de salud que gestiona u opera Ruta Madre / Programas de Salud
+y/o al Comité de Prevención y Control de Muerte Materna e Infantil en el establecimiento;
+mediante el suministro de información formal, periódica y sistemática de acuerdo con
+formatos MM-MI-4 y MM-MI-5.
+ Garantizar la interacción entre el establecimiento de salud y la Unidad de Vigilancia
+Epidemiológica Municipal correspondiente.
+
+Nivel Municipal: La organización designada como Unidad Municipal de Epidemiología
+designará al o los funcionarios responsables quienes desarrollarán las siguientes funciones:
+
+ Desarrollar regular y sistemáticamente todas las actividades inherentes al sistema de
+vigilancia especializado SIVIGILA, de acuerdo con las instrucciones del presente manual.
+ Incorporar municipalmente fuentes de información extra institucionales vinculadas
+directa o indirectamente a la atención materna e infantil.
+ Informar sobre la situación epidemiológica de muerte materna y del menor de 5 años a la
+máxima autoridad jerárquica del municipio (Director o Coordinador), al equipo de salud que
+gestiona u opera Ruta Materna/ Programas de Salud y/o al Comité de Prevención y Control
+de Muerte Materna e Infantil en el municipio; mediante el suministro de información formal,
+periódica y sistemática de acuerdo con formatos MM-MI-4 y MM-MI-5.
+ Garantizar el enlace entre cada establecimiento de salud y la Coordinación Regional de
+Vigilancia Epidemiológica.
+ Apoyar y Supervisar el cumplimiento de las normas técnicas del SIVIGILA en los niveles
+locales correspondientes.
+ Capacitar al equipo de epidemiología del nivel local en la normativa del SIVIGILA con
+énfasis en el desarrollo de las máximas capacidades de procesar e interpretar información en
+el nivel local
+
+Nivel Regional: La Coordinación Regional de Epidemiología desarrollará las actividades
+contempladas en el SIVIGILA y tiene las siguientes funciones:
+
+ Desarrollar regular y sistemáticamente todas las actividades inherentes al sistema de
+vigilancia especializado SIVIGILA, de acuerdo con las instrucciones del presente manual.
+ Incorporar regionalmente fuentes de información extra institucionales vinculadas directa
+o indirectamente a la atención materna e infantil.
+ Informar sobre la situación epidemiológica de muerte materna y del menor de 5 años a la
+máxima autoridad jerárquica del municipio (Director o Coordinador), al equipo de salud que
+gestiona u opera el Proyecto Madre / Programas de Salud y/o al Comité de Prevención y
+Control de Muerte Materna e Infantil en el municipio; mediante el suministro de información
+formal, periódica y sistemática de acuerdo con formatos MM-MI-4 y MM-MI-5.
+ Garantizar el enlace entre la Red Municipal de Vigilancia SIVIGILA y la Dirección
+Nacional de Vigilancia Epidemiológica.
+
+
+                                                                                         14
+ Apoyar y Supervisar el cumplimiento de las normas técnicas del SIVIGILA a nivel local
+y municipal, con énfasis en la homogeneidad de los criterios, el análisis local y municipal de
+la información y el cumplimiento de la información formal, sistemática y periódica al nivel
+gerencial correspondiente.
+ Capacitar al equipo de epidemiología del nivel municipal en la normativa del SIVIGILA
+con énfasis en el desarrollo de las máximas capacidades para procesar e interpretar
+información a nivel local.
+ Evaluar el funcionamiento del sistema.
+
+Nivel Nacional: La Coordinación de Vigilancia Epidemiológica de Intervenciones Sanitarias
+adscrita a la Dirección de Vigilancia Epidemiológica es la responsable de la conducción de
+las actividades del SIVIGILA a nivel nacional y tiene las siguientes funciones:
+
+ Coordinar las funciones de vigilancia mediante la vinculación con los niveles regionales,
+municipales y locales.
+ Promover la integración técnica-normativa-operativa a nivel nacional entre las
+Direcciones Generales de Epidemiología y Programa mediante el suministro periódico y
+formal de información para la acción (por escrito y de acuerdo con la situación en espacios
+de discusión) sobre las tendencias regionales, las demoras, causas y determinantes de muerte
+materna e infantil.
+ Promover y apoyar el desarrollo y funcionamiento del Comité Nacional de Prevención y
+Control de Muertes Maternas e Infantiles, como mecanismo técnico que permita visualizar
+en la dinámica cotidiana de servicios y gestión: aspectos negativos que pueden ser
+transformados en el nivel correspondientes y particularmente en el nivel local o reconocidos
+y convertidos en objetivos que orienten la gestión municipal y regional.
+ Garantizar la disponibilidad del Manual Normativo de Vigilancia de Muerte Materna e
+Infantil en los diferentes niveles del sistema
+ Monitorear la cobertura nacional del SIVIGILA
+ Monitorear por parroquias, municipios y estados la frecuencia y determinantes de muerte
+materna e infantil, el impacto de las acciones según instrucciones normativas
+ Disponer de un Manual de Normativo de Vigilancia de Muerte Materna, operativo para
+todos los niveles de organización
+ Apoyar y Supervisar el cumplimiento de las normas técnicas del SIVIGILA con énfasis
+en la homogeneidad de los criterios, el análisis local y municipal de la información y el
+funcionamiento de la información formal y periódica al nivel gerencial correspondiente.
+ Capacitar al equipo de epidemiología del nivel regional y municipal en la normativa del
+SIVIGILA con énfasis en el desarrollo de las máximas capacidades para procesar e
+interpretar información a nivel local.
+ Evaluar el funcionamiento del sistema
+ Revisión y actualización de las normas relativas a la vigilancia de muerte materna e
+infantil.
+ Elaboración y difusión del Boletín del SIVIGILA.
+ Contribuir con investigaciones epidemiológicas enmarcadas en la política institucional
+de reducción de mortalidad materna e infantil.
+
+
+
+                                                                                           15
+           12. Formularios o Instrumentos:
+
+Para la recolección, notificación e información gerencial de mortalidad materna e infantil se
+aplicarán los formularios, cuyos modelos e instructivos están insertos en el anexo del manual
+y descritos en el Cuadro Nº 1 según el nivel donde aplican.
+
+
+
+
+                                                   CUADRO Nº 1
+ FORMULARIOS O INSTRUMENTOS DEL SISTEMA DE VIGILANCIA EPIDEMIOLOGICA NACIONAL
+ PARA REGISTRO, INFORMACIÓN Y ANÁLISIS DE MUERTE MATERNA, SEGÚN NIVEL DE ORIGEN.
+                                                                                                   Consolidado    Revisado y
+ Elaborado        Instrumento o           Tipo de
+                                                                        Objetivo:                  o procesado   completado en
+  a nivel:         Formulario          Instrumento:
+                                                                                                     a nivel:       nivel:
+
+                                                          Denunciar semanalmente, al sistema
+                                    Tabulador general       de vigilancia epidemiológica, la       Municipal,     Municipal,
+  Local.     EPI-14 (*)                de muertes           mortalidad por enfermedades de         regional y     Regional y
+                                       notificables        notificación obligatoria, incluidas      nacional       Nacional
+                                                          Muertes Maternas, Infantiles y de <
+                                                                         5 años
+
+                                    Registro Individual   Notificar inmediatamente, al sistema                    Municipal y
+  Local      SIVIGILA MM-1                                 de vigilancia, Muertes Maternas y            -
+                                    de muerte materna                                                              Regional
+                                                              datos mínimos relacionados
+
+                                         Ficha               Caracterizar individualmente                         Municipal,
+  Local      SIVIGILA MM-2 (*)      Epidemiológica de           condiciones de riesgo,                  -         Regional y
+                                     muerte materna        vulnerabilidades y capacidades en                       Nacional
+                                                             cada caso de Muerte Materna
+
+                                    Registro Individual   Notificar inmediatamente, al sistema
+                                                          de vigilancia, muertes ocurridas en                     Municipal y
+  Local      SIVIGILA MI-1          de muerte en < 5                                                    -
+                                                               <5 años y datos mínimos                             Regional
+                                           años
+                                                                      relacionados
+                                          Ficha
+                                                             Caracterizar individualmente
+                                    Epidemiológica de
+                                                                condiciones de riesgo,                            Municipal,
+                                    muerte infantil por
+  Local      SIVIGILA MI-2 (*)                             vulnerabilidades y capacidades en            -         Regional y
+                                        Afecciones
+                                                            muerte infantil por Afecciones                         Nacional
+                                       Asociadas al
+                                                            Asociadas al Periodo Perinatal
+                                     Periodo Perinatal
+                                     Informe local de       Notificar semanalmente al nivel
+             SIVIGILA MM-MI-4.
+  Local                             muerte materna y      gerencial local el análisis de muertes        -           Local.
+             Local
+                                       de < 5 años..            maternas y de < 5 años.
+                                     Informe mensual        Informar mensualmente al nivel
+             SIVIGILA MM-MI-5.      “Análisis local de    gerencial local el análisis de muertes
+  Local                                                                                                 -           Local
+             Local (**)             muerte materna y            maternas y de < 5 años.
+                                       de < 5 años.
+                                     Informe semanal        Notificar semanalmente al nivel
+             SIVIGILA MM-MI -4.         municipal de       gerencial municipal el análisis de
+ Municipal                                                                                              -         Municipal
+             Municipal.              muerte materna y      muertes maternas y de < 5 años.
+                                         de < 5 años.
+                                      Informe mensual       Informar mensualmente al nivel
+             SIVIGILA MM-MI -5      “Análisis municipal    gerencial municipal el análisis de
+ Municipal                                                                                              -         Municipal
+             Municipal. (**)         de muerte materna     muertes maternas y de < 5 años.
+                                        y de < 5 años.
+                                    Informe Regional        Notificar semanalmente al nivel
+ Regional    SIVIGILA MM-MI-3 (*)   de muerte materna        nacional muertes maternas e            Nacional       Nacional
+                                       y de < 5 años             infantiles detectadas.
+                                    Informe Regional        Notificar semanalmente al nivel
+             SIVIGILA MM-MI-4.
+ Regional                           de muerte materna       gerencial regional el análisis de           -          Regional
+             Regional.
+                                      y de < 5 años..       muertes maternas y de < 5 años..
+
+
+                                                                                                                               16
+                                            Informe mensual        Informar mensualmente al nivel
+               SIVIGILA MM-MI-5.           “Análisis regional      gerencial regional el análisis de
+    Regional                                                                                                  -            Regional
+               Regional. (**)              de muerte materna       muertes maternas y de < 5 años.
+                                              y de < 5 años.
+                                          Informe nacional de        Notificar semanalmente al nivel
+               SIVIGILA MM-MI-4.
+    Nacional                                muerte materna y         gerencial nacional el análisis de          -            Nacional
+               Nacional.
+                                               de < 5 años.         muertes maternas y de < 5 años..
+                                            Informe mensual          Informar mensualmente al nivel
+               SIVIGILA MM-MI-5.           “Análisis nacional        gerencial nacional el análisis de
+   Nacional                                                                                                     -            Nacional
+               Nacional.                   de muerte materna        muertes maternas y de < 5 años..
+                                              y de < 5 años.
+(*) Deben ser enviados al nivel superior hasta llegar al nivel nacional. (**) En las áreas locales, municipales y regionales con muy baja
+frecuencia de muertes, los formularios MM-MI-5 pueden elaborarse trimestralmente.
+
+
+13. Fuentes de Información
+
+La vigilancia de la mortalidad materna, infantil y de 1-4 años de edad se basa en la
+recopilación y análisis de datos obtenidos a partir de las siguientes fuentes:
+
+     Establecimientos de salud públicos y privados
+         o Registros de ingreso y egreso en los establecimientos de salud
+         o Historias Clínicas
+         o Necropsias
+     Certificados de Defunción con énfasis en la búsqueda activa y pasiva de muertes maternas
+      en certificados de defunción correspondientes a mujeres en edad fértil.
+     Comunidad y líderes comunitarios
+     Parteras, promotores de salud y voluntarios
+     Interrogatorio de familiares
+     Interrogatorio de personal de salud
+
+B. NORMAS PARA VIGILANCIA DE MUERTE MATERNA
+
+      14.1. Definiciones Operativas:
+
+       PARA NOTIFICAR: el caso a notificar corresponde a la denominación de Muerte
+        Materna Probable.
+
+      ❑ Muerte Materna Probable: se refiere a toda defunción ocurrida en una mujer durante
+      el embarazo, parto o puerperio o con antecedente de haber tenido un evento obstétrico en
+      los últimos 12 meses de vida, independiente de la causa de defunción. (Muerte ocurrida
+      en una mujer en la que se desarrolla de forma activa un evento obstétrico, bien sea el
+      embarazo, el parto o el puerperio).
+
+      Debe ser notificada toda defunción de mujer en edad fértil (10 a 49 años de edad) en
+      quien se evidencia la presencia de un evento obstétrico concurrente (embarazo,
+      parto, puerperio).
+
+           La concurrencia de la muerte con el evento obstétrico califica al caso como probable
+           porque cumple con la definición y es a partir de esta definición que se complementa
+
+
+                                                                                                                                      17
+      la investigación para clasificar la muerte como: no materna, obstétrica directa u
+      obstétrica indirecta.
+
+  También estarán sujetas a vigilancia, las muertes ocurridas en un período posterior a los
+  12 meses después de concluido el evento obstétrico cuando se detecte que la causa del
+  fallecimiento es atribuible al proceso de reproducción o a su atención.
+
+
+   PARA CLASIFICAR: para la clasificación de casos utilizaremos las definiciones
+    establecidas en la Décima Revisión de la Clasificación Internacional de Enfermedades
+    y Problemas relacionados con la Salud (CIE-11), copiadas textualmente y enmarcadas
+    entre comillas.
+
+  ❑ Muerte no Materna: se refiere a toda defunción, ocurrida en una mujer durante el
+  embarazo, el parto o hasta un año siguiente a la terminación del embarazo, ocasionada
+  por envenenamientos, homicidios o accidentes, no relacionados con eventos obstétricos
+  diagnósticos o terapéuticos. También denominadas muertes asociadas al embarazo y no
+  relacionadas con el embarazo, parto o puerperio.
+
+  Nos referimos a la concurrencia no causal del evento obstétrico con la mortalidad.
+
+  Las muertes no maternas también son importantes para la vigilancia ya que la violencia
+  puede mostrar relevancia geográfica que deba ser intervenida.
+
+  En las muertes por envenenamiento o intoxicaciones en mujeres en edad fértil debe
+  realizarse una investigación más completa para descartar la ingestión de productos con
+  fines abortivos y no suicidas. Cuando se demuestre que el fallecimiento de una mujer
+  embarazada se debe a intoxicación por ingestión de producto abortivo con esos fines, el
+  fallecimiento se debe clasificar como muerte materna obstétrica directa.
+
+Entre las causas de muerte asociadas al embarazo las más frecuentes son:
+
+                o   Accidentes de transporte (PA00-PA5Z)
+                o   Ahogamiento y sumersión accidentales (W65-W74)
+                o   Envenenamiento (NE60-NE6Z)
+                o   Ahorcamiento (XE8NX)
+                o   Agresión con disparo de armas de fuego (XE1XM)
+
+  ❑ Muerte Materna: se define como muerte materna “la muerte de una mujer mientras
+  está embarazada o dentro de los 42 días siguientes a la terminación del embarazo, debido
+  a cualquier causa relacionada con o agravada por el embarazo mismo o su atención, pero
+  no por causas accidentales o incidentales”.
+
+                    ❑ Muerte Materna Tardía: se define como muerte materna tardía
+                    “la muerte de una mujer por causas obstétricas directas o indirectas
+                    después de los 42 días, pero antes de un año de la terminación del
+
+                                                                                        18
+                  embarazo”. Esta clasificación se utiliza en muertes ocurridas en
+                  mujeres con más de 42 días y menos de 1 año de terminación del
+                  embarazo, que fallezca por cualquier causa no accidental o violenta.
+
+Según la causa médica, las muertes maternas se subdividen en dos grupos: obstétricas
+directas y obstétricas indirectas.
+
+   ❑ Muerte Materna Obstétrica Directa: de acuerdo con la CIE-11, se refiere a las
+   muertes maternas que “resultan de complicaciones obstétricas del embarazo
+   (embarazo, parto y puerperio), de intervenciones, de omisiones, de tratamiento
+   incorrecto o de una cadena de acontecimientos originada en cualquiera de las
+   circunstancias mencionadas”.
+
+   Mas explícitamente se refiere a toda defunción ocurrida en una mujer durante el
+   embarazo, el parto o hasta un año siguiente a la terminación del embarazo generada
+   como consecuencia de complicaciones debidas directamente al proceso mismo del
+   embarazo, el parto, el puerperio o a tratamientos incorrectos, intervenciones
+   inoportunas, omisiones, o por la conjugación de éstos.
+
+   ❑ Muerte Materna Obstétrica Indirecta: se refiere a las muertes maternas que
+   “resultan de una enfermedad existente desde antes del embarazo o de una enfermedad
+   que evoluciona durante el mismo, no debidas a causas obstétricas directas, pero si
+   agravadas por los efectos fisiológicos del embarazo”. Entendido embarazo como el
+   continuo: embarazo, parto o puerperio.
+
+   Mas explícitamente se refiere a toda defunción ocurrida en una mujer durante el
+   embarazo, el parto o hasta un año siguiente a la terminación del embarazo generada
+   como consecuencia de enfermedades preexistentes o de otras que aparecen en el curso
+   del embarazo y que, sin estar relacionadas con éste, provocan la muerte porque son
+   agravadas por el efecto fisiológico del embarazo.
+
+14.2. Definiciones Técnicas: para registrar causa de muerte, período de ocurrencia y
+determinantes.
+
+    14.2.1. Causa de Muerte: Las causas de muerte materna se diferencian en causas
+   obstétricas y causas no obstétricas y estas se clasifican en causas directas y causas
+   básicas.
+
+   Cuando ocurre una muerte materna el primer acercamiento al establecimiento de la
+   causa tiene que ver con el diagnóstico de la causa directa o motivo inmediato que
+   desencadenó el fallecimiento, también denominado Emergencia Obstétrica, (evitando
+   el registro de diagnósticos como falla multiorgánica y paro cardio-respiratorio, porque son
+   daños finales que no orientan hacia acciones de prevención y/o atención), y a partir de
+   allí identificar la cadena de acontecimientos patológicos ocurridos hasta identificar el
+   acontecimiento patológico que inició el proceso, causa básica o emergencia
+   obstétrica.
+
+                                                                                           19
+     Las causas básicas tienen importancia para definir el perfil de mortalidad que oriente
+     hacia intervenciones en promoción y prevención y complementándolas están las
+     causas directas que orientan hacia la previsión de recursos para mejorar la
+     oportunidad y calidad de la atención médica.
+
+     Coherente con la clasificación anterior, las causas de muerte materna se clasifican en
+     obstétricas y no obstétricas:
+
+            ► Causas obstétricas: se refiere a las directamente relacionadas con
+            complicaciones del embarazo, parto y puerperio y que califican la muerte
+            como obstétrica directa. Adaptando las definiciones de la CIE-11, la causa
+            básica de muerte materna obstétrica directa es la circunstancia,
+            enfermedad o complicación del embarazo, parto o puerperio que inició la
+            cadena de acontecimientos patológicos que concluyeron directamente en la
+            muerte. El Cuadro Nº 2 muestra las causas básicas de muerte materna
+            obstétrica directa más frecuentes, clasificadas de acuerdo con la complicación
+            directa que genera y que concluye en la muerte.
+
+                                    CUADRO Nº 2
+
+ CAUSAS MAS FRECUENTES DE MUERTE MATERNA AGRUPADAS SEGÚN
+CLASIFICACIÓN DE CAUSA DIRECTA y CAUSAS BASICAS RELACIONADAS.
+
+  COMPLICACIÓN DIRECTA QUE
+                                                       CAUSA BASICA
+   CONCLUYE EN LA MUERTE
+                                     Aborto inducido (JA00.1)
+                 Durante el
+                                     Aborto espontáneo (JA00.0)
+                 embarazo
+                                     Embarazo ectópico roto (JA01)
+                                     Placenta previa (JA8B)
+                 Antes del parto
+                                     Desprendimiento prematuro de placenta (JA8C)
+                                     Ruptura Uterina (NB92.6)
+1. Hemorragia                        Agotamiento Materno por trabajo de parto distócico
+                 Parto Obstruido
+                                      (JB0D.Y)
+                                     Desproporción feto pélvica (KA05.1)
+                                     Retención placentaria (JA43.0)
+                                     Retención de restos post parto (JB0B.1)
+                 Post parto
+                                     Atonía Uterina (JB02.2)
+                                     Trauma Obstétrico (JB0A.Z)
+                                     Pre-eclampsia (JA21)
+2. Enfermedad Hipertensiva           Eclampsia (JA25.3)
+                                     Hipertensión crónica (JA20)
+
+
+
+
+                                                                                        20
+                                   Relacionada con RPM (ruptura prematura de
+                                    membranas) (JA89)
+                                   Tejido placentario retenido (JB0B.1)
+3. Infección / Sepsis relacionada  Parto prolongado (JB03)
+con:                               Aborto séptico (JA05.0)
+                                   Infección de vías urinarias (O23)
+                                   Post operatorio de cesárea con o sin esterilización
+                                    quirúrgica (JB40.1)
+                                   Embolia pulmonar (JB42)
+4. Muerte súbita                   Embolia de líquido amniótico (JB42.1)
+                                   Otras causas
+5. Accidente Anestésico             En Cesárea y/o esterilización quirúrgica (JA00.2)
+                                    Diabetes Mellitus (JA63.0- JA63.Z)
+6. Otras                            Desnutrición (JA64)
+
+            ► Causas no obstétricas: se refiere a enfermedades existentes desde antes
+            del embarazo o una enfermedad que evoluciona durante el mismo, no debida
+            a causas obstétricas, pero si agravada por los efectos fisiológicos del
+            embarazo, representando un riesgo para la salud de la madre. El Cuadro Nº 3
+            muestra las causas básicas de muerte materna obstétrica indirecta más
+            frecuentes.
+
+                                   CUADRO Nº 3
+
+     CAUSAS MAS FRECUENTES DE MUERTE MATERNA OBSTETRICA
+                                     INDIRECTA.
+   (Enfermedades presentes desde antes del embarazo* que son agravadas por la
+                             gestación, parto o puerperio)
+DIAGNOSTICO BASICO                                   DIAGNOSTICO ESPECIFICO
+                                                     . Enfermedad por virus de la
+                                                     Inmunodeficiencia          humana
+                                                     (JB63.7).
+1. Enfermedades maternas infecciosas y               . Tétanos obstétrico (1C14)
+parasitarias clasificables en otra parte, pero que   . Tuberculosis (JB63.0)
+complican el embarazo, el parto y el puerperio       . Hepatitis viral. (JB63.4)
+                                                     . Dengue (JB63.5)
+                                                     . Fiebre Amarilla (JB63.5)
+                                                     . Paludismo(JB63.6)
+2. Enfermedades de la sangre y de los órganos        . Anemia (JB64.0)
+hematopoyéticos y ciertos trastornos que afectan . Púrpura y otras afecciones
+el sistema inmunitario cuando complican el           hemorrágicas (JB64.1)
+embarazo, el parto y el puerperio
+                                                     . Enfermedad reumática cardíaca
+3. Enfermedades del sistema circulatorio que         (JB64.4)
+complican el embarazo, el parto y el puerperio       . Pericarditis aguda (JB64.4)
+                                                     . Miocarditis aguda (JB64.4)
+
+                                                                                         21
+                                                      .Infarto agudo de miocardio
+                                                      (JB64.4)
+                                                      . Neumonía (JB64.5)
+  4. Enfermedades del sistema respiratorio que        . Enfermedad Pulmonar
+  complican el embarazo, el parto y el puerperio      obstructiva crónica (JB64.5)
+                                                      . Asma (JB64.5)
+  Enfermedades del sistema digestivo que complican el . Apendicitis aguda (JB64.6)
+  embarazo, el parto y el puerperio                   . Pancreatitis aguda (JB64.6)
+                                                      .Enfermedades       del    hígado
+                                                      (JB64.6
+  Otras enfermedades especificadas y afecciones que . Lúpus eritematoso sistémico
+  complican el embarazo, el parto y el puerperio      (JB63.Y)
+                                                      . Câncer (JB63.Y)
+                                                      . Leucemia (JB63.Y)
+                                                      . Insuficiencia Renal crónica
+                                                      (JB63.Y)
+* Excluye Diabetes, Desnutrición y Tiroiditis clasificables como complicaciones en el
+embarazo e incluidos como causa de muerte materna obstétrica directa.
+
+
+
+      14.2.2. Período de ocurrencia del fallecimiento:
+                        a) Durante el embarazo
+                        b) Durante el parto
+                        c) Durante el puerperio
+                                Puerperio Inmediato: Se refiere a las primeras 24
+                                   horas posteriores al parto o cesárea.
+                                Puerperio Mediato: Se refiere Al lapso de tiempo
+                                   comprendido entre 2 día y 6 días posteriores al parto
+                                   o cesárea
+                                Puerperio Tardío: Se refiere al lapso de tiempo mayor
+                                   de 6 días y hasta 42 días posteriores al parto o cesárea.
+
+      14.2.3. Determinantes:
+
+      a. Condición de Riesgo: las condiciones de riesgo se refieren a factores endógenos
+      de la madre y producto de la gestación, concretamente a factores biológicos, hábitos
+      y estilos de vida de las madres y su familia que determinan peligros para la evolución
+      natural del embarazo; entre los cuales destacan la condición nutricional (anemia,
+      desnutrición y obesidad), multiparidad, intervalo intergenésico corto, adolescencia,
+      enfermedades subyacentes (diabetes, hipertensión, cardiopatías, tuberculosis, sida),
+      hábito tabáquico, alcohólico y drogodependencias.
+
+      b. Vulnerabilidad: La vulnerabilidad se entiende como la carencia o limitación de
+      una condición o conjunto de condiciones protectoras (objeto de los derechos sociales)
+      que debilitan las capacidades de la madre y su familia para anticiparse a los riesgos
+
+                                                                                         22
+        del embarazo, parto, puerperio o nacimiento, crecimiento y desarrollo. En la
+        definición de vulnerabilidad se identifican componentes:
+         Geográficos: relacionados con la residencia en zonas alejadas, con dificultades de
+          transporte y vías en malas condiciones que constituyen una barrera importante para
+          la posibilidad de acceder oportunamente a servicios de salud
+         Socioeconómicos, culturales y educativos que se relacionan no solo con la carencia
+          de dinero, sino con el desempleo, la ausencia o bajo nivel educativo y la carencia
+          de vivienda adecuada, en condiciones de hacinamiento y pobres condiciones
+          sanitarias
+         Sanitarios: referidos a debilidades en la organización sanitaria, que determinan
+          limitaciones en el acceso, disponibilidad, oportunidad y calidad de la atención.
+
+        c. Factores Sanitarios Protectores: Representados por la disponibilidad, acceso y
+        oportunidades a servicios adecuados y de calidad, que conforman el conjunto de
+        derechos sociales (vivienda, transporte, salud, educación, etc.).
+
+        14.3. Pautas para la Vigilancia de Muerte Materna
+
+Estas pautas tienen como objetivo unificar, en todos los niveles y su amplitud, los criterios
+para la vigilancia de muerte materna. Las pautas se mencionan agrupadas por actividad de
+vigilancia y en cada una de ellas se integran las tareas de cada nivel.
+
+A.      Detección de muerte materna probable
+
+     1. La detección de casos aplica en todos los establecimientos de salud, independiente de
+        su nivel de complejidad y en todos los servicios (emergencia, hospitalización y
+        atención ambulatoria en áreas rurales y urbanas).
+     2. Las fuentes de información incluyen los registros de establecimientos de salud,
+        Medicaturas forenses, prensa, rumores, información comunitaria y notificación desde
+        las unidades de vigilancia municipal en muertes maternas de residentes locales pero
+        ocurridas en otra área sanitaria.
+     3. Al conocerse un caso de muerte materna deberá ordenarse la autopsia como
+        investigación de salud pública.
+     4. En la detección de muertes maternas probables debe involucrarse a todo el personal
+        de cada establecimiento con la finalidad de garantizar el conocimiento oportuno de la
+        ocurrencia y facilitar de esta manera la investigación de caso.
+     5. La detección de muerte materna probable incluye la búsqueda activa de muertes que
+        ocurran en mujeres en edad reproductiva con la finalidad de establecer si al momento
+        de la muerte estaban embarazadas o sí ocurrió en el primer año después del término
+        del último embarazo y en caso afirmativo incluirlas en el sistema de vigilancia.
+     6. Para la búsqueda activa de muertes maternas probables se debe:
+             A nivel de los establecimientos de salud y principalmente en los hospitales:
+                     √ Revisar diariamente los registros de ingresos, egresos hospitalarios,
+                        atenciones de emergencia, registro de partos y/o certificados de
+                        defunción para detectar muertes maternas probables.
+
+
+                                                                                          23
+                   √ Investigar la condición de embarazo en muertes de mujeres en edad
+                      fértil con diagnósticos de Sepsis, Accidente Cerebro vascular y Crisis
+                      hipertensiva entre otros.
+                   √ Articular información con las Medicaturas Forenses para detectar
+                      muertes maternas probables, no sólo las relacionadas con hechos
+                      violentos, sino las que pudieran haber ocurrido fuera de
+                      establecimientos de salud o a nivel de emergencias hospitalarias con
+                      períodos de estancia menor de 24 horas que pueden haberse
+                      manejado como caso legal.
+                   √ Vincular a la comunidad en la vigilancia de mortalidad materna
+                      probable.
+         A nivel municipal y regional se debe revisar mensualmente los certificados de
+           defunción de mujeres en edad fértil registrados en el municipio con la finalidad
+           de detectar e investigar la condición de embarazo, parto o puerperio y además
+           cruzar con la información recibida por el sistema de vigilancia SIVIGILA MM-
+           1, los certificados de mortalidad fetal y certificados de nacimiento.
+         A nivel nacional se debe revisar semestralmente los certificados de defunción
+           de mujeres en edad fértil y cruzar con la información recibida por el sistema de
+           vigilancia (formulario SIVIGILA MM-MI-3), certificados de mortalidad fetal
+           y certificados de nacimiento.
+7. Una vez identificada una sospecha de muerte materna, (muerte en mujer en edad
+    fértil en la cual se sospeche la concurrencia de evento obstétrico (embarazo, parto
+    o puerperio)), se procederá a la verificación del antecedente de evento obstétrico. Por
+    ejemplo, muerte en mujer en edad fértil por septicemia.
+8. Cuando se descarte la concurrencia del evento obstétrico se descarta la sospecha de
+    muerte materna probable.
+9. Sí se confirma la concurrencia del evento obstétrico se procede a identificar la causa
+    básica de muerte y los datos mínimos contenidos en el formulario SIVIGILA MM-
+    1 “Formato para Notificación de Mortalidad Materna” y clasificar como: muerte
+    materna obstétrica directa, muerte materna obstétrica indirecta o muerte no materna
+    según corresponda.
+10. Todos los casos de muerte materna probable son objeto de notificación de acuerdo
+    con el siguiente procedimiento:
+         Todo caso de muerte clasificado como muerte materna probable deberá ser
+           registrado en el formato SIVIGILA MM-1 “Formato para Notificación de
+           Mortalidad Materna” y proceder a la búsqueda inmediata de datos esenciales
+           mínimos incluidos en el formato para desarrollar las actividades que serán
+           explicitadas más adelante:
+         Notificación inmediata de todo caso de muerte materna probable, por la vía más
+           expedita, al nivel correspondiente del sistema de vigilancia de muerte materna
+           con el objetivo, entre otros, de adelantar investigaciones locales en muertes
+           ocurridas en áreas sanitarias diferentes a la de su residencia.
+         Notificación semanal obligatoria de muertes maternas probables en el
+           formulario EPI-14, enviándolo, conjuntamente con el formato SIVIGILA
+           MM-1 “Formato para Notificación de Mortalidad Materna”, en la ocasión
+
+
+                                                                                         24
+            semanal que se remite el formato EPI-12, de acuerdo a las pautas del sistema
+            nacional de vigilancia.
+           Investigación del caso, llenado del formato SIVIGILA MM-2 “Ficha de
+            Vigilancia Epidemiológica de Mortalidad Materna” y remisión al nivel
+            municipal en un lapso menor a 7 días después de conocido el caso.
+
+ B.    Notificación e información de muerte materna al sistema de vigilancia
+epidemiológica.
+
+   11. La notificación de muerte materna probable es obligatoria inmediata y semanal.
+   12. La notificación inmediata debe realizarse por cualquier vía (teléfono, correo
+       electrónico, comunicación escrita, etc.) y tiene como objetivo fundamental facilitar
+       investigaciones locales principalmente en casos ocurridos en áreas sanitarias
+       diferentes a las de residencia.
+          Una vez notificada extraordinariamente la Unidad Municipal de Epidemiología,
+            procederá a clasificar el caso según procedencia.
+          Para los casos residentes en el municipio en área diferente a la de ocurrencia se
+            procederá a notificar al establecimiento local coordinador de funciones
+            epidemiológicas en el área de residencia para investigación de caso y llenado del
+            formulario SIVIGILA MM-2 de acuerdo a lo pautado.
+   13. Todo conocimiento de muerte materna probable deberá ser notificado en la semana
+       epidemiológica en la que fue conocido.
+   14. La notificación semanal debe ser realizada en las fechas previstas para la notificación
+       semanal obligatoria pautada por el Sistema Nacional de Vigilancia Epidemiológica
+       de Enfermedades de Notificación Obligatoria.
+   15. Los formularios a utilizar para la Notificación semanal de muerte materna probable
+       son:
+          Formulario EPI-14. Formulario que es remitido semanalmente para Notificación
+            de las muertes ocurridas de acuerdo con las normas del Sistema Nacional de
+            Vigilancia de Enfermedades y Condiciones de Denuncia Obligatoria.
+          Formulario SIVIGILA MM-1 “Formato para Notificación de Mortalidad
+            Materna”. En la semana epidemiológica en la que corresponda el conocimiento
+            de caso de muerte materna probable, se notifica el caso en el formulario EPI-14
+            y se remite al nivel de vigilancia epidemiológica municipal correspondiente
+            conjuntamente con el formulario SIVIGILA MM-1 “Formato para
+            Notificación de Mortalidad Materna”.
+   16. El establecimiento que fue notificado por su nivel inmediato superior de la ocurrencia
+       de un caso de muerte materna residente de su área de influencia pero que ocurrió en
+       otra área, también deberá notificar el caso en la semana epidemiológica que fue
+       conocido y para ello procederá de la siguiente manera:
+          procederá a incluir el caso en el formato EPI-14 de la semana correspondiente,
+            marcando al lado del número en el EPI-14 un asterisco (*) como indicativo de
+            caso residente en el área, conocida su ocurrencia en área influencia diferente a
+            la de residencia.
+
+
+
+                                                                                           25
+            Remite conjuntamente con el EPI-14 el formulario SIVIGILA MM-1
+              “Formato para Notificación de Mortalidad Materna” al nivel municipal
+              correspondiente.
+            El mismo establecimiento deberá llenar un formulario SIVIGILA MM-2
+              “Ficha de Vigilancia Epidemiológica de Mortalidad Materna” con la
+              información disponible en su área de influencia y remitir a la brevedad posible
+              al nivel municipal correspondiente a su área, en donde será procesado para
+              mejorar el conocimiento del caso y remitir al nivel regional y sucesivamente al
+              nivel nacional.
+     17. Una vez que lleguen al nivel de epidemiología municipal los formularios EPI-14 y
+         SIVIGILA MM-1 se procederá de la siguiente manera:
+            Revisar, corregir duplicidades de información y consolidar el formulario EPI-14
+              municipal
+            Revisar y complementar, de acuerdo con investigaciones e informes procedentes
+              de otras áreas, los formularios SIVIGILA MM-1 “Formato para Notificación
+              de Mortalidad Materna” correspondientes a la semana epidemiológica
+              notificada.
+            En la fecha prevista por el Sistema Nacional de Vigilancia Epidemiológica de
+              Enfermedades de Notificación Obligatoria se remitirá semanalmente al nivel
+              regional: el EPI-14 consolidado municipal y el o los formularios SIVIGILA
+              MM-1 conjuntamente con el EPI-12 municipal consolidado semanal.
+     18. El nivel de epidemiología regional procederá de la siguiente manera:
+            Revisar los formularios SIVIGILA MM-1 “Formato para Notificación de
+              Mortalidad Materna” recibidos desde los municipios con la finalidad de
+              corregir en el consolidado del EPI-14 regional las duplicidades en la notificación
+              semanal de muerte materna probable recibidas y complementar la información
+              con investigaciones correspondientes a ese nivel.
+            Consolidar el formulario EPI-14 regional.
+            Con la información de los formularios SIVIGILA MM-1 elaborar el formulario
+              SIVIGILA MM-MI-3. “Formato Regional para notificación semanal de
+              Mortalidad Materna, Infantil y de niños y niñas de 1-4 años de edad.”,
+              correspondiente a la semana en la que fueron notificados.
+            Remitir a la Dirección de Vigilancia Epidemiológica el consolidado EPI-14
+              regional de cada semana epidemiológica, de acuerdo con las normas del
+              Sistema Nacional de Información y el formulario SIVIGILA MM-MI-3.
+              “Formato Regional para notificación semanal de Mortalidad Materna,
+              Infantil y de niños y niñas de 1-4 años de edad.”.
+            El formulario SIVIGILA MM-MI-3 deberá ser remitido a la Dirección
+              Nacional de Epidemiología junto con el EPI-12 y EPI-14 regional, miércoles
+              siguiente de la semana epidemiológica notificada.
+            Los formularios SIVIGILA MM-1 permanecerán en el nivel regional y se
+              archivarán a nivel acompañando en la carpeta de archivo a los formularios
+              SIVIGILA MM-MI-3 de la semana correspondiente.
+
+C.      Notificación negativa.
+
+
+                                                                                             26
+     19. Todo establecimiento de salud está adscrito al sistema nacional de vigilancia
+         epidemiológica de enfermedades de notificación obligatoria.
+     20. Como tal todo establecimiento notifica semanalmente a través de los formularios EPI-
+         12 y EPI-14 (correspondientes a notificación de casos y muertes respectivamente.
+     21. Todo establecimiento de salud registrará en el formulario EPI-14 la condición
+         semanal del comportamiento de muerte materna, registrando el número de casos
+         ocurridos o conocidos en la semana.
+     22. En las semanas epidemiológicas sin ocurrencia o detección de muerte materna, se
+         registrará “0” casos en el renglón correspondiente a muerte materna en el formulario
+         EPI-14, como certificación de notificación negativa.
+
+D.      Investigación de muerte materna probable y llenado de formulario MM-2.
+
+     23. El propósito de la investigación epidemiológica de caso es la de caracterizar a la
+         persona fallecida e identificar factores de riesgo, causas y determinantes de su muerte
+         de acuerdo con las variables definidas en el formulario SIVIGILA MM-2 “Ficha de
+         Vigilancia Epidemiológica de Mortalidad Materna”.
+     24. La investigación epidemiológica de muerte materna no deberá ser considerada como
+         Auditoria Médica del Caso.
+     25. La Auditoria Médica del Caso es responsabilidad del Local de Comité de Prevención
+         y Control de Mortalidad Materna.
+     26. La investigación epidemiológica será realizada por el personal del establecimiento
+         local con funciones de vigilancia epidemiológica en caso de fallecimientos
+         institucionales y en fallecimientos detectados a nivel municipal será realizado por el
+         personal de epidemiología del nivel municipal.
+     27. El formulario de caracterización del caso será el MM-2 “Ficha de Vigilancia
+         Epidemiológica de Mortalidad Materna”, debe ser llenado en todo caso de muerte
+         materna probable con el resultado de la investigación epidemiológica de caso.
+     28. El formulario MM-2 “Ficha de Vigilancia Epidemiológica de Mortalidad
+         Materna” deberá ser enviada inmediatamente después de ser completada la
+         investigación y de ninguna manera deberá ser después de 7 días de la notificación.
+     29. La copia del formulario MM-2 “Ficha de Vigilancia Epidemiológica de
+         Mortalidad Materna”, debidamente elaborada debe ser remitida al servicio de
+         epidemiología municipal correspondiente que procesará la información del nivel
+         correspondiente y la remitirá al nivel regional, desde donde se procesará la
+         información y se remitirá al nivel nacional.
+     30. Cada establecimiento de salud debe archivar los formularios originales MM-2 “Ficha
+         de Vigilancia Epidemiológica de Mortalidad Materna”, de todos los casos
+         informados en una carpeta organizada en orden cronológico.
+     31. El establecimiento que investiga un caso de muerte materna residente de su área de
+         influencia pero que ocurrió en otra área, deberá llenar también un formulario
+         SIVIGILA MM-2 “Ficha de Vigilancia Epidemiológica de Mortalidad Materna”
+         con la información disponible en su área de influencia y remitir a la brevedad posible
+         al nivel municipal correspondiente a su área, desde donde será remitido al nivel
+         regional y sucesivamente al nivel nacional.
+
+
+
+                                                                                             27
+     32. La Ficha Epidemiológica de Muerte Materna es un instrumento de información de
+         características epidemiológicas del caso y no es un formulario de recolección de
+         datos.
+     33. El funcionario responsable del llenado del formulario SIVIGILA MM-2 “Ficha de
+         Vigilancia Epidemiológica de Mortalidad Materna” puede utilizar para la
+         recolección de datos cualquier instrumento previamente diseñado que considere
+         adecuado, incluido el diseño propio siempre que se adapte a los datos solicitados en
+         el formulario SIVIGILA MM-2 “Ficha de Vigilancia Epidemiológica de
+         Mortalidad Materna”.
+     34. La investigación de muertes maternas probables ocurridas en un establecimiento de
+         salud se realizará a partir del desarrollo de diferentes técnicas, entre las que destacan:
+         la revisión de historia clínica y/o otros documentos de registro del caso como
+         resultados de autopsia, informes quirúrgicos, etc.; entrevista a miembros del equipo
+         de salud, entrevista a familiares y/o líderes comunitarios.
+     35. La investigación de causa de muerte materna probable ocurrida en un sitio distinto a
+         un establecimiento de salud debe en lo posible ser realizada a partir de resultados de
+         autopsia, revisión documental disponible y/o entrevista a familiares sobre
+         características del fallecimiento que permitan caracterizar las variables a investigar.
+     36. En caso de muerte materna probable ocurrida en un establecimiento ubicado en
+         municipio o estado diferente al de residencia de la paciente fallecida, se debe notificar
+         inmediatamente por vía telefónica al nivel de vigilancia epidemiológica
+         inmediatamente superior con la finalidad de que este nivel proceda a gestionar con la
+         unidad de epidemiología correspondiente la investigación local de caso.
+
+E.      Procesamiento y análisis de la información
+
+     37. El procesamiento de los datos correspondientes a cada caso estará orientado en primer
+         lugar a definir el comportamiento de las causas, condiciones de riesgo, las
+         vulnerabilidades y los factores protectores.
+     38. Se establecerá la causa de muerte identificando específicamente la causa básica de
+         muerte y la causa directa para ser codificada en un todo de acuerdo con la
+         clasificación de Complicaciones del embarazo, parto y puerperio establecidas en la
+         CIE-10.
+     39. Una vez identificada la causa de muerte se establecerá la condición de evitabilidad de
+         muerte identificando los factores barrera a nivel individual, de condición de vida o de
+         organización del modo de gestión y atención sanitaria (desconocimiento, falta de
+         transporte, no disponibilidad de cupo, demora en el traslado, etc.) que mediaron entre
+         las causas fisiopatológicas y su prevención, detección y tratamiento oportuno o
+         limitación de complicaciones.
+     40. Los factores barrera corresponden a condiciones de riesgo, vulnerabilidades y
+         factores protectores.
+     41. La condición de evitabilidad no incluye la calificación de la calidad de la atención
+         médica a partir de la revisión de documentos clínicos, que será establecida en
+         auditoria médica realizada por los Comités de Prevención y Control de Muerte
+         Materna.
+     42. El análisis de causas y determinantes en los niveles municipales, regionales y nivel
+         nacional se realizará mensualmente.
+                                                                                                28
+    43. El formulario MM-MI- 5 ofrece a cada nivel un modelo para la tabulación de datos a
+        partir del cual se facilita el análisis.
+    44. El análisis estará orientado en los diferentes niveles a identificar la situación en las
+        unidades micro territoriales por niveles
+             A nivel local serán sectores y comunidades
+             A nivel municipal serán las parroquias
+             A nivel regional serán los municipios
+             A nivel nacional serán los estados.
+    45. En todos los niveles el análisis estará dirigido a:
+                      √ Monitorear las tendencias de la mortalidad materna.
+                      √ Monitorear las causas de muerte
+                      √ Comparar el riesgo de mortalidad materna entre diferentes espacios
+                          territoriales.
+                      √ Identificar los factores de riesgo y determinantes de muerte materna
+                      √ Comparar la frecuencia de factores de riesgo de muerte materna en
+                          diferentes grupos territoriales
+                      √ Mapas de riesgo
+    46. Para el análisis se utilizarán indicadores absolutos y relativos.
+           A nivel local y municipal se utilizarán números absolutos.
+           A nivel regional y nacional se utilizarán números absolutos y relativos.
+                           Como medida relativa para área geográfica se utilizará el
+                           indicador más común en la descripción de riesgo de muerte materna:
+                           la tasa o razón de mortalidad, definida como el número de muertes
+                           maternas por cada 100.000 nacidos vivos registrados; porque la tasa
+                           de mortalidad materna es más confiable a nivel regional y nacional.
+                           En los hospitales se estimará la Tasa o Razón de mortalidad
+                           materna hospitalaria que relaciona el número de maternas ocurridas
+                           en el hospital por 1.000 nacidos vivos ocurridos en el hospital
+                           durante un mismo período.
+                           Otro indicador a utilizar en el análisis regional y nacional es la
+                           mortalidad proporcional por los diferentes subgrupos. Los
+                           porcentajes resultan útiles en el seguimiento de las causas y
+                           determinantes de muertes.
+
+ F.    Información de muerte materna a la autoridad sanitaria. Direccionamiento de
+información horizontal a los gerentes locales, regionales y nacionales.
+
+    47. En cada nivel del sistema de vigilancia epidemiológica serán informados
+        horizontalmente la autoridad sanitaria del nivel correspondiente, conjuntamente con
+        el personal responsable del programa de prevención y control de mortalidad infantil
+        y el Comité de prevención y control de mortalidad infantil.
+    48. La información se realizará de la siguiente manera:
+             En el nivel local, municipal, regional y nacional se informará semanalmente de
+              la ocurrencia de muerte materna y de menores de 5 años de edad, de acuerdo
+              con lo definido en el formulario SIVIGILA MM-MI-4 “Informe Semanal de
+              Muerte Materna y de niños y niñas < de 5 años de edad. Información para la
+
+                                                                                             29
+             acción” y mensualmente de acuerdo con lo definido en el formulario
+             SIVIGILA MM-MI-5. “Análisis Mensual de Muerte Materna y de niños y
+             niñas < de 5 años de edad. Información para la acción”.
+   49. En relación con la notificación semanal por cada caso:
+           Una vez identificados los datos contenidos en el formulario SIVIGILA MM-
+             1 y elaborado el formulario EPI-14 semanal se procederá a llenar el formulario
+             SIVIGILA MM-MI-4 y mediante este se notificará horizontalmente a la
+             autoridad sanitaria, personal responsable del programa de prevención y control
+             de muerte infantil y al Comité de prevención y control de muerte infantil.
+   50. En relación con la notificación mensual del conjunto de casos conocidos en el mes
+       cronológico informado se procederá de la siguiente manera:
+           Con la información correspondiente a formularios SIVIGILA MI-1, SIVIGILA
+             MM-1 y los formularios SIVIGILA MM-2 y SIVIGILA MI-2 se clasifican los
+             datos para responder a los indicadores contenidos en el formulario SIVIGILA
+             MM-MI-5. “Análisis Mensual de Muerte Materna y de niños y niñas menores
+             de 5 años de edad a nivel local. Información para la acción”.
+           Una vez elaborado el formato mensual SIVIGILA-MM-5. “Análisis Mensual
+             de Muerte Materna y de niños y niñas menores de 5 años de edad a nivel
+             local. Información para la acción”. se entregará formalmente cada mes a la
+             autoridad sanitaria, personal local responsable del programa de prevención y
+             control de muerte infantil y al Comité Local de prevención y control de muerte
+             infantil.
+           La elaboración del formato mensual SIVIGILA-MM-5. “Análisis Mensual de
+             Muerte Materna y de niños y niñas menores de 5 años de edad a nivel local.
+             Información para la acción” aplica en todos los niveles; sin embargo, en
+             niveles locales y regionales con muy baja frecuencia de casos es suficiente el
+             informe semanal de notificación y entregar el informe de análisis por trimestre.
+14.3. Flujograma de Actividades de la Vigilancia Epidemiológica de Muerte Materna.
+
+
+
+
+                                                                                          30
+VIGILANCIA EPIDEMIOLOGICA DE MUERTE MATERNA
+         FLUJOGRAMA DE ACTIVIDADES
+                                UNIDAD LOCAL DE EPIDEMIOLOGIA
+                         (Hospital, Ambulatorio, CDI, otro tipo de establecimiento)
+
+                               1.1.                                                                                  1.4.
+                                                                                   1.3. Medios de
+                           Registros del            1.2. Comunidad                                             Vigilancia Activa
+                          Establecimiento                                          Comunicación
+                                                                                                               Cert. Defunción
+
+
+  2.2. Casos notificados por
+        Epidemiolog ía                                      Búsqueda en regist ros,
+   Municipal para investigar                           recibe notificación, in formación,
+          o conocido                                  Rumo res y re aliza vigilancia activa
+       por otras fuentes                                                                                             Caso d escart ado po r
+                                                                                                                    falta de ant eced ente de
+                                                                                                                        evento obsté trico
+                               2.1                           3.1.
+                                                                                          3.2. Clasificación
+                        Detección de Caso             Investigación                      de Tipo de Muerte
+                         Sospechoso de                Causa y Datos                                                    Caso Muerte
+                         Muerte Materna                 Esenciales                                                    Materna Probable
+                                                         Mínimos
+
+
+
+
+                                                          4.3.                          4.2.
+                         4.4. Investigación de                                                                 4.1.
+                                                       Inclusión                  Notificación                                             4.5.
+                       Causas, Condiciones,                                                                Investigación
+                                                       en EPI-14                   Inmediata                                         Elaboración
+                         Vulnerabilida des y                                                               de Datos
+                                                     de la Semana                  a Unidad                                       de Formato local
+                        Factores Protectores                                                              Esenciales
+                                                     epidemiológica              Epidemiolog ía                                  SIV IG ILA MM-MI-4
+                         y registro de datos                                                               Mínimos
+                                                    que fue conocido               Municipal
+
+
+                              4.4.1.
+                        Elaboración
+                                                                                                          4.1.2.
+                         de Ficha                Formato             Formato                        Elaboración                               6. Notificación
+                      SIV IG ILA MM-2             EPI-14          SIVIGILA MM-1                     de Formato                                  semanal a
+                        con datos                                                                 SIV IG ILA MM-1
+                          mínimos                                                                                                           máxima autoridad
+                                                                                                     con datos                           jerá rquica, Programas
+                                                                                                      mínimos                                    Y Comité
+                              Formato
+                                                                5.1. Remisión semanal
+                           SIVIGILA MM-2
+          4.5.                                                 a Epidemiología Municipal
+    Elaboración                                                   conjuntamente con
+    de Formato                                                          EPI-12
+SIV IG ILA MM-MI-5                                  5.2.
+                                        Remisión a Epidemiología
+                                          Municipal en un lapso
+                                          de tiempo < de 7 días
+                                         después de conocido el
+           7. Informe mensual                  fallecimiento
+           a máxima autoridad
+          jerá rquica, Programas
+                 Y Comité
+                                                                  UNIDAD MUNICIPAL DE EPIDEMIOLOGIA
+
+
+
+
+                                                                                                                                                          31
+ VIGILANCIA EPIDEMIOLOGICA DE MUERTE MATERNA
+          FLUJOGRAMA DE ACTIVIDADES
+                                                             Unidad Local
+                                                        De Epidemiología envía a
+                                                           Unidad Municipal
+                                                                                           Remisión de la Ficha MM-2
+                          Notificación
+                                                                                            en un lapso < a 7 días
+                       Inmediata de caso                       Semanalmente                 después de conocido el
+                           conocido                           Formato EPI-14 y                    fallecimiento
+                                                             MM-1 conjuntamente
+                                                                 con EPI-12
+
+   Caso Muerte Materna
+Detectado a nivel municipal o
+         notificado
+    desde Epidemiología            UNIDAD EPIDEMIOLOGIA MUNICIPAL
+         Regional
+
+                             Clasificación
+                           según procedencia                                         Epidemiología Municipal
+                                                                                      revisa EPI-14, corrige
+                                                                                    duplicaciones, consolida y
+                                                                                    complementa información
+                         Notificación inmediata a
+                                                                                   de formatos SIVIG ILA MM-1
+                      Epidemiolog ía Regional para
+                    ubicar en el área correspondiente                                                                       Elab ora formato
+                                                                                                                                 Municipal
+                                                                  Corrige
+                                                                                                                          S IV IG ILA MM-MI-4
+                                                                Formatos                                                   par a notificación
+                                                              SIVIGILA MM-1                                              semanal a máxima
+                                                                                                                         autorid ad jerárquica,
+                                              Elabora                                                                           Pro gramas
+                                           Formato EPI-14                                         Elab ora Informe               Y Comité
+                                            consolidado                                               Municipal
+                                              municipal                                         S IV IG ILA MM-MI-5
+                                                                    Remisión a                 par a informe mensual
+     Epidemiología Regional                                                                           a máxima
+      Remite al municipio
+                                                             Epidemiología Regional
+                                                                                               autorid ad jerárquica,
+     correspondiente para                                   de Formato SIVIGILA MM-1                  Pro gramas
+         complementar                                                Y EPI-14                          Y Comité
+         Información y                                            conjuntamente
+         complementar                                              con el EPI-12
+                                  Caso Muerte Materna                municipal
+                                    Residente otro
+                                       municipio                                           Epidemiología Regional
+                                                                                                           revisa
+                                                                                        EPI-14, Corrige duplicaciones, consolida y
+                                                                                         complementa información de formatos
+                                              Caso Muerte Materna
+                                                                                                SIV IG ILA MM-1 y elabora
+                                              Residente otro estado                                SIV IG ILA MM-MI-3
+
+
+
+                                                                                                                        Formato
+                          9.2. Epidemiología Regional                                       Formato
+                      Remite a Epidemiología Nacional
+                                                                                                                   EPI-14 consolidado
+                                                                                       SIVIGILA MM-MI-3                 regional
+                para que ubique información complementaria
+                        en el estado correspondiente
+
+
+
+                                                                                                           Remisión a
+                                                                                             Epidemiología Nacional
+                                                                                                   conjuntamente con el EPI-12
+
+
+
+
+                                                                                                                                       32
+C. PAUTAS PARA LA VIGILANCIA DE MUERTE EN < DE 5 AÑOS.
+
+  15.1. Definiciones Operativas
+
+  DEFINICIONES DE CASO:
+
+   NACIDOS VIVOS: Expulsión o extracción completa del cuerpo de su madre,
+    independientemente de la duración del embarazo, de un producto de la concepción
+    que, después de dicha separación, respire o de cualquier otra señal de vida, como el
+    latido del corazón, la pulsación del cordón umbilical o el movimiento efectivo de
+    músculos voluntarios, haya sido o no cortado el cordón umbilical y esté o no
+    desprendida la placenta.
+   # DE PARTO: número de expulsión de uno o varios recién nacidos del útero, ya sea
+    de forma espontánea, asistida o por cesárea, nacidos vivos o muertos.
+   NACIDOS MUERTOS: número de nacidos muertos después de los 154 días (22+0
+    semanas) o más de gestación.
+   ABORTO: Pérdida espontánea o inducida del embarazo con <22+0 semanas de
+    gestación.
+   MUERTES EN < DE 1 AÑO DE EDAD: para la notificación y clasificación de
+    casos se utilizarán las definiciones establecidas en la Décima Revisión de la
+    Clasificación Internacional de Enfermedades y Problemas relacionados con la Salud
+    (CIE-11), copiadas textualmente y enmarcadas entre comillas.
+            o Muerte Infantil: agrupa a todos los fallecimientos ocurridos en niños y
+                niñas menores de 1 año de edad. Para la notificación se utilizará la
+                clasificación:
+                     Muerte Neonatal Precoz: muertes “que ocurren durante los
+                        siete primeros días de vida”; es decir se refieren a las muertes de
+                        niños y niñas que ocurren entre el momento del nacimiento y hasta
+                        los seis días cumplidos de edad. En consecuencia, se refiere a los
+                        menores de 7 días o de 0-6 días.
+                     Muerte Neonatal Tardía: muertes “que ocurren después del
+                        séptimo día de edad o mayores de 6 días, pero antes de los 28
+                        días completos de vida”; es decir se refiere a las muertes de niños
+                        y niñas que ocurren entre los 7 días de edad y los 27 días cumplidos
+                        de edad. En consecuencia, se refiere al grupo de 7 a 27 días de
+                        edad.
+                     Muerte Residual o Post neonatal: Muerte de recién nacido que
+                        ocurre entre los 28 días y 11 meses de vida.
+
+   NIÑOS Y NIÑAS DE 1 – 4 AÑOS DE EDAD: para la notificación de casos se
+    utilizará el criterio de edad y se notificará todo niño fallecido con 1 año de edad
+    cumplido o menos de 5 años de edad cumplidos, lo que incluye desde 12 meses de
+    edad cumplidos hasta el día anterior a cumplir 60 meses de edad (5 años)
+
+
+                                                                                         33
+       15.2. Definiciones Técnicas: referidas a la clasificación de peso al nacer y la causa de
+       muerte.
+
+          15.2.1. Peso al nacer: para la clasificación de muertes según peso al nacer se utilizará
+          la siguiente escala:
+
+                                Menos de 1.000 gramos (prematuro extremo)
+                                1.000 a 1.499 gramos (neonato inmaduro)
+                                1.500 a 2.499 gramos
+                                2.500 y mas
+
+          15.2.2. Causa de Muerte: para la asignación de causas de muerte infantil y de 1 a 4
+                  años de edad se utilizarán los diagnósticos y códigos de la X Clasificación
+                  Internacional de Enfermedades (CIE-11). Con la finalidad de orientar sobre la
+                  clasificación, en el Cuadro Nº 4 se incluyen los diagnósticos más frecuentes
+                  de causa básica agrupados según categorías biológicas. Según esta
+                  clasificación las categorías más frecuentes de causa biológica son: bajo peso
+                  al nacer, infección, asfixia perinatal, malformaciones congénitas, trauma,
+                  síndrome de dificultad respiratoria, patología materna asociada, problemas de
+                  placenta y cordón, otras causas y causas indeterminadas o desconocidas.
+                                          CUADRO Nº 4
+
+      CAUSAS MAS FRECUENTES DE MUERTE INFANTIL Y DE 1 – 4
+       AÑOS DE EDAD AGRUPADAS SEGÚN CAUSA BIOLÓGICA,
+              DIAGNOSTICO Y CODIFICACIÓN CIE-11.
+
+                    CATEGORÍAS / CAUSA ESPECIFICA (Código CIE-11)
+TRASTORNOS RESPIRATORIOS DEL PERIODO PERINATAL
+         ASFIXIA PERINATAL
+                 INTRAUTERINA Hipoxia intrauterina (KB20), Incluye sufrimiento fetal intrauterino
+                 DEL NACIMIENTO Asfixia del nacimiento (KB21)
+                 PERINATAL INTEDETERMINADO PERIODO (INTRAUTERINO O DEL NACIMIENTO)
+                Hemorragia intracraneal no traumática del feto o del recién nacido (KA82.Z) , Incluye hemorragia
+                intracraneal debido a hipoxia o anoxia
+         SINDROME DE DIFICULTAD RESPIRATORIA DEL RECIEN NACIDO
+                 Dificultad respiratoria del recién nacido (KB23). Incluye Enfermedad de Membrana Hialina del
+                  recién nacido
+                 Neumonía congénita (KB24)
+                 Síndromes de aspiración neonatal (KB26). Incluye aspiración de meconio, líquido amniótico,
+                  moco, sangre, leche, alimentos, etc.
+                 Insuficiencia respiratoria del recién nacido (KB2D)
+                 Atelectasia primaria del recién nacido (KB2B)
+                 Hemorragia pulmonar originada en el período perinatal (KB28)
+                 Enfisema intersticial y afecciones relacionadas, originadas en el período perinatal (KB27.0)
+
+
+                                                                                                           34
+                  Neumotórax originado en el período perinatal (KB27.1)
+AFECCIONES MATERNAS
+
+          CONDICIONES DE LA MADRE NO RELACIONADAS NECESARIAMENTE CON EL EMBARAZO
+          ACTUAL
+                Feto y recién nacido afectado por trastornos hipertensivos de la madre (KA00.0)
+                Feto y recién nacido afectado por enfermedades renales y de las vías urinarias de la madre
+                 (KA00.2)
+                Feto y recién nacido afectado por enfermedades infecciosas y parasitarias de la madre (KA00.3),
+                 Sin que el recién nacido presente el cuadro clínico de la enfermedad
+                Síndrome del recién nacido de madre con diabetes gestacional (KB60.0)
+                Feto y recién nacido afectado por procedimiento quirúrgico en la madre (KA00.A)
+                Síndrome del recién nacido de madre diabética (KB60.1)
+
+
+          FETO Y RECIEN NACIDO AFECTADO POR COMPLICACIONES MATERNAS DEL EMBARAZO
+              COMPLICACIONES DEL EMBARAZO
+                      Feto y recién nacido afectado por ruptura prematura de las membranas (KA01.1)
+                      Insuficiencia Útero placentaria (JA8A.Z)
+                      Feto y recién nacido afectado por oligohidramnios (KA01.2)
+                      Feto y recién nacido afectado por Polihidramnios (KA01.3)
+                      Feto y recién nacido afectado por embarazo múltiple (KA01.5)
+               COMPLICACION TRABAJO DE PARTO
+                      Feto y recién nacido afectado por otra presentación, posición anómala y desproporción
+                       durante el trabajo de parto y el alumbramiento (KA01.3)
+                      Feto y recién nacido afectado por otras complicaciones especificadas del trabajo de parto y
+                       del alumbramiento (KA05.Y)
+               COMPLICACIONES PLACENTA Y CORDON
+                         Feto y recién nacido afectado por placenta previa (KA02.0)
+                         Feto y recién nacido afectado por otras formas de desprendimiento y de hemorragia
+                          placentarios (KA02.Y)
+                         Feto y recién nacido afectado por otra compresión del cordón umbilical (KA03.1), incluye
+                          Circular de cordón
+
+                         Feto y recién nacido afectado por otras anormalidades morfológicas y funcionales de la
+                          placenta y las no especificadas (KA02.Y)
+BAJO PESO AL NACER
+                        Trastornos relacionados con duración corta de la gestación y con bajo peso al nacer, no
+                         clasificados en otra parte (KA21.2Z). Inmaduro
+                        Retardo del crecimiento fetal y desnutrición fetal (KA20.2): Prematuro, retardo del
+                         crecimiento intrauterino
+INFECCIONES
+          INFECCIONES PERINATALES
+               Sepsis bacteriana del recién nacido (KA60 - KA65)
+               Enterocolitis necrotizante del feto y del recién nacido (KB88)
+               Feto y recién nacido afectado por corioamnionitis (KA04.0)
+
+
+
+                                                                                                           35
+                Enfermedades virales congénitas (KA62). Incluye infecciones congénitas por rubéola,
+                 citomegalovirus, hepatitis viral, varicela
+                Toxoplasmosis congénita (KA64.0)
+                Paludismo congénito (KA64.1)
+                Sífilis congénita (1A60)
+                Onfalitis del recién nacido con o sin hemorragia leve (KA65.1)
+           ADQUIRIDAS DESPUES DEL NACIMIENTO
+                Diarrea neonatal infecciosa (1A40), Enfermedad diarreica aguda
+                Meningitis bacteriana (1D01.0 - G00.9)
+                Infección hospitalaria (A49.8), Infección nosocomial
+                Infección Urinaria (N39)
+                Neumonía (J12-J18)
+                Bronquiolitis aguda
+             Tétanos neonatal (A33)
+             Leptospirosis (A27)
+MALFORMACIONES CONGENITAS
+        SISTEMA CARDIOVASCULAR
+                Malformaciones congénitas del sistema circulatorio. (Q20-Q28)
+           SISTEMA NERVIOSO
+                Hidrocéfalo congénito (Q03)
+                Espina bífida (Q05)
+           SISTEMA OSTEOMUSCULAR
+                Gastrosquisis (Q79.3)
+AFECCIONES CARDIOVASCULARES
+                Trastornos cardiovasculares originados en el período perinatal (P29)
+                Insuficiencia cardiaca neonatal (P29.0)
+ENFERMEDAD HEMORRAGICA DEL RECIEN NACIDO POR ANOXIA
+                Hemorragia intracraneal no traumática del feto y del recién nacido (P52)
+                Enfermedad hemolítica del feto y del recién nacido (P55)
+TRAUMA
+           TRAUMA DEL NACIMIENTO
+                Feto y recién nacido afectado por traumatismo de la madre (P00.5)
+                Hemorragia y laceración intracraneal debidas a traumatismo del nacimiento. (P10)
+                Retención de Cabeza
+           OTROS TRAUMAS
+                Diagnóstico de Niño Maltratado
+                Accidentes V01, X59, Y85, Y86
+                Accidente de tránsito (V01-V59)
+                Quemadura (T20-T32)
+OTRAS CAUSAS
+             Desnutrición (E40-E64)
+             Alteraciones metabólicas
+INDETERMINADA
+
+                                                                                                       36
+            Muerte fetal de causa no especificada (P95)
+
+
+15.2.3. Determinantes:
+
+            B. Condición de Riesgo: las condiciones de riesgo se refieren entre otros a
+               factores endógenos relacionados con la duración de la gestación,
+               malformaciones congénitas o factores asociados a complicaciones maternas
+               (diabetes, hipertensión, cardiopatías, tuberculosis, sida, hábito tabáquico,
+               alcohólico y drogodependencias), que determinan problemas durante el
+               embarazo o el parto.
+
+            C. Vulnerabilidad: La vulnerabilidad se refiere a la carencia o limitación de
+               una condición o conjunto de condiciones protectoras que debilitan las
+               capacidades de la familia para anticiparse a los riesgos del embarazo, parto,
+               nacimiento, crecimiento y desarrollo. En la definición de vulnerabilidad se
+               identifican componentes:
+                Geográficos: relacionados con la residencia en zonas alejadas, con
+                 dificultades de transporte y vías en malas condiciones que constituyen una
+                 barrera importante para la posibilidad de acceder oportunamente a
+                 servicios de salud
+                Socioeconómicos: que se relacionan no solo con la carencia de dinero, sino
+                 con el desempleo, la ausencia o bajo nivel educativo, la carencia de
+                 vivienda adecuada, en condiciones de hacinamiento y pobres condiciones
+                 sanitarias; factores culturales y educativos.
+                Sanitarios: referido a debilidades en la organización sanitaria que
+                 determinan limitaciones en el acceso, disponibilidad, oportunidad y
+                 calidad de la atención.
+
+            D. Factores Sanitarios Protectores:
+
+                                Representados por la disponibilidad, acceso y oportunidades a
+                                servicios adecuados y de calidad, que conforman el conjunto
+                                de derechos sociales (vivienda, transporte, salud, educación,
+                                etc.).
+
+       15.3. Pautas para la Vigilancia de Muerte de niños y niñas menores de 5 años de
+       edad.
+
+Estas pautas tienen como objetivo unificar, en todos los niveles y su amplitud, los criterios
+para la vigilancia de muerte en menores de 5 años de edad. Las pautas se mencionan
+agrupadas por actividad de vigilancia y en cada una de ellas se integran las tareas de cada
+nivel.
+
+A. Detección de muerte en niños y niñas menores de 5 años de edad (edad infantil y de
+1 – años de edad).
+
+
+                                                                                          37
+1. La detección de casos aplica en todos los establecimientos de salud, independiente de
+   su nivel de complejidad y en todos los servicios (emergencia, hospitalización y
+   atención ambulatoria en áreas rurales y urbanas).
+2. Las fuentes de información incluyen los registros de establecimientos de salud,
+   Medicaturas forenses, prensa, rumores, información comunitaria y notificación desde
+   las unidades de vigilancia municipal de muertes de niños y niñas menores de 1 año
+   de edad residentes en un área sanitaria distinta a la del sitio de ocurrencia.
+3. La detección de muerte en menores de 5 años de edad incluye la búsqueda activa de
+   muertes en recién nacidos vivos ocurrida en las primeras 24 horas de edad.
+4. Al conocerse un caso de muertes de niños y niñas menores de 5 años de edad deberá
+   ordenarse la autopsia como investigación de salud pública en casos con dificultades
+   del diagnóstico clínico.
+5. En la detección de muertes de niños y niñas menores de 5 años de edad debe
+   involucrarse a todo el personal de cada establecimiento con la finalidad de garantizar
+   el conocimiento oportuno de la ocurrencia y facilitar de esta manera la investigación
+   de caso.
+6. La detección de muertes de niños y niñas menores de 5 años de edad incluye la
+   búsqueda activa de casos.
+7. Para la búsqueda activa de muertes de niños y niñas menores de 5 años de edad se
+   debe:
+        A nivel de los establecimientos de salud:
+                 √ revisar diariamente los registros de ingresos, egresos hospitalarios,
+                    atenciones de emergencia, registro de partos y/o certificados de
+                    defunción.
+                 √ Articular información con las Medicaturas Forenses para detectar no
+                    sólo las relacionadas con hechos violentos, sino las que pudieran
+                    haber ocurrido fuera de establecimientos de salud o a nivel de
+                    emergencias hospitalarias con períodos de estancia menor de 24
+                    horas que pueden haberse manejado como casos legales.
+                 √ Vincular a la comunidad en la vigilancia de muertes de niños y niñas
+                    menores de cinco años de edad
+        A nivel municipal y regional se debe revisar mensualmente los certificados de
+          defunción con la finalidad de detectar e investigar muertes no conocidas en el
+          nivel local y para ello es necesario cruzar con la información del sistema de
+          vigilancia SIVIGILA y los certificados de mortalidad fetal y certificados de
+          nacimiento.
+        A nivel nacional se debe revisar semestralmente los certificados de defunción
+          y cruzar con la información recibida por el sistema de vigilancia SIVIGILA
+          (MM-MI-3), certificados de mortalidad fetal y certificados de nacimiento.
+8. Una vez identificada la muerte de un niño o niña menor de 5 años de edad se
+   procederá a la búsqueda de causa de muerte y datos mínimos contenidos en el
+   formulario SIVIGILA MI-1 “Formato para Notificación de Mortalidad Infantil”.
+9. Todos los casos de muerte de un niño o niña menor de 5 años de edad son objeto de
+   notificación de acuerdo con el siguiente procedimiento:
+        Investigación de datos mínimos: Todo caso de muerte de un niño o niña
+          menor de 5 años de edad deberá ser registrado en el formato SIVIGILA MI-1
+
+                                                                                      38
+            “Formato para Notificación de Muerte de niños y niñas menores de 5 años
+            de edad” y proceder a la búsqueda inmediata de datos esenciales mínimos
+            incluidos en el formato para desarrollar las actividades que serán explicitadas
+            más adelante.
+           Notificación inmediata, de la muerte de un niño o niña menor de 5 años de
+            edad, por la vía más expedita, al nivel correspondiente del sistema de vigilancia
+            epidemiológica, con el objetivo, entre otros, de adelantar investigaciones
+            locales en muertes ocurridas en áreas sanitarias diferentes a la de su residencia.
+           Notificación semanal obligatoria en el formulario EPI-14, enviando
+            conjuntamente con la notificación los formatos SIVIGILA MI-1 “Formato
+            para Notificación de Muerte de niños y niñas menores de 5 años de edad”,
+            en la ocasión semanal que se remite el formato EPI-12, de acuerdo a las pautas
+            del sistema nacional de vigilancia.
+           La investigación de condiciones de riesgo, vulnerabilidades y factores
+            sanitarios protectores se realizará únicamente en caso de muerte infantil
+            debida a Afecciones Originadas en el Período Perinatal codificadas como
+            P00-P96, de acuerdo con la clasificación CIE-10 y ocurridas intra o extra
+            hospitalariamente.
+           El formato utilizado para informar los hallazgos de la investigación se
+            denomina SIVIGILA MI-2 “Ficha de Vigilancia Epidemiológica de
+            Mortalidad Infantil por afecciones originadas en el período perinatal”
+           El formulario SIVIGILA MI-2 deberá remitirse al nivel municipal en un lapso
+            menor a 7 días después de conocido el caso.
+
+B. Notificación e información de muerte de un niño o niña menor de 5 años de edad al
+sistema de vigilancia epidemiológica.
+
+   10. La notificación de muerte de un niño o niña menor de 5 años de edad es obligatoria
+       inmediata y semanal.
+   11. La notificación inmediata debe realizarse por cualquier vía y tiene como objetivo
+       fundamental facilitar investigaciones locales principalmente en casos ocurridos en
+       áreas sanitarias diferentes a las de residencia.
+          Una vez notificada extraordinariamente la Unidad Municipal de Epidemiología,
+            procederá a clasificar el caso según procedencia.
+          Para los casos residentes en el municipio en área diferente a la de ocurrencia se
+            procederá a notificar al establecimiento local coordinador de funciones
+            epidemiológicas en el área de residencia para investigación de caso y llenado del
+            formulario SIVIGILA MI-2 cuando corresponda. Recordar que se refiere a
+            muerte infantil debida a Afecciones Originadas en el Período Perinatal
+            codificadas como P00-P96, de acuerdo con la clasificación CIE-10.
+   12. Todo conocimiento de muerte de un niño o niña menor de 5 años de edad deberá ser
+       notificado en la semana epidemiológica en la que fue conocido.
+   13. La notificación semanal debe ser realizada en las fechas previstas para la notificación
+       semanal obligatoria pautada por el Sistema Nacional de Vigilancia Epidemiológica
+       de Enfermedades de Notificación Obligatoria para cada nivel del sistema de
+       información.
+
+                                                                                           39
+14. Los formularios a utilizar para la Notificación semanal de muerte de un niño o niña
+    menor de 1 año de edad son:
+       Formulario EPI-14. Formulario que es remitido semanalmente para Notificación
+         de las muertes ocurridas de acuerdo con las normas del Sistema Nacional de
+         Vigilancia de Enfermedades y Condiciones de Denuncia Obligatoria.
+       Formulario SIVIGILA MI-1 “Formato para Notificación de Muerte de niños
+         y niñas menores de 5 años de edad”. En la semana epidemiológica en la que
+         corresponda el conocimiento de caso de muerte de un niño o niña menor de 5
+         años de edad, se notifica el caso en el formulario EPI-14 y se remite al nivel de
+         vigilancia epidemiológica municipal correspondiente conjuntamente con el
+         formulario SIVIGILA MI-1 ya mencionado.
+15. El establecimiento que fue notificado por su nivel inmediato superior de la ocurrencia
+    de un caso de muerte de un niño o niña menor de 5 años de edad residente de su área
+    de influencia pero que ocurrió en otra área, también deberá notificar el caso en la
+    semana epidemiológica que fue conocido y para ello procederá de la siguiente
+    manera:
+       procederá a incluir el caso en el formato EPI-14 de la semana correspondiente,
+         marcando al lado del número en el EPI-14 un asterisco (*) como indicativo de
+         caso residente en el área, conocida su ocurrencia en área influencia diferente a
+         la de residencia y al pie de página del formato EPI-14 se indica, previo *, el
+         número de casos correspondientes al área, que fallecieron en otra área sanitaria
+         y que fueron investigados localmente.
+       Remite conjuntamente con el EPI-14 el formulario SIVIGILA MI-1 “Formato
+         para Notificación de Muerte de niños y niñas menores de 5 años de edad”
+         al nivel municipal correspondiente.
+       En caso de que se trate de la muerte de un niño o niña menor de 1 año por
+         causa relacionada directamente con morbilidad perinatal el establecimiento
+         deberá llenar, además, un formulario SIVIGILA MI-2 “Ficha de Vigilancia
+         Epidemiológica de Mortalidad Infantil por afecciones originadas en el
+         período perinatal” con la información disponible en su área de influencia y
+         remitir a la brevedad posible (menos de 7 días después de conocido) al nivel
+         municipal correspondiente a su área, en donde será procesado para mejorar el
+         conocimiento del caso y remitir al nivel regional y sucesivamente al nivel
+         nacional.
+16. Una vez en el nivel de epidemiología municipal los formularios EPI-14 y SIVIGILA
+    MI-1 se procederá de la siguiente manera:
+       Revisar, corregir duplicidades de información y consolidar el formulario EPI-14
+         municipal
+       Revisar y complementar, de acuerdo con investigaciones e informes procedentes
+         de otras áreas, los formularios SIVIGILA MI-1 “Formato para Notificación
+         de Muerte de niños y niñas menores de 5 años de edad” correspondientes a
+         la semana epidemiológica notificada.
+       En la fecha prevista por el Sistema Nacional de Vigilancia Epidemiológica de
+         Enfermedades de Notificación Obligatoria se remitirá semanalmente al nivel
+         regional: el EPI-14 consolidado municipal y el formulario SIVIGILA MÍ-1
+         conjuntamente con el EPI-12 municipal consolidado semanal.
+
+                                                                                       40
+   17. El nivel de epidemiología regional procederá de la siguiente manera:
+          Revisar los formularios SIVIGILA MI-1 “Formato para Notificación de
+            Muerte de niños y niñas menores de 5 años de edad” recibidos desde los
+            municipios con la finalidad de corregir en el consolidado del EPI-14 regional las
+            duplicaciones en la notificación semanal de muerte de un niño o niña menor de
+            1 año de edad recibidas y complementar la información con investigaciones
+            correspondientes a ese nivel.
+          Revisar, corregir duplicidades de información y consolidar el formulario EPI-
+            14 del nivel regional.
+          Con la información de los formularios SIVIGILA MI-1 procederá a elaborar el
+            formulario SIVIGILA MM-MI-3. “Formato Regional para notificación
+            semanal de Mortalidad Materna, Infantil y de niños y niñas de 1-4 años de
+            edad.”, correspondiente a la semana en la que fueron notificados.
+          Remitir a la Dirección de Vigilancia Epidemiológica el consolidado EPI-14
+            regional de cada semana epidemiológica, de acuerdo con las normas del
+            Sistema Nacional de Información y el formulario SIVIGILA MM-MI-3.
+            “Formato Regional para notificación semanal de Mortalidad Materna,
+            Infantil y de niños y niñas de 1-4 años de edad.”.
+          El formulario SIVIGILA MM-MI-3 deberá ser remitido desde cada nivel
+            regional a la Dirección Nacional de Epidemiología los días miércoles siguientes
+            a la semana epidemiológica notificada, junto con EPI-12 y EPI-14.
+          Los formularios SIVIGILA MI-1 se archivarán a nivel de epidemiología
+            regional acompañando en la carpeta de archivo a los formularios SIVIGILA
+            MM-MI-3 de la semana correspondiente y serán utilizados posteriormente para
+            cruzar con los certificados de defunción y mejorar la información estadística.
+
+C. Notificación negativa.
+
+   18. Todo establecimiento de salud está adscrito al sistema nacional de vigilancia
+       epidemiológica de enfermedades de notificación obligatoria.
+   19. Como tal, todo establecimiento notifica semanalmente las enfermedades de
+       notificación obligatoria a través de los formularios EPI-12 y EPI-14
+   20. Todo establecimiento de salud registrará en el formulario EPI-14 la condición
+       semanal del comportamiento de muerte de un niño o niña menor de 5 años de edad,
+       registrando el número de muertes infantiles ocurridas o conocidas en la semana.
+   21. En las semanas epidemiológicas sin ocurrencia o detección de muerte de un niño o
+       niña menor de 5 años de edad, se registrará “0” casos en el renglón correspondiente
+       en el formulario EPI-14, como certificación de notificación negativa.
+
+D. Investigación de muerte de un niño o niña menor de 1 año de edad por Afecciones
+Perinatales y llenado de formulario MI-2.
+
+   22. En este caso, la investigación epidemiológica tiene como propósito caracterizar al
+       niño o niña fallecidos e identificar factores de riesgo, causas y determinantes de su
+       muerte de acuerdo con las variables definidas en el formulario SIVIGILA MI-2
+
+
+                                                                                          41
+       “Ficha de Vigilancia Epidemiológica de Mortalidad Infantil por afecciones
+       originadas en el período perinatal”
+   23. La investigación epidemiológica de muertes en niños y niñas menores de 1 año se
+       realizará solamente en las muertes ocurridas por Afecciones Originadas en el Período
+       Perinatal (P00-P96).
+   24. La investigación epidemiológica realizada no debe ser considerada como Auditoria
+       Médica del Caso.
+   25. La Auditoria Médica del Caso es responsabilidad del Comité Local de Prevención y
+       Control de Mortalidad Infantil.
+   26. La investigación epidemiológica será realizada por el personal del establecimiento
+       local con funciones de vigilancia epidemiológica donde ocurrió el fallecimiento.
+   27. El formulario SIVIGILA MI-2 “Ficha de Vigilancia Epidemiológica de Mortalidad
+       Infantil por Afecciones Originadas en el Período Perinatal” deberá ser enviada
+       inmediatamente después de ser completada la investigación y de ninguna manera
+       deberá ser después de 7 días de la notificación.
+   28. La copia del formulario SIVIGILA MI-2 “Ficha de Vigilancia Epidemiológica de
+       Mortalidad Infantil por Afecciones Originadas en el Período Perinatal”
+       debidamente elaborada debe ser remitida al servicio de epidemiología municipal
+       correspondiente que procesará la información y la remitirá al nivel regional, desde
+       donde se procesará la información y se remitirá al nivel nacional.
+   29. Cada establecimiento de salud debe archivar los formularios originales SIVIGILA
+       MI-2 “Ficha de Vigilancia Epidemiológica de Mortalidad Infantil por Afecciones
+       Originadas en el Período Perinatal”, de todos los casos informados en una carpeta
+       organizada en orden cronológico.
+   30. La Ficha Epidemiológica de Muerte Infantil por afecciones originadas en el período
+       perinatal es un instrumento de información de características epidemiológicas del
+       caso y no es formulario de recolección de datos.
+   31. El funcionario responsable del llenado del formulario SIVIGILA MI-2 “Ficha de
+       Vigilancia Epidemiológica de Mortalidad Infantil por Afecciones Originadas en el
+       Período Perinatal” puede utilizar para la recolección de datos cualquier instrumento
+       previamente diseñado que considere adecuado, incluido el diseño propio siempre que
+       se adecué a los datos solicitados en el formulario SIVIGILA MI-2 “Ficha de
+       Vigilancia Epidemiológica de Mortalidad Infantil por Afecciones Originadas en el
+       Período Perinatal”.
+   32. La investigación de muertes en niños o niñas menores de 1 año por Afecciones
+       Originadas en el Período Perinatal ocurridas en un establecimiento de salud se
+       realizará a partir del desarrollo de diferentes técnicas, entre las que destacan: la
+       revisión de historia clínica y/o otros documentos de registro del caso como resultados
+       de autopsia, informes quirúrgicos, etc.; entrevista a miembros del equipo de salud,
+       entrevista a familiares y/o líderes comunitarios si es necesario.
+
+E. Procesamiento y análisis de la información
+
+   33. El procesamiento de los datos correspondientes a mortalidad infantil tiene dos
+       componentes:
+
+
+
+                                                                                          42
+         Un primer componente estará orientado a monitorear la frecuencia e
+          indicadores con datos mínimos de los tres grupos de la mortalidad infantil
+          (neonatal precoz, neonatal tardía y post neonatal).
+         Un segundo componente estará destinado a monitorear el comportamiento de
+          las causas, condiciones de riesgo, las vulnerabilidades y los factores protectores
+          de las muertes de niños o niñas menores de 1 año por afecciones originadas en
+          el período perinatal.
+34. En todo caso la causa de muerte se establecerá de acuerdo con la CIE-11.
+35. En relación con el segundo componente de monitoreo:
+         los casos a investigar serán los que respondan a la clasificación de Ciertas
+          afecciones originadas en el período perinatal de acuerdo con los códigos
+          P00-P96, establecidos en la CIE-11.
+         Una vez identificada la causa de muerte y desarrollada la investigación y
+          llenado del formulario SIVIGILA MI-2, se establecerá la condición de
+          evitabilidad de muerte identificando los factores barrera a nivel individual, de
+          condición de vida o de organización del modo de gestión y atención sanitaria
+          (desconocimiento, falta de transporte, no disponibilidad de cupo, demora en el
+          traslado, etc.) que mediaron entre las causas fisiopatológicas y su prevención,
+          detección y tratamiento oportuno o limitación de complicaciones.
+36. Los factores barrera corresponden a condiciones de riesgo, vulnerabilidades y
+    factores protectores.
+37. La condición de evitabilidad no incluye la calificación de la calidad de la atención
+    médica que será establecida en auditoria médica realizada por los Comités de
+    Prevención y Control de Muerte Infantil.
+38. La tabulación de la información en los niveles locales, municipales, regionales y nivel
+    nacional se realizará mensualmente.
+39. El análisis de la información para los dos componentes estará orientado en los
+    diferentes niveles a identificar la situación en las unidades micro territoriales por
+    niveles
+         A nivel local serán sectores y comunidades
+         A nivel municipal serán las parroquias
+         A nivel regional serán los municipios
+         A nivel nacional serán los estados.
+40. En todos los niveles el análisis estará dirigido a:
+                  √ Monitorear las tendencias de la mortalidad infantil y subgrupos.
+                  √ Monitorear las causas de muerte.
+                  √ Comparar el riesgo de mortalidad infantil entre diferentes espacios
+                     territoriales.
+                  √ Identificar los factores de riesgo y determinantes de muerte infantil
+                     por afecciones originadas en el período perinatal.
+                  √ Comparar la frecuencia de factores de riesgo de muerte infantil por
+                     afecciones originadas en el período perinatal en diferentes grupos
+                     territoriales.
+                  √ Mapas de riesgo
+41. Para el análisis se utilizarán indicadores absolutos y relativos.
+       A nivel local y municipal se utilizarán números absolutos.
+
+                                                                                         43
+         A nivel regional y nacional se utilizarán números absolutos y relativo; como
+          medida relativa se utilizará:
+                        el indicador más común en la descripción de riesgo de muerte
+                        infantil: la tasa de mortalidad infantil, neonatal precoz, neonatal
+                        tardía y la post neonatal, definida como el número de muertes de
+                        cada edad especifica por cada 1.000 nacidos vivos registrados.
+                        La tasa de mortalidad de 1 a 4 años de edad, definida como el
+                        número de muertes de niños y niñas de 1 a 4 años de edad por cada
+                        1.000 niños y niñas de igual edad.
+         Otro indicador a utilizar en el análisis regional y nacional es la mortalidad
+          proporcional por los diferentes subgrupos debido a que los porcentajes resultan
+          útiles en el seguimiento de las causas y determinantes de muertes.
+
+F. Información de mortalidad infantil a la autoridad sanitaria. Direccionamiento de
+información horizontal a los gerentes locales, regionales y nacionales.
+
+   42. En cada nivel del sistema de vigilancia epidemiológica serán informados
+       horizontalmente la autoridad sanitaria local conjuntamente con el personal local
+       responsable del programa de prevención y control de mortalidad infantil y el Comité
+       Local de prevención y control de mortalidad infantil.
+   43. La información se realizará de la siguiente manera:
+            En el nivel local, municipal, regional y nacional se informará semanalmente de
+             la ocurrencia de muerte materna y de menores de 5 años de edad, de acuerdo
+             con lo definido en el formulario SIVIGILA MM-MI-4 y mensualmente de
+             acuerdo con lo definido en el formulario SIVIGILA MM-MI-5. “Análisis
+             Mensual de Muerte Materna y de niños y niñas < de 5 años de edad.
+             Información para la acción”.
+   44. En relación con la notificación semanal:
+            Una vez identificados los datos contenidos en los formularios SIVIGILA MI-
+             1 y elaborado el formulario EPI-14 semanal se procederá a llenar el formulario
+             SIVIGILA MM-MI-4 y mediante este se notificará horizontalmente a la
+             autoridad sanitaria, personal responsable del programa de prevención y control
+             de muerte infantil y al Comité de prevención y control de muerte infantil.
+   45. En relación con la notificación mensual del conjunto de casos conocidos en el mes
+       cronológico informado se procederá de la siguiente manera:
+            Con la información correspondiente a formularios SIVIGILA MI-1, SIVIGILA
+             MM-1 y los formularios SIVIGILA MM-2 y SIVIGILA MI-2 se clasifican los
+             datos para responder a los indicadores contenidos en el formulario SIVIGILA
+             MM-MI-5. “Análisis Mensual de Muerte Materna y de niños y niñas menores
+             de 5 años de edad a nivel local. Información para la acción”.
+            Una vez elaborado el formato mensual SIVIGILA-MM-5. “Análisis Mensual
+             de Muerte Materna y de niños y niñas menores de 5 años de edad a nivel
+             local. Información para la acción”. se entregará formalmente cada mes a la
+             autoridad sanitaria local, personal local responsable del programa de
+             prevención y control de muerte infantil y al Comité Local de prevención y
+             control de muerte infantil.
+
+                                                                                        44
+15.4.   FLUJOGRAMA DE ACTIVIDADES                                                            DE        LA            VIGILANCIA
+EPIDEMIOLOGICA DE MUERTE INFANTIL.
+
+
+                          UNIDAD LOCAL DE EPIDEMIOLOGIA
+                   (Hospital, Ambulatorio, CDI, otro tipo de establecimiento)
+
+                    1.1.                                                                               1.4.
+                                                                      1.3. Medios de
+                Registros del              1.2. Comunidad                                        Vigilancia Activa
+                                                                      Comunicación
+               Establecimiento
+
+
+                                                        Búsqueda en regist ros,
+                                                   recibe notificación, información,
+                                                  Rumores y realiza vigilancia activa
+
+
+                                                                   3.1.
+                              2.1                            Investigación              3.2. Clasificación
+                         Detección de                        Causa y Datos              de Tipo de Muerte
+                         Muerte Infantil                       Esenciales                   por edad
+                                                                Mínimos
+
+
+
+
+                                            Muerte por Afecciones                                      Muerte <5 años
+                                             del Período Perinatal                                      clasificada
+
+
+
+                                                       4.3.                        4.2.                   4.1.
+             4.4. Investigación de
+                                                    Inclusión               Elaboración             Notificación
+           Causas, Condiciones,
+                                                    en EPI-14               de Formato               Inmediata
+       Vulnerabilida des y Factores
+                                                  de la Semana             SIV IG ILA MI-1           a Unidad
+        Protectores en muertes por                                                                                              Formato
+                                                  epidemiológica             con datos             Epidemiolog ía
+      Afecciones del periodo perinatal
+                                                 correspondiente              mínimos                 Municipal            SIVIGILA MM-MI-4
+
+
+              Formato                                     Formato                  Formato
+                                                           EPI-14                SIVIGILA MI-1                       Notificación
+            SIVIGILA MI-2                                                                                             Seman al a
+                                                                                                                  máxima autoridad
+                                                                                                               jer árquica, Programas
+                                                                                                                      Y Comité
+                                                                      5.1. Remisión a
+                                                                  Epidemiología Municipal
+                                                                   conjuntamente con
+                                                                          EPI-12
+
+                            5.2. Remisión a Epidemiología                                                 Análisis mensual de
+                                Municipal en un lapso                                                   de Datos de todos
+                                 de tiempo < de 7 días                                               Los formularios SIVIG ILA
+                                 después de conocido                                                  MI-1 y MI-2 disponibles
+
+
+
+
+                                                                                                                                 Informe
+                                                                                                 Formato                       Mensual a
+                                                                                             SIVIGILA MM-MI-5
+    VIGILANCIA EPIDEMIOLOGICA DE MUERTE INFANTIL                                                                           máxima autoridad
+                                                                                                                        jer árquica, Programas
+                                                                                                                               Y Comité
+
+                         UNIDAD MUNICIPAL DE EPIDEMIOLOGIA
+
+
+
+
+                                                                                                                                        45
+
+                          FLUJOGRAMA DE ACTIVIDADES
+        Notifica al nivel                            Unidad Local
+        correspondiente
+                                                    De Epidemiología
+
+
+                                                                                    Muertes ocurridas e investigadas a Nivel local
+                                                                                              Formatos SIVIGILA MI-1
+                                                              Formato
+                                     Formatos                EPI-14 local
+                                   SIVIGILA MI-2
+
+            UNIDAD MUNICIPAL y REGIONAL DE EPIDEMIOLOGIA
+
+                                                  Epidemiolog ía Municipal revisa EPI-14, corrige
+          Caso Muerte Infantil
+                                               duplicaciones, consolida y complementa información
+    ocurrida fuera de área residencia                       de formatos SIVIG ILA MI- 1
+
+
+                                                        Formato                Formatos
+                                                                                                                  4.6.
+                                                   EPI-14 consolidado        SIVIGILA MI-1
+                                                                                                             Análisis semanal
+                                                       municipal                                     Y y mensual de Datos de
+                                                                                                       Todos Los formularios
+                                                                                                       SIV IG ILA MI-1 y MI-2
+                                                                                                             disponibles
+
+
+                                                                                              Formato
+                                                                                          SIVIGILA MM-MI-4
+                                                     7.3. Remisión a
+                                                 Epidemiolog ía Regional                                     Formato
+                                               conjuntamente con el EPI-12                               SIVIGILA MM-MI-5
+
+                                                                                          6. Notificación
+                                                                                              Seman al
+                            Epidemiología Regional,                                      máxima autoridad
+                                                                                      jerá rquica, Programas
+                             revisa EPI-14, corrige duplicaciones,                           Y Comité
+                      consolida y complementa información de formatos
+                         SIV IG ILA MI-1 y elabora Formato MM-MI-3                                               6. Informe mensual
+                                                                                                                  máxima autoridad
+                                                                                                               jerá rquica, Programas
+                                                                                                                       Y Comité
+                    Formatos                 Formato
+                SIVIGILA MIM-MI-3       EPI-14 consolidado
+                                             regional
+                                                                     Formato
+                                                                 SIVIGILA MM-MI-4             Formato
+                                                                                          SIVIGILA MM-MI-5
+
+              9.4. Remisión a                                        6. Notificación
+
+Epidemiología Nacional                                                   Seman al
+                                                                    máxima autoridad
+                                                                 jerá rquica, Programas
+        conjuntamente con el EPI-12                                                                6. Informe mensual
+                                                                        Y Comité                    máxima autoridad
+                                                                                                 jerá rquica, Programas
+                                                                                                         Y Comité
+
+
+
+
+                                                                                                                                    46
+15.5. Vigilancia a la Materna Críticas
+
+La Materna Critica se define como la que ocurre en aquella mujer que casi muere, pero
+sobrevive a una complicación que ocurre durante el embarazo, el parto o dentro de los 42
+días de la terminación del embarazo.
+En el proceso de creación de indicadores de la Materna Critica pueden tenerse en cuenta
+tres criterios:
+1) criterio clínico asociado a una enfermedad específica.
+2) criterio basado en una intervención específica.
+3) criterio basado en una disfunción orgánica o sistémica.
+El objetivo final de la recopilación de esta información es disminuir la Morbilidad
+Materna Grave. Esta vigilancia es crucial para monitorizar tendencias, evaluar la
+efectividad de intervenciones y mejorar la atención a mujeres embarazadas.
+En los casos de Materna Critica, la probabilidad de sobrevivir depende del cuidado, el
+soporte y la calidad asistencial que puedan ofrecer instituciones de nivel superior.
+
+Análisis del caso de Materna Critica en los comités
+Los comités deberán obtener información en relación con la causa de la Materna Critica,
+las demoras relevantes que existieron en la asistencia, las medidas de prevención a
+considerar y las acciones a tomar para evitar casos nuevos de Materna Critica. Además,
+se debe destacar las acciones que llevaron al buen manejo clínico de la paciente, dado
+que se logró evitar el resultado negativo, que es la muerte.
+
+
+Manejo de datos e indicadores de Materna Critica
+
+Datos requeridos en el nivel de la institución para realizar la vigilancia de la
+Morbilidad Materna Grave
+
+              Variable*                               Fuentes potenciales
+  Número de nacidos vivos            Registro de nacimientos o certificados de nacimientos
+  Número de muertes maternas         Certificados de defunción, comité de VRMMP
+  Número de mujeres con MMG        Varían en función del marco hipotético de
+                                   identificación de casos de MMG elegido
+   MMG: Morbilidad Materna Grave; VRMMP: vigilancia y respuesta en morbilidad y
+   mortalidad Materno y perinatal.
+
+
+
+
+                                                                                        47
+    Indicadores relacionados con la Morbilidad Materna Grave
+
+      Indicador             Descripción               Cálculo                Significancia
+Razón de               Es el número de        (MMEG/nacimientos        Proporciona una
+morbilidad materna     eventos de             vivos) x 1000            estimación de la
+Grave                  morbilidad                                      cantidad de insumos y la
+                       materna Grave por                               estructura que requerirá
+                       cada 1000 nacidos                               un área o una institución
+                       vivos                                           en relación con la MMG
+Razón MMG/MM           Es la razón entre la   Casos de MMC/casos de    Un resultado alto indica
+                       MMG y la mortalidad    MM                       una mejor calidad de
+                       materna (MM)                                    atención (es decir,
+                                                                       existen más
+                                                                       sobrevivientes por cada
+                                                                       caso de muerte materna)
+Índice de mortalidad   Es la razón entre el   MM/(MMC + MM) x 100      Cuanto más elevado es el
+                       número de muertes                               índice de mortalidad,
+                       maternas y el                                   mayor es la cantidad de
+                       número de mujeres                               mujeres con alteraciones
+                       con alteraciones                                potencialmente mortales
+                       potencialmente                                  que mueren (es decir,
+                       mortales, se expresa                            peor es la calidad de
+                       en porcentaje                                   atención)
+
+
+  Vigilancia al Neonatos Críticos
+
+  Un Neonato Crítico es un recién nacido (0-28 días) que requiere cuidados intensivos
+  debido a complicaciones de salud o prematuridad. La Vigilancia Epidemiológica de
+  Neonatos Críticos se enfoca en el seguimiento y análisis de la Mortalidad y Morbilidad
+  neonatal crítico, especialmente en unidades de cuidados intensivos neonatales (UCIN).
+  Esta vigilancia ayuda a identificar tendencias, causas y factores de riesgo asociados con
+  la salud de estos bebés, permitiendo la implementación de intervenciones para mejorar
+  los resultados y disminuir la mortalidad, Ofrecer atención con calidad y calidez a los
+  recién nacidos. Importancia de la vigilancia epidemiológica mejora la salud de los
+  neonatos críticos
+
+
+
+
+                                                                                         48
+En detalle:
+
+  Unidad de Cuidados Intensivos Neonatales (UCIN):
+Los neonatos críticos suelen ser atendidos en la UCIN, un área especializada del hospital
+equipada con tecnología y personal capacitado para manejar situaciones de emergencia.
+
+
+    Valoración y Diagnóstico:
+El personal de salud realiza una evaluación exhaustiva del neonato, incluyendo exámenes
+físicos, análisis de sangre, radiografías y otros estudios para identificar la causa de su
+condición crítica.
+
+   Soporte Vital:
+Se proporciona soporte respiratorio, nutrición, medicamentos y otros tratamientos para
+estabilizar al neonato y mantener sus funciones vitales.
+
+   Monitoreo Continuo:
+Se vigilan los signos vitales, la oxigenación, la temperatura y otros parámetros
+importantes para detectar cualquier cambio en la condición del bebé y ajustar el
+tratamiento en consecuencia.
+
+  Intervenciones Quirúrgicas:
+En algunos casos, se requiere cirugía para corregir malformaciones congénitas u otras
+complicaciones.
+
+  Continuo de Cuidados:
+Se busca garantizar una transición segura y suave del neonato crítico hacia la atención
+ambulatoria después de que se estabiliza y mejora su estado.
+
+
+   Prevención de Infecciones:
+Se implementan medidas de higiene y control de infecciones estrictas para proteger a los
+neonatos de posibles complicaciones.
+
+• Reduce la mortalidad neonatal: La vigilancia epidemiológica ayuda a reducir la
+mortalidad neonatal al identificar las causas y factores de riesgo, y al permitir la
+implementación de intervenciones para mejorar la salud de los neonatos críticos.
+En resumen, la vigilancia epidemiológica de neonatos críticos es un proceso crucial para
+la mejora de la salud de los recién nacidos. Al identificar tendencias, causas y factores de
+riesgo, esta vigilancia permite la implementación de intervenciones para reducir la
+mortalidad y morbilidad neonatal extrema.
+
+
+
+
+                                                                                         49
+       V. FLUJOGRAMA DE INSTRUMENTOS O FORMULARIOS SIVIGILA
+
+       El flujograma de formularios muestra la ruta de cada formulario de acuerdo con los eventos
+       vigilados.
+                      FLUJ OGRAMA DE FORMULARIOS DE VIGILANCIA DE MUERTE MATERNA E INFANTIL
+   NOTIFICACION E INFORMACION EPIDEMIOLOGICA
+                                     Nivel local                            Nivel municipal                     Nivel regional                     Nivel nacional
+
+                                                    Formulario                      Formulario    Formulario                     Formulario          Formulario
+                                    Formulario
+                                                      EPI-14                          EPI-14        EPI-14                         EPI-14              EPI-14
+                                      EPI-14
+                                                                                     municipal     municipal                      regional            regional
+
+                                                                                    Formulario    Formulario
+                                   Formulario       Formulario
+                                                                                    SIVIGILA      SIVIGILA
+       Muerte Materna              SIVIGILA         SIVIGILA
+                                                                                      MM-1          MM-1                         Formulario
+         Probable                    MM-1             MM-1
+                                                                                    Revisados     Revisados                      SIVIGILA            Formulario
+                                                                                                                                 MM-MI-3             SIVIGILA
+                                                                                    Formulario    Formulario                                         MM-MI-3
+                                   Formulario       Formulario
+                                                                                    SIVIGILA      SIVIGILA
+       Muerte Infantil             SIVIGILA         SIVIGILA
+                                                                                       MI-1          MI-1
+                                     MI-1             MI-1
+                                                                                     revisados     revisados
+
+
+   INVESTIGACION EPIDEMIOLOGICA DE CONDICIONES DE RIES GO, VULNERABILIDADES Y FACTORES SANITARIOS PROTECTORES
+                                     Nivel local                  Nivel municipal                               Nivel regional                     Nivel nacional
+                                                                                    Formularios   Formularios
+    Muerte Materna                 Formulario       Formularios                                                                                      Formularios
+                                                                                     SIVIGILA      SIVIGILA
+      Probable                     SIVIGILA          SIVIGILA                                                                                         SIVIGILA
+                                                                                       MM-2          MM-2
+                                     MM-2              MM-2                                                                                            MM-2
+                                                                                     Revisados     Revisados
+                                                                                    Formularios     Formularios                                       Formularios
+     Muerte Infantil                                Formularios                                                                                        SIVIGILA
+                                   Formulario                                        SIVIGILA        SIVIGILA
+por afecciones originadas                            SIVIGILA                                                                                            MI-2
+                                   SIVIGILA                                             MI-2           MI-2
+ en el período perinatal                               MI-2
+                                     MI-2                                             revisados      revisados                                         revisados
+
+  INFORMACION A LA GER ENCIA SANITARIA ELABORADOS EN CADA NIVEL CON FORMULARIOS MM-1, MM-2, MI-1, MI-2 .
+                                                                                                                                                   Formulario
+                                     Formulario                                                                                                    SEMANAL
+      Muerte Materna                                           Formulario                                      Formulario                          NACIONAL
+                                 SEMANAL LOCAL
+        Probable                                         SEMANAL MUNICIPAL                               SEMANAL REGIONAL                           SIVIGILA
+                                 SIVIGILA MM-MI-4
+                                                           SIVIGILA MM-MI-4                                SIVIGILA MM-MI-4                         MM-MI-4
+      Muerte infantil                Formulario
+                                 MENSUAL LOCAL                                                                                                     Formulario
+                                 SIVIGILA MM-MI-5                                                                                                  MENSUAL
+      Muerte Infantil                                         Formulario                                      Formulario                           NACIONAL
+ por afecciones originadas                               MENSUAL MUNICIPAL                               MENSUAL REGIONAL                          SIVIGILA
+  en el período perinatal                                 SIVIGILA MM-MI-5                                SIVIGILA MM-MI-5                          MM-MI-5
+
+
+
+
+       VI. EVALUACIÓN DEL SISTEMA
+
+       La evaluación del SIVIGILA se realizará mediante indicadores de estructura, proceso,
+       resultado e impacto.
+
+                            Indicadores de estructura
+                                   o % de unidades de notificación que disponen de instructivo SIVIGILA
+                                      2008.
+                                   o Listado de Unidades de notificación por estados con especificación de
+                                      nombre, tipo de complejidad, número de camas disponibles y
+                                      responsable de la notificación. Ver Cuadro: SIVIGILA MM-MI-
+                                      Estructura 2008.
+                                   o % de Hospitales con unidad de epidemiología hospitalaria responsable
+                                      de la vigilancia de muerte materna y de < de 5 años de edad
+                                   o % de establecimientos que notifican oportunamente cada semana.
+                                                                                                                                              50
+    Indicadores de proceso
+     Semanal
+           o % semanal de formularios SIVIGILA MM-MI-3 debidamente
+              elaborados.
+           o % de muertes maternas notificadas en EPI-14 con ficha MM-1
+              disponible a nivel nacional
+           o % de muertes < de 1 año notificadas en EPI-14 con ficha MI-1
+              disponible a nivel nacional
+           o % de muertes 1-4 años de edad notificadas en EPI-14 con ficha MI-1
+              disponible a nivel nacional
+           o % de muertes maternas notificadas en EPI-14 con ficha MM-2
+              disponible a nivel nacional
+           o % de muertes infantiles notificadas en EPI-14 con ficha MI-2
+              disponible a nivel nacional
+     Anual
+           o % de certificados de defunción de muerte materna con ficha SIVIGILA
+              MM-1
+           o % de certificados de defunción de muerte materna con ficha SIVIGILA
+              MM-2
+           o % de certificados de defunción de muerte infantil con ficha SIVIGILA
+              MI-1
+           o % de certificados de defunción de muerte infantil por Afecciones del
+              Período Perinatal con ficha SIVIGILA MI-2
+           o % de certificados de defunción de muerte de 1-4 años con ficha
+              SIVIGILA MI-1
+
+    Indicadores de resultado
+           o % semanal de cobertura de notificación regional
+           o % trimestral de autoridades municipales que recibieron semanalmente
+              el formato de notificación SIVIGILA MM-MI-4
+           o % trimestral de autoridades regionales que recibieron semanalmente el
+              formato de notificación SIVIGILA MM-MI-4
+           o % trimestral de autoridades municipales que recibieron mensualmente
+              el formato de análisis SIVIGILA MM-MI-5
+           o % trimestral de autoridades regionales que recibieron mensualmente el
+              formato de análisis SIVIGILA MM-MI-5
+
+    Indicadores de Impacto:
+     Muerte Materna
+           o Tasa mensual de mortalidad materna por municipios
+           o Tasa mensual de mortalidad materna por estados
+           o Tasa mensual de mortalidad materna nacional
+           o % de muertes maternas con antecedentes de control prenatal
+           o % de muertes maternas por sepsis puerperal
+     Muerte Infantil
+           o Tasa mensual de mortalidad infantil por municipios
+
+                                                                               51
+              o Tasa mensual de mortalidad infantil por estados
+              o Tasa mensual de mortalidad infantil nacional
+           Muerte 1-4 años de edad
+              o Tasa mensual de mortalidad de 1-4 años de edad por municipios
+              o Tasa mensual de mortalidad de 1-4 años de edad por estados
+              o Tasa mensual de mortalidad de 1-4 años de edad nacional
+
+
+VII. BIBLIOGRAFÍA
+
+  1. Ministerio de Salud y Desarrollo Social. “Plan Nacional para la Reducción de la
+      Mortalidad Infantil y Materna”. Caracas, 2001. Venezuela.
+  2. Ministerio de Salud y Desarrollo Social. “Manual de Pautas y Procedimientos para
+      monitoreo y vigilancia epidemiológica de la mortalidad infantil y materna”. Caracas,
+      mayo 2001. Venezuela.
+  3. Ministerio de Salud. “Evaluación de las Metas del Milenio. Informe de País. Caracas,
+      Enero 2005. Venezuela.
+  4. Ministerio de Salud. “Sistema de Vigilancia Epidemiológica de Ministerio de Salud.
+      “Sistema de Vigilancia Epidemiológica de Mortalidad Materna y Mujeres en edad
+      fértil”. Caracas, Enero 2006. Venezuela.
+  5. Ministerio de Salud. “Sistema de Vigilancia Epidemiológica de Mortalidad Infantil y
+      de 1-4 años de edad”. Caracas, Enero 2006. Venezuela.
+  6. Ministerio de Salud: “SIVIGILA. Pautas para la notificación”. Documento no
+      publicado. Caracas, Enero 2006. Venezuela.
+  7. Ministerio de Salud. “Proyecto: Enfermeras Centinelas del Proyecto Madre. Sistema
+      de Vigilancia de Mortalidad Infantil y Materna” Documento no publicado. Caracas,
+      Mayo, 2006. Venezuela.
+  8. Ministerio de Salud. “Evaluación SIVIGILA 2006.” Documento no publicado.
+      Caracas, Junio 2007. Venezuela.
+  9. Ministerio del Poder Popular para la Salud. “Objetivos institucionales”, documento
+      interno. Caracas, 2007. Venezuela.
+  10. Ministerio del Poder Popular para la Salud. Resumen de Talleres con Epidemiólogos
+      Regionales, Enfermeros y Enfermeras Centinelas, Asesores y Gerentes del Proyecto
+      Madre sobre vigilancia de mortalidad materna e infantil. Documentos no publicados.
+      Caracas 2007-2008.
+  11. OMS. Clasificación Internacional de Enfermedades y Problemas relacionados con la
+      Salud. Décima Revisión. Volumen 1. Publicación Científica Nº 554. 1995.
+
+
+
+
+                                                                                       52
+                             ANEXO 1.
+         FORMULARIOS DE REGISTRO, NOTIFICACION, ANALISIS E
+                          INFORMACIÓN.
+
+Se anexan los modelos de instrumentos o formatos utilizados en el sistema de vigilancia de
+muerte materna, de acuerdo con el siguiente orden.
+
+
+                                  Elaborado
+    Instrumento o Formulario                                 Tipo de Instrumento:
+                                   a nivel:
+   EPI-14                           Local.               Tabulador de muertes notificables
+   SIVIGILA MM-1                    Local     Registro individual de datos mínimos de muerte materna
+   SIVIGILA MI-1                    Local     Registro Individual de datos mínimos de muerte infantil
+   SIVIGILA MM-MI-3                Regional        Informe Regional de muerte materna e infantil
+   SIVIGILA MM-2                    Local             Ficha Epidemiológica de muerte materna
+                                              Ficha Epidemiológica de muerte infantil por Afecciones
+   SIVIGILA MI-2                    Local
+                                                         Originadas en el período Perinatal.
+                                              Notificación semanal de muerte materna y < de 5 años al
+   SIVIGILA MM-MI-4. Local          Local
+                                                                nivel gerencial local.
+                                              Notificación semanal de muerte materna y < de 5 años al
+   SIVIGILA MM-MI-4. Municipal.   Municipal
+                                                             nivel gerencial municipal.
+                                              Notificación semanal de muerte materna y < de 5 años al
+   SIVIGILA MM-MI-4. Regional.     Regional
+                                                              nivel gerencial regional.
+                                              Notificación semanal de muerte materna y < de 5 años al
+   SIVIGILA MM-4. Nacional.        Nacional
+                                                              nivel gerencial nacional.
+                                               Informe Análisis de muerte materna y < 5años al nivel
+   SIVIGILA MI-5. Local             Local
+                                                                   gerencial local.
+                                               Informe Análisis de muerte materna y < 5años al nivel
+   SIVIGILA MI-5. Municipal.      Municipal
+                                                                gerencial municipal.
+                                               Informe Análisis de muerte materna y < 5años al nivel
+   SIVIGILA MI-5. Regional.        Regional
+                                                                 gerencial regional.
+                                               Informe Análisis de muerte materna y < 5años al nivel
+   SIVIGILA MI-5. Nacional.        Nacional
+                                                                 gerencial nacional.
+
+
+
+
+                                                                                               53
+54
+

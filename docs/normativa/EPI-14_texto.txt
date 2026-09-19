@@ -1,0 +1,130 @@
+                                                                                                                                                                                                                        Entidad:
+                                                                                                                           Formato SIS - 04 / EPI - 14                                                              Municipio:
+
+                                                                                        Consolidado Semanal de Enfermedades y Eventos de Notificación Obligatoria
+                                                                                                                                                                                                              Establecimiento:
+Dirección General de Epidemiología                                                                                                 Mortalidad
+Sistema de Información Epidemiológico Nacional                                                                                       Página 1 de 2                                                                                 Año:                                             Semana:
+Dirección de Vigilancia Epidemiológica
+                                                                          < 1 año   1 a 4 años   5 a 6 años   7 a 9 años      10 a 11 años   12 a 14 años   15 a 19 años   20 a 24 años   25 a 44 años   45 a 59 años      60 a 64 años   65 años y más   Edad Ignorada        Total             Total
+  Orden                                         Enfermedad / Evento   H         M   H       M    H       M    H       M        H       M      H       M      H       M      H       M      H       M      H        M        H       M       H      M        H      M      Hombres     Mujeres   General
+   1      Cólera (1A00)
+   2      Diarreas (1A40.Z)
+   3      Amibiasis (1A36)
+   4      Fiebre Tifoidea (1A07.Z)
+   5      Muertes Asociados a Brotes de ETA
+   6      Hepatitis Aguda Tipo A (1E50.0)
+   7      Tuberculosis (1B10-1B1Z)
+   8      Influenza (1E32) Enfermedad Tipo Influenza
+   9      Sífilis Congénita (1A60.Z)
+   10     Enfermedad VIH/SIDA (1C60-1C62.3)
+   11     Tosferina (1C12)
+   12     Parotiditis Infecciosa (1D80.0)
+   13     Tétanos Neonatal (1C15)
+   14     Tétanos Obstétrico (1C14)
+   15     Tétanos (otros) (1C13)
+   16     Difteria (1C17)
+   17     Sarampión Sospecha (1F03)
+   18     Rubéola (1F02)
+   19     Dengue (1D20 -1D21-1D22).
+   20     Chikungunya (1D40)
+   21     Zika (1D48)
+   22     Encefalitis Equina Venezolana (1C8C)
+   23     Fiebre Amarilla (1D47)
+   24     Leishmaniasis Visceral (1F54.0)
+   25     Leishmaniasis Cutánea (1F54.1)
+   26     Leishmaniasis Mucocutánea (1F54.2)
+   27     Leishmaniasis no Específica (1F54.Z)
+   28     Enfermedad de Chagas Aguda (1F53.1)
+   29     Enfermedad de Chagas Crónica (1F53.2)
+   30     Rabia Humana (1C82)
+   31     Fiebre Hemorrágica Venezolana (1D61.3)
+   32     Leptospirosis (1B91)
+   33     Meningitis Viral (1C8E.Z)
+   34     Meningitis Bacteriana (1D01.0)
+   35     Meningitis Meningocóccica (1C1C.0)
+   36     Enfermedad Meningococcemia (1C1C.Z)
+   37     Varicela (1E90)
+   38     Hepatitis Tipo B (1E50.1)
+   39     Hepatitis Tipo C (1E50.2)
+   40     Hepatitis Viral (Otras) (1E50.Y)
+   41     Hepatitis Viral No Específicas (1E5Z)
+   42     Parálisis Flácida Aguda (MB56/XT5R)
+   43     Neumonías (CA40/XT50)
+   44     Intoxicación por Plaguicidas (NE61)
+   45     Fiebre sin otra especificaciòn (MG26)
+   46     Efectos Adversos de Medicamentos (PH40-PH49)
+   47     Efectos Adversos de Vacunas (PL00, PL0Z)
+   48     Efectos Adversos de Medicamentos (Y40-Y57)
+   49     Efectos Adversos de Vacunas (Y58-Y59)
+                                                                                          < 1 año   1 a 4 años   5 a 6 años   7 a 9 años   10 a 11 años   12 a 14 años   15 a 19 años   20 a 24 años   25 a 44 años   45 a 59 años   60 a 64 años   65 años y más   Edad Ignorada        Total
+Orden                                Enfermedad / Evento                                                                                                                                                                                                                                                Total General
+                                                                                      H         M   H       M    H       M    H       M     H       M      H       M      H       M      H       M      H       M      H       M      H       M       H      M        H      M      Hombres   Mujeres
+
+ 50 Faringitis Aguda (CA02)
+ 51 Amigdalitis Aguda (CA03)
+ 52 Laringitis y Traqueitis Aguda (CA05)
+ 53 Laringitis Obstructiva y Epiglotitis (CA06)
+ 54 Infecciones Agud Vías Respirat Superi, Sitios Múltiples No Especificados (CA07)
+ 55 Bronquitis Aguda (CA42)
+ 56 Bronquiolitis Aguda < 2 Años (CA41)
+ 57 Infección Agud No especific Vías Respirat Infer (CA4Z).
+ 58 Infeccion Respiratoria Aguda Grave
+ 59 Peste (1B93)
+ 60 Covid-19 Virus no identificado (RA01.1)
+ 61 Sindrome Respiratorio Agudo Severo SARS (1D65)
+ 62 Viruela (1E70)
+ 63 Hantavirosis (SCPH) (1D62.Z)
+ 64 Sindrome de Rubeola Congenita (KA62.8)
+ 65 Malaria vivax (1F41)
+ 66 Malaria Falciparum (1F40)
+ 67 Malaria Malariae (1F42)
+ 68 Malaria Mixta (1F41,1F40,1F42)
+ 69 Fiebre del Oeste del Nilo (1D46)
+ 70 Ebola (1D60.0Z)
+ 71 Síndrome de Guilláin Barré (8C01.0)
+ 72 Hipertension Arterial (BA00.Z)
+ 73 Cardiopatía isquèmica (BA6Z)
+ 74 Enfermedad cerebrovascular (8B00 - 8B2Z.Y)
+ 75 Enfermedad Pulmonar Obstructiva Cronica (CA22)
+ 76 Asma bronquial (CA23)
+ 77 Diabetes mellitus (5A10-5A14)
+ 78 Tumores [Neoplasias] (2A00 2F5Z)
+ 79 Trast.Mentales y del Comport. (6A00-6E69)
+ 80 Enfermedad Renal (GB40, GB4Z, GB50, GB56.4, GB55, GB70.0, GB90)
+ 81 Accid. Transport. Terrestre (PA00-PA5Z)
+ 82 Sífilis (1A6Z)
+ 83 Infección Gonocóccica (1A7Z)
+ 84 Infección por Virus Papiloma Humano (1A9Y/ XN8JY)
+ 85 Condiloma acuminado (1A95)
+ 86 Tricomoniasis (1A92)
+ 87 Candidiasis Genital (1F23.1Y)
+ 88 Leucorrea no especificada (MF3A) (**)
+ 89 Viruela de los Simios (1E71)
+ 90 Infecciones Asociadas a la Atencion en Salud (IAAS)
+ 91 Muerte Infantil
+ 92 Muerte Materna (JA00- JB65)
+ 93 Total Pacientes Atendidos todas causas atención ambulatoria y emergencia
+ 94 Total Pacientes Hospitalizados por todas causas
+                                                                                                                                                                                             Entidad:
+                                                                                        Formato SIS - 04 / EPI - 14                                                                      Municipio:
+                                                           Anexo consolidado Semanal de Enfermedades y Eventos de Notificación Obligatoria                                        Establecimiento:
+Dirección General de Epidemiología                                         Vigilancia de Mortalidad por Enfermedades Micoticas
+Sistema de Información Epidemiológico Nacional                                                                                                                                                          Año:                                         Semana:
+Dirección de Vigilancia Epidemiológica
+                                                 < 1 año      1 a 4 años   5 a 6 años   7 a 9 años   10 a 11 años   12 a 14 años   15 a 19 años   20 a 24 años   25 a 44 años   45 a 59 años    60 a 64 años   65 años y más   Edad Ignorada        Total           Total
+Orden                    Enfermedad / Evento     H     M      H       M    H       M    H       M     H       M      H       M      H       M      H       M      H       M      H       M        H      M       H      M        H      M      Hombres   Mujeres   General
+ 95 Aspergilosis (CIE 11 1F20).
+ 96 Blastomicosis (CIE 11 1F22).
+ 97 Candidiasis (CIE 11 1F23).
+ 98 Coccidioidomicosis (CIE 11 1F25).
+ 99 Criptococosis (CIE 11 1F27).
+100 Cromoblastomicosis (CIE 11 1F24).
+101 Esporotricosis (CIE 11 1F2J).
+102 Feohifomicosis (CIE 11 1F2F).
+103 Histoplasmosis (CIE 11 1F2A).
+104 Micetoma (CIE 11 1F29).
+105 Micosis superficiales (CIE 11 1F28-1F2Z).
+106 Mucormicosis (CIE 11 1F2C).
+107 Paracoccidioidomicosis (CIE 11 1F2E).
+

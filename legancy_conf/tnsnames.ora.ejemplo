@@ -1,0 +1,16 @@
+# =============================================================================
+# tnsnames.ora de referencia para el Oracle 10g del sistema legacy SIS/LAR1
+# -----------------------------------------------------------------------------
+# Copiar a "tnsnames.ora" solo si el cliente Oracle del servidor lo exige
+# (registrar el servicio en el descriptor TNS). Adaptar HOST, PORT y
+# SERVICE_NAME al entorno real antes de usarlo.
+# NUNCA versionar tnsnames.ora con datos reales (ver .gitignore raiz).
+# =============================================================================
+
+SISLAR1 =
+  (DESCRIPTION =
+    (ADDRESS = (PROTOCOL = TCP)(HOST = <ip-o-hostname>)(PORT = 1521))
+    (CONNECT_DATA =
+      (SERVICE_NAME = <SERVICE_NAME>)
+    )
+  )

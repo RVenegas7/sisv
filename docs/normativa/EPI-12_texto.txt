@@ -1,0 +1,162 @@
+                                                                                                                                                                                                             Entidad:
+                                                                                                                 Formato SIS - 04 / EPI - 12                                                             Municipio:
+
+                                                                               Consolidado Semanal de Enfermedades y Eventos de Notificación Obligatoria
+                                                                                                                                                                                                   Establecimiento:
+Dirección General de Epidemiología                                                                                       Morbilidad
+Sistema de Información Epidemiológico Nacional                                                                             Página 1 de 2                                                                                Año:                                             Semana:
+
+Dirección de Vigilancia Epidemiológica
+
+                                                                < 1 año   1 a 4 años   5 a 6 años   7 a 9 años     10 a 11 años   12 a 14 años   15 a 19 años   20 a 24 años   25 a 44 años   45 a 59 años      60 a 64 años   65 años y más   Edad Ignorada        Total
+                                                                                                                                                                                                                                                                                      Total
+   Orden                       Enfermedad / Evento          H         M   H       M    H       M    H       M       H       M       H      M      H       M      H       M     H        M      H        M        H       M       H      M        H      M      Hombres     Mujeres   General
+
+
+    1      Cólera (1A00)
+    2      Diarreas (1A40.Z)
+    3      Amibiasis (1A36)
+    4      Fiebre Tifoidea (1A07.Z)
+    5      ETA Nº de Brotes
+    6      Casos Asociados a Brotes de ETA
+    7      Hepatitis Aguda Tipo A (1E50.0)
+    8      Tuberculosis (1B10-1B1Z)
+    9      Influenza (1E32) Enfermedad Tipo Influenza
+    10     Sífilis Congénita (1A60.Z)
+    11     Infección Asintomática VIH (1C62.Z/XT3B/XN487)
+    12     Enfermedad VIH/SIDA (1C60-1C62.3)
+    13     Tosferina (1C12)
+    14     Parotiditis Infecciosa (1D80.0)
+    15     Tétanos Neonatal (1C15)
+    16     Tétanos Obstétrico (1C14)
+    17     Tétanos (otros) (1C13)
+    18     Difteria (1C17)
+    19     Sarampión Sospecha (1F03)
+    20     Rubéola (1F02)
+    21     Dengue sin signos de alarma (1D20)
+    22     Dengue con signos de alarma (1D21)
+    25     Dengue grave (1D22)
+    26     Chikungunya (1D40)
+    27     Zika (1D48)
+    28     Encefalitis Equina Venezolana (1C8C)
+    29     Fiebre Amarilla (1D47)
+    30     Leishmaniasis Visceral (1F54.0)
+    31     Leishmaniasis Cutánea (1F54.1)
+    32     Leishmaniasis Mucocutánea (1F54.2)
+    33     Leishmaniasis no Específica (1F54.Z)
+    34     Enfermedad de Chagas Aguda (1F53.1)
+    35     Enfermedad de Chagas Crónica (1F53.2)
+    36     Rabia Humana (1C82)
+    37     Fiebre Hemorrágica Venezolana (1D61.3)
+    38     Leptospirosis (1B91)
+    39     Meningitis Viral (1C8E.Z)
+    40     Meningitis Bacteriana (1D01.0)
+    41     Meningitis Meningocóccica (1C1C.0)
+    42     Enfermedad Meningococcica (1C1C.Z)
+    43     Varicela (1E90)
+    44     Hepatitis Aguda Tipo B (1E50.1)
+    45     Hepatitis Aguda Tipo C (1E50.2)
+    46     Hepatitis Viral Agudas (Otras) (1E50.Y)
+    47     Hepatitis Viral No Específicas (1E5Z)
+    48     Parálisis Flácida Aguda (MB56/XT5R)
+    49     Neumonías (CA40/XT50)
+    50     Intoxicación por Plaguicidas (NE61)
+    51     Mordedura Sospechosa de Rabia (PA75, 1C82)
+    52     Fiebre (MG26)
+    53     Efectos Adversos de Medicamentos (PH40-PH49)
+    54     Efectos Adversos de Vacunas (PL00, PL0Z)
+                                                                                            < 1 año    1 a 4 años   5 a 6 años    7 a 9 años   10 a 11 años    12 a 14 años      15 a 19 años   20 a 24 años     25 a 44 años   45 a 59 años       60 a 64 años     65 años y más   Edad Ignorada          Total
+Orden                                Enfermedad / Evento                                                                                                                                                                                                                                                                    Total General
+                                                                                        H         M    H       M    H       M     H       M      H      M       H         M       H        M     H       M        H       M       H        M        H       M         H        M      H       M       Hombres   Mujeres
+
+ 55 Rinofaringitis Aguda (CA00/CA02/XT4X/XT50)
+ 56 Sinusitis Aguda (CA01)
+ 57 Faringitis Aguda (CA02)
+ 58 Amigdalitis Aguda (CA03)
+ 59 Laringitis y Traqueitis Aguda (CA05)
+ 60 Laringitis Obstructiva y Epiglotitis (CA06)
+ 61 Infecciones Agud Vías Respirat Superi, Sitios Múltiples No Especificados (CA07)
+ 62 Bronquitis Aguda (CA42)
+ 63 Bronquiolitis Aguda < 2 Años (CA41)
+ 64 Infección Agud No especific Vías Respirat Infer (CA4Z).
+ 65 Infeccion Respiratoria Aguda Grave
+ 66 Peste (1B93)
+ 67 Covid-19 (RA01.1)
+ 68 Sindrome Respiratorio Agudo Severo SARS (1D65)
+ 69 Viruela (1E70)
+ 70 Rumor de Epizootias
+ 71 Hantavirosis (SCPH) (1D62.Z)
+ 72 Sindrome de Rubeola Congenita (KA62.8)
+ 73 Malaria vivax (1F41)
+ 74 Malaria Falciparum (1F40)
+ 75 Malaria Malariae (1F42)
+ 76 Malaria Mixta (1F41,1F40,1F42)
+ 77 Fiebre del Oeste del Nilo (1D46)
+ 78 Ebola (1D60.0Z)
+ 79 Síndrome de Guilláin Barré (8C01.0)
+ 80 Hipertension Arterial (BA00.Z)
+ 81 Cardiopatía isquèmica (BA6Z)
+ 82 Enfermedad cerebrovascular (8B00 - 8B2Z.Y)
+ 83 Enfermedad Pulmonar Obstructiva Cronica (CA22)
+ 84 Asma bronquial (CA23)
+ 85 Diabetes mellitus (5A10-5A14)
+ 86 Tumores [Neoplasias] (2A00 2F5Z)
+ 87 Trast.Mentales y del Comport. (6A00-6E69)
+ 88 Enfermedad Renal (GB40, GB4Z, GB50, GB56.4, GB55, GB70.0, GB90)
+ 89 Accid. Transport. Terrestre (PA00-PA5Z)
+ 90 Sífilis (1A6Z)
+ 91 Infección Gonocóccica (1A7Z)
+ 92 Infección por Virus Papiloma Humano (1A9Y/ XN8JY)
+ 93 Condiloma acuminado (1A95)
+ 94 Tricomoniasis (1A92)
+ 95 Candidiasis Genital (1F23.1Y)
+ 96 Leucorrea no especificada (MF3A) (**)
+ 97 Viruela de los Simios (1E71)
+ 98 Caso Morbilidad Materna Grave
+ 99 Infecciones Asociadas a la Atencion en Salud (IAAS)
+100 Total Pacientes Atendidos todas causas (atención ambulatoria y emergencia)
+101 Total Pacientes Hospitalizados por todas causas
+
+                                                        SITUACIONES ESPECIALES: No incluye los 114 ENO/EVENTOS                                                                                                                    SITUACIONES DE ALERTA
+
+        Tipo de Evento:                                                               En Animales________ Desastre Natural__________   Infecciosos__________   Fecha de Inicio     Fecha Fin      Unidad Geografica             Unidad Sanitaria                  Enfermedad        Casos   Muertes   Grave     Inusitado     Nacional
+
+        Quimico_____________ Radionuclear____________                                 Alimentario _____________          Indeterminado___________________
+
+        Comunidad:
+
+        Casos:
+
+        Muertes:
+
+        Descripcion del Evento:                                                                                                                                                                                                  SITUACIONES DE EPIDEMIA
+
+                                                                                                                                                               Fecha de Inicio     Fecha Fin      Unidad Geografica             Unidad Sanitaria                  Enfermedad        Casos   Muertes   Grave     Inusitado     Nacional
+
+
+
+
+        Medidas Tomadas:
+                                                                                                                                                                                                                     Entidad:
+                                                                                                                       Formato SIS - 04 / EPI - 12                                                                 Municipio:
+                                                                                       Anexo consolidado Semanal de Enfermedades y Eventos de Notificación Obligatoria                                       Establecimiento:
+Dirección General de Epidemiología                                                                   Vigilacia de Morbilidad por enfermedades Micoticas
+Sistema de Información Epidemiológico Nacional                                                                                                                                                                                   Año:                                         Semana:
+Dirección de Vigilancia Epidemiológica
+                                                       < 1 año       1 a 4 años   5 a 6 años      7 a 9 años        10 a 11 años     12 a 14 años      15 a 19 años      20 a 24 años   25 a 44 años   45 a 59 años     60 a 64 años    65 años y más   Edad Ignorada       Total         Total
+ Orden                       Enfermedad / Evento
+                                                   H             M   H        M   H        M      H        M         H        M       H        M        H        M        H        M     H        M     H        M       H        M      H         M     H        M     Hombre Mujeres   General
+  102    Aspergilosis (1F20).
+  103    Blastomicosis (1F22).
+  104    Candidiasis (1F23).
+  105    Coccidioidomicosis (1F25).
+  106    Criptococosis (1F27).
+  107    Cromoblastomicosis (1F24).
+  108    Esporotricosis (1F2J).
+  109    Feohifomicosis (1F2F).
+  110    Histoplasmosis (1F2A).
+  111    Micetoma (1F29).
+  112    Micosis superficiales (1F28-1F2Z).
+  113    Mucormicosis (1F2C).
+  114    Paracoccidioidomicosis (1F2E).
+

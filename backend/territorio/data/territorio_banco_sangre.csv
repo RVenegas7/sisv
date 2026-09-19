@@ -1,0 +1,572 @@
+nivel;nombre;codigo;padre_nombre
+ESTADO;Amazonas;VE-Z;
+MUNICIPIO;Autana;;Amazonas
+PARROQUIA;Isla Ratón;;Autana
+PARROQUIA;Munduapo;;Autana
+PARROQUIA;Guayapo;;Autana
+PARROQUIA;Vencedor;;Autana
+MUNICIPIO;Ataures;;Amazonas
+PARROQUIA;Ucata;;Ataures
+PARROQUIA;Yagua;;Ataures
+PARROQUIA;Yapacana;;Ataures
+MUNICIPIO;Maroa;;Amazonas
+PARROQUIA;Maroa;;Maroa
+PARROQUIA;Victorino;;Maroa
+MUNICIPIO;Manupiare;;Amazonas
+PARROQUIA;San Juan De Manapiare;;Manupiare
+PARROQUIA;Belén;;Manupiare
+MUNICIPIO;Rio Negro;;Amazonas
+PARROQUIA;San Carlos De Río Negro;;Rio Negro
+PARROQUIA;Casiquiare;;Rio Negro
+PARROQUIA;Solano;;Rio Negro
+MUNICIPIO;Atabapo;;Amazonas
+PARROQUIA;San Fernando De Atabapo;;Atabapo
+PARROQUIA;Urama;;Atabapo
+PARROQUIA;Platanillal;;Atabapo
+MUNICIPIO;Alto Orinoco;;Amazonas
+PARROQUIA;La Esmeralda;;Alto Orinoco
+PARROQUIA;Huachamacare;;Alto Orinoco
+PARROQUIA;Sierra Parima;;Alto Orinoco
+ESTADO;Anzoátegui;VE-B;
+MUNICIPIO;Anaco;;Anzoátegui
+PARROQUIA;Anaco;;Anaco
+PARROQUIA;San Joaquín;;Anaco
+MUNICIPIO;Aragua;;Anzoátegui
+PARROQUIA;Aragua De Barcelona;;Aragua
+PARROQUIA;Cachipo;;Aragua
+PARROQUIA;El Pilar;;Aragua
+MUNICIPIO;Bolívar;;Anzoátegui
+PARROQUIA;Barcelona;;Bolívar
+PARROQUIA;El Carmen;;Bolívar
+PARROQUIA;San Cristóbal;;Bolívar
+PARROQUIA;Bergantín;;Bolívar
+MUNICIPIO;Cajigal;;Anzoátegui
+PARROQUIA;Onoto;;Cajigal
+PARROQUIA;San Pablo;;Cajigal
+PARROQUIA;Mochima;;Cajigal
+MUNICIPIO;Diego Bautista Urbaneja;;Anzoátegui
+PARROQUIA;Lechería;;Diego Bautista Urbaneja
+PARROQUIA;El Morro;;Diego Bautista Urbaneja
+MUNICIPIO;Freites;;Anzoátegui
+PARROQUIA;Cantaura;;Freites
+PARROQUIA;San Miguel;;Freites
+MUNICIPIO;Guanta;;Anzoátegui
+PARROQUIA;Guanta;;Guanta
+PARROQUIA;Chorrerón;;Guanta
+PARROQUIA;Guantilla;;Guanta
+MUNICIPIO;Independencia;;Anzoátegui
+PARROQUIA;Soledad;;Independencia
+PARROQUIA;Mamo;;Independencia
+PARROQUIA;Ricaurte;;Independencia
+MUNICIPIO;Simón Bolívar;;Anzoátegui
+PARROQUIA;Puerto La Cruz;;Simón Bolívar
+PARROQUIA;Guaraguao;;Simón Bolívar
+PARROQUIA;Pozuelos;;Simón Bolívar
+MUNICIPIO;Sucre;;Anzoátegui
+PARROQUIA;Cumaná;;Sucre
+PARROQUIA;Arenas;;Sucre
+PARROQUIA;Araya;;Sucre
+PARROQUIA;Cumanacoa;;Sucre
+ESTADO;Apure;VE-C;
+MUNICIPIO;Achaguas;;Apure
+PARROQUIA;Achaguas;;Achaguas
+PARROQUIA;Guachara;;Achaguas
+PARROQUIA;Apurito;;Achaguas
+PARROQUIA;El Yagual;;Achaguas
+MUNICIPIO;Biruaca;;Apure
+PARROQUIA;Biruaca;;Biruaca
+PARROQUIA;Bruzual;;Biruaca
+MUNICIPIO;Muñoz;;Apure
+PARROQUIA;Bruzual;;Muñoz
+PARROQUIA;Mantecal;;Muñoz
+PARROQUIA;Elorza;;Muñoz
+MUNICIPIO;Pedro Camejo;;Apure
+PARROQUIA;San Juan De Payara;;Pedro Camejo
+PARROQUIA;Codazzi;;Pedro Camejo
+PARROQUIA;Cunaviche;;Pedro Camejo
+MUNICIPIO;Páez;;Apure
+PARROQUIA;Guasdualito;;Páez
+PARROQUIA;Aramendi;;Páez
+PARROQUIA;El Amparo;;Páez
+PARROQUIA;San Camilo;;Páez
+MUNICIPIO;San Fernando;;Apure
+PARROQUIA;San Fernando De Apure;;San Fernando
+PARROQUIA;El Recreo;;San Fernando
+PARROQUIA;Peñalver;;San Fernando
+ESTADO;Aragua;VE-D;
+MUNICIPIO;Bolívar;;Aragua
+PARROQUIA;San Mateo;;Bolívar
+PARROQUIA;Parapara;;Bolívar
+MUNICIPIO;Camatagua;;Aragua
+PARROQUIA;Camatagua;;Camatagua
+PARROQUIA;Carmen Licet;;Camatagua
+PARROQUIA;Santa Cruz;;Camatagua
+MUNICIPIO;Girardot;;Aragua
+PARROQUIA;Maracay;;Girardot
+PARROQUIA;Pedro José Ovalles;;Girardot
+PARROQUIA;Coche;;Girardot
+PARROQUIA;Cagua;;Girardot
+MUNICIPIO;José Félix Ribas;;Aragua
+PARROQUIA;La Victoria;;José Félix Ribas
+PARROQUIA;Cojedes;;José Félix Ribas
+MUNICIPIO;Libertador;;Aragua
+PARROQUIA;Palo Negro;;Libertador
+PARROQUIA;San Martin De Porres;;Libertador
+MUNICIPIO;Mario Briceño Iragorry;;Aragua
+PARROQUIA;El Limón;;Mario Briceño Iragorry
+PARROQUIA;Caña De Azúcar;;Mario Briceño Iragorry
+MUNICIPIO;Santiago Mariño;;Aragua
+PARROQUIA;Turmero;;Santiago Mariño
+PARROQUIA;Choroní;;Santiago Mariño
+PARROQUIA;El Limón;;Santiago Mariño
+MUNICIPIO;San Casimiro;;Aragua
+PARROQUIA;San Casimiro;;San Casimiro
+PARROQUIA;Güiripa;;San Casimiro
+MUNICIPIO;San Sebastián;;Aragua
+PARROQUIA;San Sebastián;;San Sebastián
+PARROQUIA;Cagua;;San Sebastián
+ESTADO;Barinas;VE-E;
+MUNICIPIO;Barinas;;Barinas
+PARROQUIA;Barinas;;Barinas
+PARROQUIA;Santa Bárbara;;Barinas
+PARROQUIA;Pedro Briceño;;Barinas
+MUNICIPIO;Antonio José De Sucre;;Barinas
+PARROQUIA;Barinitas;;Antonio José De Sucre
+PARROQUIA;Altamira;;Antonio José De Sucre
+PARROQUIA;Calderas;;Antonio José De Sucre
+MUNICIPIO;Ezequiel Zamora;;Barinas
+PARROQUIA;Santa Bárbara;;Ezequiel Zamora
+PARROQUIA;Pedro Briceño;;Ezequiel Zamora
+MUNICIPIO;Pedraza;;Barinas
+PARROQUIA;Ciudad Bolivia;;Pedraza
+PARROQUIA;Ignacio Briceño;;Pedraza
+MUNICIPIO;Rojas;;Barinas
+PARROQUIA;Libertad;;Rojas
+PARROQUIA;Dolores;;Rojas
+PARROQUIA;Palacios;;Rojas
+MUNICIPIO;Obispos;;Barinas
+PARROQUIA;Obispos;;Obispos
+PARROQUIA;Guachara;;Obispos
+PARROQUIA;El Real;;Obispos
+ESTADO;Bolívar;VE-F;
+MUNICIPIO;Caroní;;Bolívar
+PARROQUIA;Ciudad Guayana;;Caroní
+PARROQUIA;Cachamay;;Caroní
+PARROQUIA;San Félix;;Caroní
+MUNICIPIO;Cedeño;;Bolívar
+PARROQUIA;Caicara Del Orinoco;;Cedeño
+PARROQUIA;Pijiguaos;;Cedeño
+MUNICIPIO;El Callao;;Bolívar
+PARROQUIA;El Callao;;El Callao
+PARROQUIA;Guasipati;;El Callao
+MUNICIPIO;Gran Sabana;;Bolívar
+PARROQUIA;Santa Elena De Uairén;;Gran Sabana
+PARROQUIA;Kavanayén;;Gran Sabana
+MUNICIPIO;Heres;;Bolívar
+PARROQUIA;Ciudad Bolívar;;Heres
+PARROQUIA;Catedral;;Heres
+PARROQUIA;La Sabanita;;Heres
+MUNICIPIO;Piar;;Bolívar
+PARROQUIA;Upata;;Piar
+PARROQUIA;San Francisco;;Piar
+MUNICIPIO;Sifontes;;Bolívar
+PARROQUIA;Tumeremo;;Sifontes
+PARROQUIA;El Dorado;;Sifontes
+ESTADO;Carabobo;VE-G;
+MUNICIPIO;Bejuma;;Carabobo
+PARROQUIA;Bejuma;;Bejuma
+PARROQUIA;Canoabo;;Bejuma
+MUNICIPIO;Carlos Arvelo;;Carabobo
+PARROQUIA;Güigue;;Carlos Arvelo
+PARROQUIA;Belén;;Carlos Arvelo
+PARROQUIA;Tacarigua;;Carlos Arvelo
+MUNICIPIO;Diego Ibarra;;Carabobo
+PARROQUIA;Mariara;;Diego Ibarra
+PARROQUIA;Aguas Calientes;;Diego Ibarra
+MUNICIPIO;Guacara;;Carabobo
+PARROQUIA;Guacara;;Guacara
+PARROQUIA;Ciudad Alianza;;Guacara
+PARROQUIA;Yagua;;Guacara
+MUNICIPIO;Libertador;;Carabobo
+PARROQUIA;Tocuyito;;Libertador
+PARROQUIA;Independencia;;Libertador
+MUNICIPIO;Los Guayos;;Carabobo
+PARROQUIA;Los Guayos;;Los Guayos
+PARROQUIA;Rafael Urdaneta;;Los Guayos
+MUNICIPIO;Naguanagua;;Carabobo
+PARROQUIA;Naguanagua;;Naguanagua
+PARROQUIA;San Diego;;Naguanagua
+MUNICIPIO;Puerto Cabello;;Carabobo
+PARROQUIA;Puerto Cabello;;Puerto Cabello
+PARROQUIA;Bartolomé Salom;;Puerto Cabello
+PARROQUIA;Patanemo;;Puerto Cabello
+MUNICIPIO;San Diego;;Carabobo
+PARROQUIA;San Diego;;San Diego
+MUNICIPIO;Valencia;;Carabobo
+PARROQUIA;Valencia;;Valencia
+PARROQUIA;Candelaria;;Valencia
+PARROQUIA;Catedral;;Valencia
+PARROQUIA;Miguel Peña;;Valencia
+PARROQUIA;San José;;Valencia
+PARROQUIA;Santa Rosa;;Valencia
+ESTADO;Cojedes;VE-H;
+MUNICIPIO;Anzoátegui;;Cojedes
+PARROQUIA;Cojedes;;Anzoátegui
+PARROQUIA;El Pao;;Anzoátegui
+MUNICIPIO;Falcón;;Cojedes
+PARROQUIA;Tinaquillo;;Falcón
+MUNICIPIO;Girardot;;Cojedes
+PARROQUIA;El Baúl;;Girardot
+PARROQUIA;San Carlos;;Girardot
+MUNICIPIO;Lima Blanco;;Cojedes
+PARROQUIA;Macapo;;Lima Blanco
+MUNICIPIO;San Carlos;;Cojedes
+PARROQUIA;San Carlos;;San Carlos
+PARROQUIA;Juan Angel Bravo;;San Carlos
+PARROQUIA;Tinaco;;San Carlos
+ESTADO;Delta Amacuro;VE-Y;
+MUNICIPIO;Antonio Díaz;;Delta Amacuro
+PARROQUIA;Curiapo;;Antonio Díaz
+PARROQUIA;Alfonso Rivas;;Antonio Díaz
+MUNICIPIO;Casacoima;;Delta Amacuro
+PARROQUIA;Sierra Imataca;;Casacoima
+MUNICIPIO;Pedernales;;Delta Amacuro
+PARROQUIA;Pedernales;;Pedernales
+MUNICIPIO;Tucupita;;Delta Amacuro
+PARROQUIA;Tucupita;;Tucupita
+PARROQUIA;José Luis;;Tucupita
+PARROQUIA;San José;;Tucupita
+ESTADO;Distrito Capital;VE-A;
+MUNICIPIO;Libertador;;Distrito Capital
+PARROQUIA;Caracas;;Libertador
+PARROQUIA;Altagracia;;Libertador
+PARROQUIA;Antímano;;Libertador
+PARROQUIA;Candelaria;;Libertador
+PARROQUIA;Caricuao;;Libertador
+PARROQUIA;Catedral;;Libertador
+PARROQUIA;Coche;;Libertador
+PARROQUIA;El Junquito;;Libertador
+PARROQUIA;El Paraíso;;Libertador
+PARROQUIA;El Recreo;;Libertador
+PARROQUIA;El Valle;;Libertador
+PARROQUIA;La Pastora;;Libertador
+PARROQUIA;La Vega;;Libertador
+PARROQUIA;Macarao;;Libertador
+PARROQUIA;San Agustín;;Libertador
+PARROQUIA;San Bernardino;;Libertador
+PARROQUIA;San Juan;;Libertador
+PARROQUIA;San Pedro;;Libertador
+PARROQUIA;Santa Rosalía;;Libertador
+PARROQUIA;Sucre;;Libertador
+PARROQUIA;23 De Enero;;Libertador
+ESTADO;Falcón;VE-I;
+MUNICIPIO;Acosta;;Falcón
+PARROQUIA;San Juan De Los Cayos;;Acosta
+PARROQUIA;Capadare;;Acosta
+MUNICIPIO;Bolívar;;Falcón
+PARROQUIA;San Luis;;Bolívar
+MUNICIPIO;Carirubana;;Falcón
+PARROQUIA;Punto Fijo;;Carirubana
+PARROQUIA;Punta Cardón;;Carirubana
+PARROQUIA;Santa Ana;;Carirubana
+MUNICIPIO;Colina;;Falcón
+PARROQUIA;La Vela De Coro;;Colina
+PARROQUIA;Chichiriviche;;Colina
+MUNICIPIO;Falcón;;Falcón
+PARROQUIA;Coro;;Falcón
+PARROQUIA;La Vela De Coro;;Falcón
+MUNICIPIO;Los Taques;;Falcón
+PARROQUIA;Santa Cruz De Los Taques;;Los Taques
+MUNICIPIO;Miranda;;Falcón
+PARROQUIA;Coro;;Miranda
+MUNICIPIO;Silva;;Falcón
+PARROQUIA;Tucacas;;Silva
+PARROQUIA;Boca De Aroa;;Silva
+ESTADO;Guárico;VE-J;
+MUNICIPIO;Camaguán;;Guárico
+PARROQUIA;Camaguan;;Camaguán
+PARROQUIA;Puerto Miranda;;Camaguán
+MUNICIPIO;Francisco De Miranda;;Guárico
+PARROQUIA;Calabozo;;Francisco De Miranda
+PARROQUIA;Salvatierra;;Francisco De Miranda
+MUNICIPIO;Juan German Roscio;;Guárico
+PARROQUIA;San Juan De Los Morros;;Juan German Roscio
+PARROQUIA;Parapara;;Juan German Roscio
+MUNICIPIO;Leonardo Infante;;Guárico
+PARROQUIA;Valle De La Pascua;;Leonardo Infante
+PARROQUIA;Espino;;Leonardo Infante
+MUNICIPIO;Pedro Zaraza;;Guárico
+PARROQUIA;Zaraza;;Pedro Zaraza
+MUNICIPIO;Ortiz;;Guárico
+PARROQUIA;Ortiz;;Ortiz
+ESTADO;Lara;VE-K;
+MUNICIPIO;Andrés Eloy Blanco;;Lara
+PARROQUIA;Pío Tamayo;;Andrés Eloy Blanco
+PARROQUIA;Yacambú;;Andrés Eloy Blanco
+PARROQUIA;Quebrada Honda De Guache;;Andrés Eloy Blanco
+MUNICIPIO;Crespo;;Lara
+PARROQUIA;Freitez;;Crespo
+PARROQUIA;José María Blanco;;Crespo
+MUNICIPIO;Iribarren;;Lara
+PARROQUIA;Catedral;;Iribarren
+PARROQUIA;Concepción;;Iribarren
+PARROQUIA;Unión;;Iribarren
+PARROQUIA;Santa Rosa;;Iribarren
+PARROQUIA;Ana Soto (Antes Juan De Villegas);;Iribarren
+PARROQUIA;El Cují;;Iribarren
+PARROQUIA;Tamaca;;Iribarren
+PARROQUIA;Aguedo Felipe Alvarado;;Iribarren
+PARROQUIA;Juáres;;Iribarren
+PARROQUIA;Buena Vista;;Iribarren
+MUNICIPIO;Jiménez;;Lara
+PARROQUIA;Juan Bautista Rodríguez;;Jiménez
+PARROQUIA;Cuara;;Jiménez
+PARROQUIA;Diego De Lozada;;Jiménez
+PARROQUIA;Paraíso De San José;;Jiménez
+PARROQUIA;San Miguel;;Jiménez
+PARROQUIA;Tintorero;;Jiménez
+PARROQUIA;Coronel Mariano Peraza;;Jiménez
+PARROQUIA;José Bernardo Dorante;;Jiménez
+MUNICIPIO;Morán;;Lara
+PARROQUIA;Anzoátegui;;Morán
+PARROQUIA;Bolívar;;Morán
+PARROQUIA;Guárico;;Morán
+PARROQUIA;Hilario Luna Y Luna;;Morán
+PARROQUIA;Humocaro Bajo;;Morán
+PARROQUIA;Humocaro Alto;;Morán
+PARROQUIA;La Candelaria;;Morán
+PARROQUIA;Morán;;Morán
+MUNICIPIO;Palavecino;;Lara
+PARROQUIA;Cabudare;;Palavecino
+PARROQUIA;José Gregorio Bastidas;;Palavecino
+PARROQUIA;Agua Viva;;Palavecino
+MUNICIPIO;Simón Planas;;Lara
+PARROQUIA;Sarare;;Simón Planas
+PARROQUIA;Gustavo Vegas León;;Simón Planas
+PARROQUIA;Buría;;Simón Planas
+MUNICIPIO;Torres;;Lara
+PARROQUIA;Altagracia;;Torres
+PARROQUIA;Antonio Díaz;;Torres
+PARROQUIA;Camacaro;;Torres
+PARROQUIA;Castañeda;;Torres
+PARROQUIA;Cecilio Zubillaga;;Torres
+PARROQUIA;Chiquinquirá;;Torres
+PARROQUIA;El Blanco;;Torres
+PARROQUIA;Espinoza De Los Monteros;;Torres
+PARROQUIA;Heriberto Arroyo;;Torres
+PARROQUIA;Lara;;Torres
+PARROQUIA;Las Mercedes;;Torres
+PARROQUIA;Manuel Morillo;;Torres
+PARROQUIA;Montaña Verde;;Torres
+PARROQUIA;Montes De Oca;;Torres
+PARROQUIA;Reyes Vargas;;Torres
+PARROQUIA;Torres;;Torres
+PARROQUIA;Trinidad Samuel;;Torres
+MUNICIPIO;Urdaneta;;Lara
+PARROQUIA;Siquisique;;Urdaneta
+PARROQUIA;San Miguel;;Urdaneta
+PARROQUIA;Moroturo;;Urdaneta
+PARROQUIA;Xaguas;;Urdaneta
+ESTADO;Mérida;VE-L;
+MUNICIPIO;Alberto Adriáni;;Mérida
+PARROQUIA;El Vigía;;Alberto Adriáni
+MUNICIPIO;Campo Elías;;Mérida
+PARROQUIA;Ejido;;Campo Elías
+MUNICIPIO;Libertad;;Mérida
+PARROQUIA;Mérida;;Libertad
+PARROQUIA;La Parroquia;;Libertad
+MUNICIPIO;Miranda;;Mérida
+PARROQUIA;Timotes;;Miranda
+MUNICIPIO;Rangel;;Mérida
+PARROQUIA;Mucuchíes;;Rangel
+PARROQUIA;San Rafael;;Rangel
+MUNICIPIO;Sucre;;Mérida
+PARROQUIA;Lagunillas;;Sucre
+MUNICIPIO;Tovar;;Mérida
+PARROQUIA;Tovar;;Tovar
+MUNICIPIO;Zea;;Mérida
+PARROQUIA;Zea;;Zea
+ESTADO;Miranda;VE-M;
+MUNICIPIO;Acevedo;;Miranda
+PARROQUIA;Caucagua;;Acevedo
+PARROQUIA;Panaquire;;Acevedo
+MUNICIPIO;Baruta;;Miranda
+PARROQUIA;Baruta;;Baruta
+PARROQUIA;El Cafetal;;Baruta
+PARROQUIA;Las Minas;;Baruta
+MUNICIPIO;Brión;;Miranda
+PARROQUIA;Higuerote;;Brión
+PARROQUIA;Curiepe;;Brión
+MUNICIPIO;Carrizal;;Miranda
+PARROQUIA;Carrizal;;Carrizal
+MUNICIPIO;Cristóbal Rojas;;Miranda
+PARROQUIA;Charallave;;Cristóbal Rojas
+MUNICIPIO;El Hatillo;;Miranda
+PARROQUIA;El Hatillo;;El Hatillo
+MUNICIPIO;Guaicaipuro;;Miranda
+PARROQUIA;Los Teques;;Guaicaipuro
+PARROQUIA;Paracotos;;Guaicaipuro
+PARROQUIA;San Pedro;;Guaicaipuro
+MUNICIPIO;Lander;;Miranda
+PARROQUIA;Ocumare Del Tuy;;Lander
+MUNICIPIO;Los Salias;;Miranda
+PARROQUIA;San Antonio De Los Altos;;Los Salias
+MUNICIPIO;Páez;;Miranda
+PARROQUIA;Río Chico;;Páez
+PARROQUIA;El Guapo;;Páez
+MUNICIPIO;Plaza;;Miranda
+PARROQUIA;Guarenas;;Plaza
+MUNICIPIO;Sucre;;Miranda
+PARROQUIA;Petare;;Sucre
+PARROQUIA;Caucagüita;;Sucre
+PARROQUIA;Filas De Mariche;;Sucre
+PARROQUIA;La Dolorita;;Sucre
+MUNICIPIO;Urdaneta;;Miranda
+PARROQUIA;Cúa;;Urdaneta
+MUNICIPIO;Zamora;;Miranda
+PARROQUIA;Guatire;;Zamora
+ESTADO;Monagas;VE-N;
+MUNICIPIO;Acosta;;Monagas
+PARROQUIA;San Antonio;;Acosta
+MUNICIPIO;Bolívar;;Monagas
+PARROQUIA;Caripito;;Bolívar
+MUNICIPIO;Maturín;;Monagas
+PARROQUIA;Maturín;;Maturín
+MUNICIPIO;Piar;;Monagas
+PARROQUIA;Aragua;;Piar
+MUNICIPIO;Sotillo;;Monagas
+PARROQUIA;Barrancas;;Sotillo
+MUNICIPIO;Uracoa;;Monagas
+PARROQUIA;Uracoa;;Uracoa
+ESTADO;Nueva Esparta;VE-O;
+MUNICIPIO;Díaz;;Nueva Esparta
+PARROQUIA;San Juan Bautista;;Díaz
+MUNICIPIO;Garcia;;Nueva Esparta
+PARROQUIA;El Valle Del Espíritu Santo;;Garcia
+MUNICIPIO;Gómez;;Nueva Esparta
+PARROQUIA;Santa Ana;;Gómez
+MUNICIPIO;Mariño;;Nueva Esparta
+PARROQUIA;Porlamar;;Mariño
+MUNICIPIO;Tubores;;Nueva Esparta
+PARROQUIA;Punta De Piedras;;Tubores
+MUNICIPIO;Villalba;;Nueva Esparta
+PARROQUIA;San Pedro De Coche;;Villalba
+ESTADO;Portuguesa;VE-P;
+MUNICIPIO;Araure;;Portuguesa
+PARROQUIA;Araure;;Araure
+MUNICIPIO;Esteller;;Portuguesa
+PARROQUIA;Píritu;;Esteller
+MUNICIPIO;Guanare;;Portuguesa
+PARROQUIA;Guanare;;Guanare
+MUNICIPIO;Guanarito;;Portuguesa
+PARROQUIA;Guanarito;;Guanarito
+MUNICIPIO;Ospino;;Portuguesa
+PARROQUIA;Ospino;;Ospino
+MUNICIPIO;Páez;;Portuguesa
+PARROQUIA;Acarigua;;Páez
+MUNICIPIO;Turén;;Portuguesa
+PARROQUIA;Villa Bruzual;;Turén
+ESTADO;Sucre;VE-R;
+MUNICIPIO;Benítez;;Sucre
+PARROQUIA;El Pilar;;Benítez
+MUNICIPIO;Bermúdez;;Sucre
+PARROQUIA;Carúpano;;Bermúdez
+MUNICIPIO;Bolívar;;Sucre
+PARROQUIA;Mariguitar;;Bolívar
+MUNICIPIO;Cajigal;;Sucre
+PARROQUIA;Yaguaraparo;;Cajigal
+MUNICIPIO;Montes;;Sucre
+PARROQUIA;Cumanacoa;;Montes
+MUNICIPIO;Sucre;;Sucre
+PARROQUIA;Cumaná;;Sucre
+MUNICIPIO;Valdez;;Sucre
+PARROQUIA;Güiria;;Valdez
+ESTADO;Táchira;VE-S;
+MUNICIPIO;Ayacucho;;Táchira
+PARROQUIA;Colón;;Ayacucho
+MUNICIPIO;Bolívar;;Táchira
+PARROQUIA;San Antonio Del Táchira;;Bolívar
+MUNICIPIO;Cardenas;;Táchira
+PARROQUIA;Táriba;;Cardenas
+MUNICIPIO;Fernández Feo;;Táchira
+PARROQUIA;San Rafael Del Piñal;;Fernández Feo
+MUNICIPIO;García De Hevia;;Táchira
+PARROQUIA;La Fría;;García De Hevia
+MUNICIPIO;Guásimos;;Táchira
+PARROQUIA;Palmira;;Guásimos
+MUNICIPIO;Independencia;;Táchira
+PARROQUIA;Capacho Nuevo;;Independencia
+MUNICIPIO;Jauregui;;Táchira
+PARROQUIA;La Grita;;Jauregui
+MUNICIPIO;Junín;;Táchira
+PARROQUIA;Rubio;;Junín
+MUNICIPIO;Pedro María Ureña;;Táchira
+PARROQUIA;Ureña;;Pedro María Ureña
+MUNICIPIO;San Cristóbal;;Táchira
+PARROQUIA;San Cristóbal;;San Cristóbal
+MUNICIPIO;Torbes;;Táchira
+PARROQUIA;San Josecito;;Torbes
+ESTADO;Trujillo;VE-T;
+MUNICIPIO;Boconó;;Trujillo
+PARROQUIA;Boconó;;Boconó
+MUNICIPIO;Carache;;Trujillo
+PARROQUIA;Carache;;Carache
+MUNICIPIO;Escuque;;Trujillo
+PARROQUIA;Escuque;;Escuque
+MUNICIPIO;Motatán;;Trujillo
+PARROQUIA;Motatán;;Motatán
+MUNICIPIO;Pampán;;Trujillo
+PARROQUIA;Pampán;;Pampán
+MUNICIPIO;Urdaneta;;Trujillo
+PARROQUIA;La Quebrada;;Urdaneta
+MUNICIPIO;Valera;;Trujillo
+PARROQUIA;Valera;;Valera
+ESTADO;Vargas;VE-X;
+MUNICIPIO;Vargas;;Vargas
+PARROQUIA;La Guaira;;Vargas
+PARROQUIA;Macuto;;Vargas
+PARROQUIA;Maiquetía;;Vargas
+PARROQUIA;Naiguatá;;Vargas
+PARROQUIA;Catia La Mar;;Vargas
+PARROQUIA;Caraballeda;;Vargas
+PARROQUIA;Carayaca;;Vargas
+ESTADO;Yaracuy;VE-U;
+MUNICIPIO;Bolívar;;Yaracuy
+PARROQUIA;Aroa;;Bolívar
+MUNICIPIO;Bruzual;;Yaracuy
+PARROQUIA;Chivacoa;;Bruzual
+MUNICIPIO;Cocorote;;Yaracuy
+PARROQUIA;Cocorote;;Cocorote
+MUNICIPIO;Independencia;;Yaracuy
+PARROQUIA;Independencia;;Independencia
+MUNICIPIO;Nirgua;;Yaracuy
+PARROQUIA;Nirgua;;Nirgua
+MUNICIPIO;Peña;;Yaracuy
+PARROQUIA;Yaritagua;;Peña
+MUNICIPIO;San Felipe;;Yaracuy
+PARROQUIA;San Felipe;;San Felipe
+MUNICIPIO;Sucre;;Yaracuy
+PARROQUIA;Guama;;Sucre
+ESTADO;Zulia;VE-V;
+MUNICIPIO;Baralt;;Zulia
+PARROQUIA;San Timoteo;;Baralt
+MUNICIPIO;Cabimas;;Zulia
+PARROQUIA;Cabimas;;Cabimas
+MUNICIPIO;Colón;;Zulia
+PARROQUIA;San Carlos Del Zulia;;Colón
+MUNICIPIO;Jesús Enrique Lossada;;Zulia
+PARROQUIA;La Concepción;;Jesús Enrique Lossada
+MUNICIPIO;La Cañada De Urdaneta;;Zulia
+PARROQUIA;Concepción;;La Cañada De Urdaneta
+MUNICIPIO;Lagunillas;;Zulia
+PARROQUIA;Ciudad Ojeda;;Lagunillas
+MUNICIPIO;Machiques De Perijá;;Zulia
+PARROQUIA;Machiques;;Machiques De Perijá
+MUNICIPIO;Mara;;Zulia
+PARROQUIA;San Rafael Del Moján;;Mara
+MUNICIPIO;Maracaibo;;Zulia
+PARROQUIA;Maracaibo;;Maracaibo
+MUNICIPIO;San Francisco;;Zulia
+PARROQUIA;San Francisco;;San Francisco
+MUNICIPIO;Santa Rita;;Zulia
+PARROQUIA;Santa Rita;;Santa Rita

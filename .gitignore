@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+backend/db.sqlite3
+
+# Node
+node_modules/
+frontend/dist/
+npm-debug.log*
+
+# Entorno / secretos
+.env
+.env.local
+# Credenciales del sistema legacy (solo plantillas versionadas)
+legancy_conf/*.env
+legancy_conf/tnsnames.ora
+
+# Sistema
+.DS_Store
+
+# Contenido descartable (revisar antes de eliminar)
+borrar/
+
+# Dumps y backups del sistema legacy (exceden límites de GitHub / sin valor en VCS)
+legancy/*.DMP
+legancy/*.dmp
+legancy/*.tgz
+legancy/*.zip

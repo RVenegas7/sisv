@@ -1,0 +1,27 @@
+#05/09/2026
+#Rafael Venegas
+#Notas como sacar la estructrua de base datos oracle10g
+
+1. El Primer Paso Técnico: Extraer el ADN de la Base de DatosTu agente de IA necesitará contexto para ayudarte a programar. Vamos a darle la estructura exacta de las tablas de ese módulo. Ejecuta esto en tu PC de desarrollo:
+pip install django oracledb
+django-admin startproject configuracion_proyecto .
+python manage.py startapp vigilancia
+
+Configura el modo Thick de Oracle en tu archivo manage.py o settings.py:Como estás en Oracle 10g, antes de conectar debes inicializar el cliente de Oracle que tienes en tu máquina:
+
+import oracledb
+# Apunta a la carpeta donde está instalado tu cliente Oracle 10g local
+oracledb.init_oracle_client(lib_dir=r"C:\oracle\product\10.2.0\client_1") 
+
+Ejecuto la ingeniería inversa:
+python manage.py inspectdb > vigilancia/models_legacy.py
+
+Cómo usar tu IA / Agente para Limpiar los ModelosEl archivo models_legacy.py contendrá cientos de líneas de código con nombres de tablas extraños (los sistemas antiguos solían usar nombres como TBL_VIG_EPI_01):
+"Actúa como un arquitecto de software experto en Django y bases de datos legadas. Analiza este archivo models_legacy.py generado por inspectdb desde un Oracle 10g. Identifica cuáles tablas corresponden al módulo de Vigilancia Epidemiológica (pacientes, fichas epidemiológicas, síntomas, reportes). Necesito que limpies el código: mantén managed = False en la clase Meta (para no alterar la base de datos de producción), pero renombra los campos a nombres legibles en español moderno utilizando db_column para conservar el mapeo original."
+
+Diseñar las Ventanas Web partiendo de las CapturasUna vez que captures las pantallas del sistema Centuria actual, sube las imágenes a tu modelo de IA con la siguiente instrucción:
+
+"Esta es la ventana actual del módulo de Vigilancia Epidemiológica en el sistema legacy. Analiza su estructura (campos de texto, listas desplegables, tablas de resultados). Basándote en los modelos de Django que limpiamos antes, genera:Una vista en Django (views.py) usando Class-Based Views (ej. ListView, CreateView) para procesar este formulario.Una plantilla HTML (template.html) moderna utilizando Tailwind CSS o Bootstrap que reemplace esta interfaz vieja por una web limpia, intuitiva y organizada por pestañas si es necesario."
+
+Flujo de Trabajo con los Usuarios ClaveCon la propuesta visual que te genere la IA, siéntate con el personal de Vigilancia Epidemiológica y hazles estas tres preguntas:
+

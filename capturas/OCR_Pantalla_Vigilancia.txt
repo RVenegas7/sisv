@@ -1,0 +1,26 @@
+# OCR — Pantalla Vigilancia.jpg (módulo de vigilancia, sistema Centuria)
+
+Extracción automática (RapidOCR) del 12/09/2026. Usar como guía; verificar contra la imagen.
+
+## Texto detectado
+
+- Ventana: «Sistema de Información de Salud» (SIS). Menú: Configuración | Datos | Editar | Consultas y Reportes | Ventanas | Ayuda.
+- Pie/encabezado: MINISTERIO DEL PODER POPULAR PARA LA SALUD DE LARA (estado Lara).
+- Título del formulario: «Registro Semanal de SIS 04-EP.. y 05-EP..»; campo «Actualizado al __/04/2020».
+- Campos: Período Reportado · Fecha (08/09/20) · Código del Establecimiento que Reporta · Código · CIE Manual.
+- Pestañas: Informe | Observaciones | Historias.
+- Tabla con columnas: Código | Enfermedad | Edad | Casos (Hombre | Mujer) | Muertes.
+- Nota del formulario: «Seleccione Edad "Ignorada" y coloque el valor en la columna 'Casos Hombre' para ciertos eventos; (009) Etapa de brotes; (?) Rumores de brotes».
+- Barra de estado: buscador («Escribe aquí para buscar»), CAPS/NUM, hora y fecha.
+
+## Interpretación funcional
+
+Formulario de **notificación semanal de vigilancia epidemiológica** por establecimiento:
+- Período reportado + fecha de corte.
+- Identificación del establecimiento que reporta (código).
+- Tabla de enfermedades/eventos sujetos a notificación obligatoria → renglón por evento, con desglose de casos por sexo y edad y muertes, y su CIE.
+- Nota específica para manejo de edad ignorada y eventos de brote/rumor de brotes.
+
+## Siguiente paso
+
+Diseñar el módulo de vigilancia basado en la **norma internacional** (OMS – RSPI 2005, guías de vigilancia y formularios estandarizados) y las **normas venezolanas** (Ley Orgánica de Salud, Reglamento de Vigilancia Epidemiológica / normativa del MPPS y boletín epidemiológico semanal). Las capturas se usan de referencia.

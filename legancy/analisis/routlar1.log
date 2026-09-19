@@ -1,0 +1,197 @@
+
+Conectado a: Oracle Database 10g Enterprise Edition Release 10.1.0.3.0 - Production
+With the Partitioning, OLAP and Data Mining options
+Exportación realizada en el juego de caracteres WE8ISO8859P1 y el juego de caracteres NCHAR AL16UTF16
+
+Exportando los usuarios especificados ...
+. exportando acciones y objetos de procedimiento pre-esquema
+. exportando nombres de biblioteca de funciones ajenas para el usuario TEMP 
+. exportando sinónimos de tipo público
+. exportando sinónimos de tipo privado
+. exportando definiciones de tipos de objetos para el usuario TEMP 
+Exportando los objetos de TEMP  ...
+. exportando enlaces a la base de datos
+. exportando números de secuencia
+. exportando definiciones de agrupamiento
+. exportando las tablas de TEMP a través de la Ruta de Acceso Convencional ...
+. exportando la tabla                     T_ACCILABO
+                                                            0 filas exportadas
+. exportando la tabla                     T_ACCTRANS
+                                                            0 filas exportadas
+. exportando la tabla                     T_ALABCARD
+                                                            0 filas exportadas
+. exportando la tabla                     T_ANALABOR
+                                                            0 filas exportadas
+. exportando la tabla                     T_ANTEFACT
+                                                            0 filas exportadas
+. exportando la tabla                    T_AUDITORIA
+                                                         7403 filas exportadas
+. exportando la tabla                      T_BIOPSEG
+                                                            0 filas exportadas
+. exportando la tabla                     T_BIOPSIAT
+                                                            0 filas exportadas
+. exportando la tabla                      T_CASOSMM
+                                                            4 filas exportadas
+. exportando la tabla                     T_CASOSMMI
+                                                            6 filas exportadas
+. exportando la tabla                     T_CAUMMEDI
+                                                          544 filas exportadas
+. exportando la tabla                     T_CERTMORT
+                                                          185 filas exportadas
+. exportando la tabla                     T_COMAGUDA
+                                                            0 filas exportadas
+. exportando la tabla                     T_COMCRONI
+                                                            0 filas exportadas
+. exportando la tabla                     T_COMDISCA
+                                                            0 filas exportadas
+. exportando la tabla                     T_COMPCARD
+                                                            0 filas exportadas
+. exportando la tabla                     T_COMPLICA
+                                                            0 filas exportadas
+. exportando la tabla                      T_COMQUIR
+                                                            0 filas exportadas
+. exportando la tabla                     T_COMSEGIM
+                                                            0 filas exportadas
+. exportando la tabla                     T_DIAGASOC
+                                                            0 filas exportadas
+. exportando la tabla                     T_DOCUDENG
+                                                            0 filas exportadas
+. exportando la tabla                     T_DOCUMENT
+                                                          364 filas exportadas
+. exportando la tabla                     T_DOCUSOSP
+                                                            0 filas exportadas
+. exportando la tabla                      T_ESTABLE
+                                                            0 filas exportadas
+. exportando la tabla                      T_EVENTOS
+                                                         7802 filas exportadas
+. exportando la tabla                     T_FDOLORTO
+                                                            0 filas exportadas
+. exportando la tabla                     T_FICHAACC
+                                                            0 filas exportadas
+. exportando la tabla                     T_FICHASEP
+                                                            0 filas exportadas
+. exportando la tabla                     T_HECHOSVI
+                                                            0 filas exportadas
+. exportando la tabla                      T_INTQUIR
+                                                            0 filas exportadas
+. exportando la tabla                     T_LUGARVIS
+                                                            0 filas exportadas
+. exportando la tabla                     T_MADRNACI
+                                                          241 filas exportadas
+. exportando la tabla                       T_MBASED
+                                                           49 filas exportadas
+. exportando la tabla                     T_MCAUMORB
+                                                            0 filas exportadas
+. exportando la tabla                     T_MCAUSMRE
+                                                            0 filas exportadas
+. exportando la tabla                     T_MHOJAREP
+                                                            0 filas exportadas
+. exportando la tabla                     T_MORTANUL
+                                                           64 filas exportadas
+. exportando la tabla                     T_MORTCAUS
+                                                            0 filas exportadas
+. exportando la tabla                     T_MORTFETA
+                                                           23 filas exportadas
+. exportando la tabla                     T_MORTMADR
+                                                           23 filas exportadas
+. exportando la tabla                     T_MORTVIOL
+                                                            0 filas exportadas
+. exportando la tabla                       T_MRESPA
+                                                            7 filas exportadas
+. exportando la tabla                     T_NOTDSP04
+                                                            0 filas exportadas
+. exportando la tabla                      T_ORGGEOG
+                                                            0 filas exportadas
+. exportando la tabla                     T_OTROTRAT
+                                                            0 filas exportadas
+. exportando la tabla                     T_PACCONDE
+                                                            0 filas exportadas
+. exportando la tabla                      T_PACIEND
+                                                            0 filas exportadas
+. exportando la tabla                     T_PACIENFE
+                                                            0 filas exportadas
+. exportando la tabla                     T_PACIENTT
+                                                            0 filas exportadas
+. exportando la tabla                     T_PACIMISI
+                                                            0 filas exportadas
+. exportando la tabla                      T_PERQUIR
+                                                            0 filas exportadas
+. exportando la tabla                     T_PERSMEDI
+                                                            0 filas exportadas
+. exportando la tabla                      T_POBESTA
+                                                            0 filas exportadas
+. exportando la tabla                     T_PRODIABE
+                                                            0 filas exportadas
+. exportando la tabla                     T_PROGCARD
+                                                            0 filas exportadas
+. exportando la tabla                     T_PROGMCHE
+                                                            0 filas exportadas
+. exportando la tabla                     T_PROGTUBE
+                                                            0 filas exportadas
+. exportando la tabla                     T_PROTTROM
+                                                            0 filas exportadas
+. exportando la tabla                     T_PRVIHSID
+                                                            0 filas exportadas
+. exportando la tabla                     T_RCASOSMI
+                                                            6 filas exportadas
+. exportando la tabla                     T_RCASOSMM
+                                                            0 filas exportadas
+. exportando la tabla                      T_REGCIRU
+                                                            0 filas exportadas
+. exportando la tabla                      T_REGVACU
+                                                            0 filas exportadas
+. exportando la tabla                     T_RENDSP04
+                                                            0 filas exportadas
+. exportando la tabla                     T_RENEPI15
+                                                          521 filas exportadas
+. exportando la tabla                      T_RENGRES
+                                                           63 filas exportadas
+. exportando la tabla                      T_RENGSIT
+                                                            0 filas exportadas
+. exportando la tabla                     T_RENGTELE
+                                                         5007 filas exportadas
+. exportando la tabla                      T_RESUMEN
+                                                            9 filas exportadas
+. exportando la tabla                     T_RNACANUL
+                                                            0 filas exportadas
+. exportando la tabla                     T_RNACNACI
+                                                          241 filas exportadas
+. exportando la tabla                     T_SEGDIABE
+                                                            0 filas exportadas
+. exportando la tabla                     T_SEGEVOLP
+                                                            0 filas exportadas
+. exportando la tabla                     T_SEGUCARD
+                                                            0 filas exportadas
+. exportando la tabla                     T_SIGNSINT
+                                                            0 filas exportadas
+. exportando la tabla                     T_SIGSINSE
+                                                            0 filas exportadas
+. exportando la tabla                     T_SITUESPE
+                                                            0 filas exportadas
+. exportando la tabla                     T_TRASEGIM
+                                                            0 filas exportadas
+. exportando la tabla                     T_TRATAMIE
+                                                            0 filas exportadas
+. exportando la tabla                     T_TRATUBER
+                                                            0 filas exportadas
+. exportando la tabla                     T_TSEGCARD
+                                                            0 filas exportadas
+. exportando la tabla                     T_USUARIOS
+                                                            0 filas exportadas
+. exportando sinónimos
+. exportando vistas
+. exportando procedimientos almacenados
+. exportando operadores
+. exportando restricciones de integridad referencial
+. exportando disparadores
+. exportando tipos de índice
+. exportando índices bitmap, funcionales y extensibles
+. exportando acciones de posttables
+. exportando vistas materializadas
+. exportando logs de instantáneas
+. exportando colas de trabajo
+. exportando grupos de refrescamiento y secundarios
+. exportando dimensiones
+. exportando acciones y objetos de procedimiento post-esquema
+. exportando estadísticas
+La exportación ha terminado correctamente y sin advertencias.

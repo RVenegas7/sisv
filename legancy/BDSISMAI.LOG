@@ -1,0 +1,1285 @@
+
+Connected to: Oracle Database 10g Enterprise Edition Release 10.1.0.3.0 - Production
+With the Partitioning, OLAP and Data Mining options
+Export done in US7ASCII character set and AL16UTF16 NCHAR character set
+server uses WE8ISO8859P1 character set (possible charset conversion)
+
+About to export the entire database ...
+. exporting tablespace definitions
+. exporting profiles
+. exporting user definitions
+. exporting roles
+. exporting resource costs
+. exporting rollback segment definitions
+. exporting database links
+. exporting sequence numbers
+. exporting directory aliases
+. exporting context namespaces
+. exporting foreign function library names
+. exporting PUBLIC type synonyms
+. exporting private type synonyms
+. exporting object type definitions
+. exporting system procedural objects and actions
+. exporting pre-schema procedural objects and actions
+. exporting cluster definitions
+. about to export SYSTEM's tables via Conventional Path ...
+. . exporting table                    DEF$_AQCALL
+                                                            0 rows exported
+. . exporting table                   DEF$_AQERROR
+                                                            0 rows exported
+. . exporting table                  DEF$_CALLDEST
+                                                            0 rows exported
+. . exporting table               DEF$_DEFAULTDEST
+                                                            0 rows exported
+. . exporting table               DEF$_DESTINATION
+                                                            0 rows exported
+. . exporting table                     DEF$_ERROR
+                                                            0 rows exported
+. . exporting table                       DEF$_LOB
+                                                            0 rows exported
+. . exporting table                    DEF$_ORIGIN
+                                                            0 rows exported
+. . exporting table                DEF$_PROPAGATOR
+                                                            0 rows exported
+. . exporting table       DEF$_PUSHED_TRANSACTIONS
+                                                            0 rows exported
+. . exporting table                  DEF$_TEMP$LOB
+                                                            0 rows exported
+. . exporting table       LOGSTDBY$APPLY_MILESTONE
+                                                            0 rows exported
+. . exporting table        LOGSTDBY$APPLY_PROGRESS
+. . exporting partition                             P0
+                                                            0 rows exported
+. . exporting table                LOGSTDBY$EVENTS
+                                                            0 rows exported
+. . exporting table               LOGSTDBY$HISTORY
+                                                            0 rows exported
+. . exporting table            LOGSTDBY$PARAMETERS
+                                                            0 rows exported
+. . exporting table                 LOGSTDBY$PLSQL
+                                                            0 rows exported
+. . exporting table                   LOGSTDBY$SCN
+                                                            0 rows exported
+. . exporting table                  LOGSTDBY$SKIP
+                                                            0 rows exported
+. . exporting table      LOGSTDBY$SKIP_TRANSACTION
+                                                            0 rows exported
+. . exporting table                            OL$
+. . exporting table                       OL$HINTS
+. . exporting table                       OL$NODES
+. . exporting table        REPCAT$_AUDIT_ATTRIBUTE
+                                                            2 rows exported
+. . exporting table           REPCAT$_AUDIT_COLUMN
+                                                            0 rows exported
+. . exporting table           REPCAT$_COLUMN_GROUP
+                                                            0 rows exported
+. . exporting table               REPCAT$_CONFLICT
+                                                            0 rows exported
+. . exporting table                    REPCAT$_DDL
+                                                            0 rows exported
+. . exporting table             REPCAT$_EXCEPTIONS
+                                                            0 rows exported
+. . exporting table              REPCAT$_EXTENSION
+                                                            0 rows exported
+. . exporting table                REPCAT$_FLAVORS
+                                                            0 rows exported
+. . exporting table         REPCAT$_FLAVOR_OBJECTS
+                                                            0 rows exported
+. . exporting table              REPCAT$_GENERATED
+                                                            0 rows exported
+. . exporting table         REPCAT$_GROUPED_COLUMN
+                                                            0 rows exported
+. . exporting table      REPCAT$_INSTANTIATION_DDL
+                                                            0 rows exported
+. . exporting table            REPCAT$_KEY_COLUMNS
+                                                            0 rows exported
+. . exporting table           REPCAT$_OBJECT_PARMS
+                                                            0 rows exported
+. . exporting table           REPCAT$_OBJECT_TYPES
+                                                           28 rows exported
+. . exporting table       REPCAT$_PARAMETER_COLUMN
+                                                            0 rows exported
+. . exporting table               REPCAT$_PRIORITY
+                                                            0 rows exported
+. . exporting table         REPCAT$_PRIORITY_GROUP
+                                                            0 rows exported
+. . exporting table      REPCAT$_REFRESH_TEMPLATES
+                                                            0 rows exported
+. . exporting table                 REPCAT$_REPCAT
+                                                            0 rows exported
+. . exporting table              REPCAT$_REPCATLOG
+                                                            0 rows exported
+. . exporting table              REPCAT$_REPCOLUMN
+                                                            0 rows exported
+. . exporting table         REPCAT$_REPGROUP_PRIVS
+                                                            0 rows exported
+. . exporting table              REPCAT$_REPOBJECT
+                                                            0 rows exported
+. . exporting table                REPCAT$_REPPROP
+                                                            0 rows exported
+. . exporting table              REPCAT$_REPSCHEMA
+                                                            0 rows exported
+. . exporting table             REPCAT$_RESOLUTION
+                                                            0 rows exported
+. . exporting table      REPCAT$_RESOLUTION_METHOD
+                                                           19 rows exported
+. . exporting table  REPCAT$_RESOLUTION_STATISTICS
+                                                            0 rows exported
+. . exporting table    REPCAT$_RESOL_STATS_CONTROL
+                                                            0 rows exported
+. . exporting table          REPCAT$_RUNTIME_PARMS
+                                                            0 rows exported
+. . exporting table              REPCAT$_SITES_NEW
+                                                            0 rows exported
+. . exporting table           REPCAT$_SITE_OBJECTS
+                                                            0 rows exported
+. . exporting table              REPCAT$_SNAPGROUP
+                                                            0 rows exported
+. . exporting table       REPCAT$_TEMPLATE_OBJECTS
+                                                            0 rows exported
+. . exporting table         REPCAT$_TEMPLATE_PARMS
+                                                            0 rows exported
+. . exporting table     REPCAT$_TEMPLATE_REFGROUPS
+                                                            0 rows exported
+. . exporting table         REPCAT$_TEMPLATE_SITES
+                                                            0 rows exported
+. . exporting table        REPCAT$_TEMPLATE_STATUS
+                                                            3 rows exported
+. . exporting table       REPCAT$_TEMPLATE_TARGETS
+                                                            0 rows exported
+. . exporting table         REPCAT$_TEMPLATE_TYPES
+                                                            2 rows exported
+. . exporting table    REPCAT$_USER_AUTHORIZATIONS
+                                                            0 rows exported
+. . exporting table       REPCAT$_USER_PARM_VALUES
+                                                            0 rows exported
+. about to export OUTLN's tables via Conventional Path ...
+. . exporting table                            OL$
+                                                            0 rows exported
+. . exporting table                       OL$HINTS
+                                                            0 rows exported
+. . exporting table                       OL$NODES
+                                                            0 rows exported
+. about to export SISMAI's tables via Conventional Path ...
+. . exporting table               ACCIDENTELABORAL
+                                                            0 rows exported
+. . exporting table                   ACC_TRANSITO
+                                                            0 rows exported
+. . exporting table                      ACTIVIDAD
+                                                         6542 rows exported
+. . exporting table                 ACTIVIDADCOMUN
+                                                           55 rows exported
+. . exporting table                  ACTIVIDAD_OSP
+                                                          139 rows exported
+. . exporting table               ACTIVIDAD_OSPLAN
+                                                          666 rows exported
+. . exporting table                       ALBERGUE
+                                                          760 rows exported
+. . exporting table           ANALISIS_LABORATORIO
+                                                            0 rows exported
+. . exporting table    ANALISIS_LABORATORIO_CARDIO
+                                                            0 rows exported
+. . exporting table              ANALISIS_LAB_PROG
+                                                           40 rows exported
+. . exporting table                       ANATOMIA
+                                                           58 rows exported
+. . exporting table                 ANEXOS_PERIODO
+                                                            7 rows exported
+. . exporting table              ANTECEDENTES_PROG
+                                                           18 rows exported
+. . exporting table            ANTECED_FACT_RIESGO
+                                                            0 rows exported
+. . exporting table                     ANUARIO_01
+                                                            0 rows exported
+. . exporting table                     ANUARIO_02
+                                                            0 rows exported
+. . exporting table                     ANUARIO_03
+                                                            0 rows exported
+. . exporting table                     ANUARIO_04
+                                                            0 rows exported
+. . exporting table                     ANUARIO_05
+                                                            0 rows exported
+. . exporting table                     ANUARIO_06
+                                                            0 rows exported
+. . exporting table                           ASIC
+                                                          594 rows exported
+. . exporting table                  BACTERIOLOGIA
+                                                            6 rows exported
+. . exporting table                BASES_DIAG_PROG
+                                                           29 rows exported
+. . exporting table               BIOPSIASPACIENTE
+                                                            0 rows exported
+. . exporting table            BIOPSIASPACIENTESEG
+                                                            0 rows exported
+. . exporting table                 BIOPSIAS_ERROR
+                                                            0 rows exported
+. . exporting table                     BIOPSIATRA
+                                                            0 rows exported
+. . exporting table                        CAMBIOS
+                                                           10 rows exported
+. . exporting table                 CAMBIOSCIRUGIA
+                                                            0 rows exported
+. . exporting table                          CARGO
+                                                           36 rows exported
+. . exporting table                        CASOSMM
+                                                         2407 rows exported
+. . exporting table                      CASOS_MMI
+.
+                                                        10744 rows exported
+. . exporting table                      CATEGORIA
+                                                            5 rows exported
+. . exporting table                CATEGORIA_CIE10
+                                                            4 rows exported
+. . exporting table                  CATEGORIA_DOC
+                                                           21 rows exported
+. . exporting table                          CAUSA
+                                                            3 rows exported
+. . exporting table                 CAUSAANULACION
+                                                            6 rows exported
+. . exporting table                        CAUSA_M
+.....................
+                                                       211259 rows exported
+. . exporting table                  CAUSA_MMEDICO
+.................................
+                                                       332340 rows exported
+. . exporting table                 CAUSA_MORBOSAS
+                                                         7401 rows exported
+. . exporting table                   CAUSA_M_REPA
+                                                         6455 rows exported
+. . exporting table                    CERTIFICADO
+.................
+                                                       173391 rows exported
+. . exporting table                  CERTI_MADRE_M
+                                                            0 rows exported
+. . exporting table                 CERTNACIMIENTO
+...........................................
+                                                       438960 rows exported
+. . exporting table                    CHEQESQUEMA
+                                                            1 rows exported
+. . exporting table                          CIE10
+.
+                                                        16664 rows exported
+. . exporting table              CITOLOGIASAEXAMEN
+                                                           41 rows exported
+. . exporting table              CITOLOGIASANORMAL
+                                                           13 rows exported
+. . exporting table                   CLASIFICADOR
+                                                          129 rows exported
+. . exporting table        CLASIF_CONSULTANTE_PROG
+                                                           21 rows exported
+. . exporting table                    CODIFICADOR
+                                                          400 rows exported
+. . exporting table               CODIFICADOR_EDAD
+                                                         5590 rows exported
+. . exporting table                    CODIF_CIE10
+                                                          498 rows exported
+. . exporting table              COMPLICACIONAGUDA
+                                                            0 rows exported
+. . exporting table     COMPLICACIONCARDIOVASCULAR
+                                                            0 rows exported
+. . exporting table            COMPLICACIONCRONICA
+                                                            0 rows exported
+. . exporting table              COMPLICACIONDISCA
+                                                            0 rows exported
+. . exporting table                 COMPLICACIONES
+                                                            0 rows exported
+. . exporting table             COMPLICACIONES_SEG
+                                                            0 rows exported
+. . exporting table         COMPLICACIONQUIRURGICA
+                                                            0 rows exported
+. . exporting table              COMPLICACION_PROG
+                                                           13 rows exported
+. . exporting table                      CONDICION
+                                                            8 rows exported
+. . exporting table                  CONDICIONCASO
+                                                            6 rows exported
+. . exporting table              CONDICIONESPECIAL
+                                                           22 rows exported
+. . exporting table      CONDICION_INGRESO_MALARIA
+                                                            9 rows exported
+. . exporting table                  CONFIGURACION
+                                                            1 rows exported
+. . exporting table                       CONYUGAL
+                                                            8 rows exported
+. . exporting table                DEPENDENCIA_ADM
+                                                          104 rows exported
+. . exporting table                  DESTINOCUERPO
+                                                            4 rows exported
+. . exporting table                    DIAGNOSTICO
+                                                           18 rows exported
+. . exporting table              DIAGNOSTICOS_ASOC
+                                                            0 rows exported
+. . exporting table                      DOCUMENTO
+.............
+                                                       138946 rows exported
+. . exporting table                  DOCUMENTOCONS
+                                                            0 rows exported
+. . exporting table               DOCUMENTO_DENGUE
+.
+                                                        14702 rows exported
+. . exporting table                    DOC_CONTROL
+                                                            0 rows exported
+. . exporting table                   DOC_SOSPECHA
+                                                            3 rows exported
+. . exporting table              DONDE_REALIZO_PAI
+                                                          511 rows exported
+. . exporting table               DURACIONEMBARAZO
+                                                            4 rows exported
+. . exporting table                         EDADES
+                                                          162 rows exported
+. . exporting table                  EFECTUO_HECHO
+                                                            8 rows exported
+. . exporting table                        EGRESOS
+                                                            0 rows exported
+. . exporting table                        ERRORES
+                                                            0 rows exported
+. . exporting table                ERRORES_ANUARIO
+                                                            0 rows exported
+. . exporting table                   ERRORES_LABO
+                                                            0 rows exported
+. . exporting table                   ERRORES_RESI
+                                                            0 rows exported
+. . exporting table                   ERRORES_SINC
+                                                            0 rows exported
+. . exporting table                   ESPECIALIDAD
+                                                            8 rows exported
+. . exporting table                ESTABLECIMIENTO
+..
+                                                        21148 rows exported
+. . exporting table        ESTABLECIMIENTO_MAESTRA
+                                                            0 rows exported
+. . exporting table                   ESTADISTICAS
+                                                            0 rows exported
+. . exporting table                          ETNIA
+                                                           48 rows exported
+. . exporting table                        EVENTOS
+                                                            0 rows exported
+. . exporting table                 EVENTOS_DBLINK
+...........................................................................
+...........................................................................
+...........................................................................
+.......
+                                                      2326848 rows exported
+. . exporting table                   EVENTOS_LABO
+                                                            0 rows exported
+. . exporting table                   EVENTOS_RESI
+                                                            0 rows exported
+. . exporting table                   EVENTOS_SINC
+...........................................................................
+...........................................................................
+...........................................................................
+...........................................................................
+.....................................
+                                                      3372065 rows exported
+. . exporting table                      EVOLUCION
+                                                           24 rows exported
+. . exporting table      EVT_CARRIER_CONFIGURATION
+                                                            0 rows exported
+. . exporting table               EVT_DEST_PROFILE
+                                                            0 rows exported
+. . exporting table                    EVT_HISTORY
+                                                            0 rows exported
+. . exporting table                   EVT_INSTANCE
+                                                            0 rows exported
+. . exporting table         EVT_MAIL_CONFIGURATION
+                                                            0 rows exported
+. . exporting table               EVT_MONITOR_NODE
+                                                            0 rows exported
+. . exporting table              EVT_NOTIFY_STATUS
+                                                            0 rows exported
+. . exporting table                  EVT_OPERATORS
+                                                            0 rows exported
+. . exporting table       EVT_OPERATORS_ADDITIONAL
+                                                            0 rows exported
+. . exporting table          EVT_OPERATORS_SYSTEMS
+                                                            0 rows exported
+. . exporting table                EVT_OUTSTANDING
+                                                            0 rows exported
+. . exporting table                    EVT_PROFILE
+                                                            0 rows exported
+. . exporting table             EVT_PROFILE_EVENTS
+                                                            0 rows exported
+. . exporting table                   EVT_REGISTRY
+                                                            0 rows exported
+. . exporting table           EVT_REGISTRY_BACKLOG
+                                                            0 rows exported
+. . exporting table                   FALLALECTURA
+                                                           15 rows exported
+. . exporting table                  FICHADELDOLOR
+                                                           30 rows exported
+. . exporting table             FICHADOLORTORACICO
+                                                            0 rows exported
+. . exporting table                     FICHAEPI13
+                                                            0 rows exported
+. . exporting table         FICHAS_EPIDEMIOLOGICAS
+                                                            0 rows exported
+. . exporting table                FICHA_ACCIDENTE
+                                                            0 rows exported
+. . exporting table              FINAL_TRATAMIENTO
+                                                            6 rows exported
+. . exporting table                     FORMAPARTO
+                                                            5 rows exported
+. . exporting table                  GAPRIVILEGIES
+                                                          444 rows exported
+. . exporting table                 GR_POBLACIONAL
+                                                           82 rows exported
+. . exporting table               HECHOS_VIOLENTOS
+                                                            0 rows exported
+. . exporting table                        HISTDOC
+.....
+                                                        58596 rows exported
+. . exporting table                  HISTORICO_IDS
+                                                            0 rows exported
+. . exporting table               HIST_CODIFICADOR
+                                                            0 rows exported
+. . exporting table                     HOJAREPARO
+                                                         3060 rows exported
+. . exporting table                    HOR_AMBULAT
+                                                            0 rows exported
+. . exporting table                    INFORME_EPI
+                                                          298 rows exported
+. . exporting table          INSTITUCION_FORMADORA
+                                                           28 rows exported
+. . exporting table                   INTERVENCION
+                                                           64 rows exported
+. . exporting table         INTERVENCIONQUIRURGICA
+                                                            0 rows exported
+. . exporting table           INTERVENCION_OMITIDA
+                                                            0 rows exported
+. . exporting table                   LABORATORIOS
+                                                            3 rows exported
+. . exporting table                  LIQUIDO_CONTA
+                                                            4 rows exported
+. . exporting table                 LOCALIDADESTAB
+                                                           23 rows exported
+. . exporting table             LOCALIZACIONPULMON
+                                                           10 rows exported
+. . exporting table              LUGARES_VISITADOS
+                                                            0 rows exported
+. . exporting table                    LUGARSUCESO
+                                                            6 rows exported
+. . exporting table                 MEDICOFIRMANTE
+                                                            5 rows exported
+. . exporting table                         MISION
+                                                            5 rows exported
+. . exporting table            MONITOR_BASEDEDATOS
+..
+                                                        21798 rows exported
+. . exporting table               MONITOR_RESPALDO
+                                                         3114 rows exported
+. . exporting table                   MOR_ANULADOS
+.
+                                                        12582 rows exported
+. . exporting table                        M_FETAL
+.
+                                                        12205 rows exported
+. . exporting table                        M_MADRE
+.
+                                                        13417 rows exported
+. . exporting table                    M_RELAPARTO
+                                                            4 rows exported
+. . exporting table                     M_VIOLENTA
+.
+                                                        12409 rows exported
+. . exporting table                   NAC_ANULADOS
+                                                         6407 rows exported
+. . exporting table                 NAC_ASISTENCIA
+                                                            5 rows exported
+. . exporting table                      NAC_MADRE
+...........................................
+                                                       438977 rows exported
+. . exporting table                    NAC_RNACIDO
+...........................................
+                                                       438646 rows exported
+. . exporting table                  NAC_TIPOPARTO
+                                                            7 rows exported
+. . exporting table                    NAC_TIPOREG
+                                                            8 rows exported
+. . exporting table                          NIVEL
+                                                            7 rows exported
+. . exporting table                    NOTAS_DSP04
+                                                            0 rows exported
+. . exporting table                   NOTIFICANTES
+                                                            0 rows exported
+. . exporting table                      NUMERO_BD
+                                                            0 rows exported
+. . exporting table                      NUTRICION
+                                                            4 rows exported
+. . exporting table                      OCUPACION
+                                                         8651 rows exported
+. . exporting table                  OCUPASIVIGILA
+                                                            6 rows exported
+. . exporting table          OPCION_CERTNACIMIENTO
+                                                           21 rows exported
+. . exporting table                 ORG_GEOGRAFICA
+.....
+                                                        58960 rows exported
+. . exporting table              OTROSTRATAMIENTOS
+                                                            0 rows exported
+. . exporting table                       PACIENTE
+                                                            7 rows exported
+. . exporting table              PACIENTESINEXAMEN
+                                                            0 rows exported
+. . exporting table             PACIENTE_COND_ESPE
+                                                         1639 rows exported
+. . exporting table                     PACIENTE_D
+                                                            0 rows exported
+. . exporting table              PACIENTE_DIABETES
+                                                            0 rows exported
+. . exporting table                 PACIENTE_ERROR
+                                                            0 rows exported
+. . exporting table                PACIENTE_EXAMEN
+                                                            0 rows exported
+. . exporting table             PACIENTE_FICHA_EPI
+                                                         5326 rows exported
+. . exporting table                PACIENTE_MISION
+                                                            0 rows exported
+. . exporting table                           PAIS
+                                                           57 rows exported
+. . exporting table                 PERSONALMEDICO
+                                                         8610 rows exported
+. . exporting table             PERSONALQUIRURGICO
+                                                            0 rows exported
+. . exporting table                  PERSONALSALUD
+..........
+                                                       106979 rows exported
+. . exporting table        PESONALSALUD_POSTGRADOS
+                                                            0 rows exported
+. . exporting table                     PLAN_TABLE
+                                                            0 rows exported
+. . exporting table                    PLAN_TABLE2
+                                                            0 rows exported
+. . exporting table                      POB_ESTAB
+                                                         6529 rows exported
+. . exporting table                     POS_CONFIG
+                                                            1 rows exported
+. . exporting table              PRESENCIAEMBARAZO
+                                                            5 rows exported
+. . exporting table                      PROFESION
+                                                          837 rows exported
+. . exporting table               PROGRAMAESTABLEC
+                                                            0 rows exported
+. . exporting table            PROG_CARDIOVASCULAR
+                                                            0 rows exported
+. . exporting table               PROG_COMUNITARIO
+                                                            0 rows exported
+. . exporting table                  PROG_DIABETES
+                                                            0 rows exported
+. . exporting table                PROG_DIABE_TEMP
+                                                            0 rows exported
+. . exporting table              PROG_MAL_CHAG_ESQ
+                                                            0 rows exported
+. . exporting table              PROG_TUBERCULOSIS
+                                                            0 rows exported
+. . exporting table                  PROG_VIH_SIDA
+                                                            0 rows exported
+. . exporting table           PROTOCOLOTROMBOLISIS
+                                                            0 rows exported
+. . exporting table                      QUIROFANO
+                                                            0 rows exported
+. . exporting table                     REFERENCIA
+                                                          670 rows exported
+. . exporting table                 REFERENCIAEDAD
+                                                          713 rows exported
+. . exporting table                REGISTROCIRUGIA
+                                                            0 rows exported
+. . exporting table               REGISTRO_CIRUGIA
+                                                            0 rows exported
+. . exporting table                 REG_VACUNACION
+                                                         9876 rows exported
+. . exporting table              RELACION_COMPLICA
+                                                           13 rows exported
+. . exporting table         RELACION_PROG_ANALISIS
+                                                           46 rows exported
+. . exporting table          RELACION_PROG_ANTECED
+                                                           27 rows exported
+. . exporting table           RELACION_PROG_BASESD
+                                                           36 rows exported
+. . exporting table           RELACION_PROG_TRATAM
+                                                           97 rows exported
+. . exporting table                  RENGLONDSPCON
+                                                            0 rows exported
+. . exporting table                   RENGLONEPI13
+                                                            0 rows exported
+. . exporting table                  RENGLONEPICON
+                                                            0 rows exported
+. . exporting table                    RENGLONTELE
+...........................................................................
+...........................................................................
+...........................................................................
+.........................................
+                                                      2663432 rows exported
+. . exporting table                 RENGLONTELECON
+                                                            0 rows exported
+. . exporting table                RENGLON_CASOSMI
+                                                         9993 rows exported
+. . exporting table                RENGLON_CASOSMM
+                                                          749 rows exported
+. . exporting table                  RENGLON_DSP04
+................................
+                                                       323004 rows exported
+. . exporting table                  RENGLON_EPI15
+...............................................................
+                                                       632665 rows exported
+. . exporting table                RENGLON_RESUMEN
+.....
+                                                        56929 rows exported
+. . exporting table              RENGLON_SITUACION
+...
+                                                        30699 rows exported
+. . exporting table                REPORTESANUARIO
+                                                           22 rows exported
+. . exporting table                RESULTADOS_PROG
+                                                            9 rows exported
+. . exporting table                        RESUMEN
+                                                         7810 rows exported
+. . exporting table                      RESUMEN_D
+                                                            0 rows exported
+. . exporting table               RESUMEN_NEGATIVA
+                                                            0 rows exported
+. . exporting table                ROLMEDICOINTERV
+                                                            7 rows exported
+. . exporting table                R_TRANSFERENCIA
+                                                            0 rows exported
+. . exporting table     SEGUIMIENTO_CARDIOVASCULAR
+                                                            0 rows exported
+. . exporting table           SEGUIMIENTO_DIABETES
+                                                            0 rows exported
+. . exporting table              SEG_EVOL_PACIENTE
+                                                            0 rows exported
+. . exporting table                SEMANAPESOTALLA
+                                                           21 rows exported
+. . exporting table                        SEMANAS
+                                                         1461 rows exported
+. . exporting table                           SEXO
+                                                            4 rows exported
+. . exporting table                SIGNOS_SINTOMAS
+                                                            0 rows exported
+. . exporting table            SIGNOS_SINTOMAS_SEG
+                                                            0 rows exported
+. . exporting table                     SITIOPARTO
+                                                            8 rows exported
+. . exporting table                SITIO_ACCIDENTE
+                                                           61 rows exported
+. . exporting table                        SITIO_M
+                                                           11 rows exported
+. . exporting table                   SITIO_MUERTE
+                                                            4 rows exported
+. . exporting table               SITIO_OCURRENCIA
+                                                           11 rows exported
+. . exporting table             SITUACIONACCIDENTE
+                                                            4 rows exported
+. . exporting table             SITUACION_ESPECIAL
+                                                            0 rows exported
+. . exporting table            SMACTUALPARAMETER_S
+                                                            0 rows exported
+. . exporting table                   SMAGENTJOB_S
+                                                            0 rows exported
+. . exporting table                    SMARCHIVE_S
+                                                            0 rows exported
+. . exporting table               SMBREAKABLELINKS
+                                                            0 rows exported
+. . exporting table                       SMCLIQUE
+                                                            0 rows exported
+. . exporting table                SMCONFIGURATION
+                                                            0 rows exported
+. . exporting table           SMCONSOLESOSETTING_S
+                                                            0 rows exported
+. . exporting table                   SMDATABASE_S
+                                                            0 rows exported
+. . exporting table                     SMDBAUTH_S
+                                                            0 rows exported
+. . exporting table                    SMDEFAUTH_S
+                                                            0 rows exported
+. . exporting table               SMDEPENDENTLINKS
+                                                            0 rows exported
+. . exporting table            SMDISTRIBUTIONSET_S
+                                                            0 rows exported
+. . exporting table                     SMFOLDER_S
+                                                            0 rows exported
+. . exporting table            SMFORMALPARAMETER_S
+                                                            0 rows exported
+. . exporting table        SMGLOBALCONFIGURATION_S
+                                                            0 rows exported
+. . exporting table                   SMHOSTAUTH_S
+                                                            0 rows exported
+. . exporting table                       SMHOST_S
+                                                            0 rows exported
+. . exporting table               SMINSTALLATION_S
+                                                            0 rows exported
+. . exporting table                 SMLOGMESSAGE_S
+                                                            0 rows exported
+. . exporting table               SMMONTHLYENTRY_S
+                                                            0 rows exported
+. . exporting table             SMMONTHWEEKENTRY_S
+                                                            0 rows exported
+. . exporting table                  SMMOWNERLINKS
+                                                            0 rows exported
+. . exporting table                   SMOMSTRING_S
+                                                            0 rows exported
+. . exporting table                    SMOSNAMES_X
+                                                            0 rows exported
+. . exporting table                   SMOWNERLINKS
+                                                            0 rows exported
+. . exporting table                    SMPACKAGE_S
+                                                            0 rows exported
+. . exporting table                SMPARALLELJOB_S
+                                                            0 rows exported
+. . exporting table          SMPARALLELOPERATION_S
+                                                            0 rows exported
+. . exporting table          SMPARALLELSTATEMENT_S
+                                                            0 rows exported
+. . exporting table           SMPRODUCTATTRIBUTE_S
+                                                            0 rows exported
+. . exporting table                    SMPRODUCT_S
+                                                            0 rows exported
+. . exporting table              SMP_AD_ADDRESSES_
+                                                            0 rows exported
+. . exporting table       SMP_AD_DISCOVERED_NODES_
+                                                            0 rows exported
+. . exporting table                  SMP_AD_NODES_
+                                                            0 rows exported
+. . exporting table                  SMP_AD_PARMS_
+                                                            0 rows exported
+. . exporting table       SMP_AUTO_DISCOVERY_ITEM_
+                                                            0 rows exported
+. . exporting table      SMP_AUTO_DISCOVERY_PARMS_
+                                                            0 rows exported
+. . exporting table                      SMP_BLOB_
+                                                            0 rows exported
+. . exporting table            SMP_BRM_ACTIVE_JOB_
+                                                            0 rows exported
+. . exporting table        SMP_BRM_CHANNEL_DEVICE_
+                                                            0 rows exported
+. . exporting table       SMP_BRM_DEFAULT_CHANNEL_
+                                                            0 rows exported
+. . exporting table     SMP_BRM_RC_CONNECT_STRING_
+                                                            0 rows exported
+. . exporting table             SMP_BRM_SAVED_JOB_
+                                                            0 rows exported
+. . exporting table          SMP_BRM_TEMP_SCRIPTS_
+                                                            0 rows exported
+. . exporting table               SMP_CREDENTIALS$
+                                                            0 rows exported
+. . exporting table            SMP_EBU_ACTIVE_JOB_
+                                                            0 rows exported
+. . exporting table             SMP_EBU_SAVED_JOB_
+                                                            0 rows exported
+. . exporting table                       SMP_JOB_
+                                                            0 rows exported
+. . exporting table             SMP_JOB_EVENTLIST_
+                                                            0 rows exported
+. . exporting table               SMP_JOB_HISTORY_
+                                                            0 rows exported
+. . exporting table              SMP_JOB_HISTORY_U
+...........................................................................
+...........................................................................
+...................................................................
+                                                      2176800 rows exported
+. . exporting table              SMP_JOB_INSTANCE_
+                                                            0 rows exported
+. . exporting table               SMP_JOB_LIBRARY_
+                                                            0 rows exported
+. . exporting table         SMP_JOB_TASK_INSTANCE_
+                                                            0 rows exported
+. . exporting table                 SMP_LONG_TEXT_
+                                                            0 rows exported
+. . exporting table              SMP_REP_EXEC_STAT
+                                                            0 rows exported
+. . exporting table                SMP_REP_VERSION
+                                                            0 rows exported
+. . exporting table                   SMP_SERVICES
+                                                            0 rows exported
+. . exporting table              SMP_SERVICE_DATA_
+                                                            0 rows exported
+. . exporting table        SMP_SERVICE_GROUP_DEFN_
+                                                            0 rows exported
+. . exporting table        SMP_SERVICE_GROUP_ITEM_
+                                                            0 rows exported
+. . exporting table              SMP_SERVICE_ITEM_
+                                                            0 rows exported
+. . exporting table     SMP_UPDATESERVICES_CALLED_
+                                                            0 rows exported
+. . exporting table               SMP_USER_DETAILS
+                                                            0 rows exported
+. . exporting table            SMP_VAB_ACTIVE_JOB_
+                                                            0 rows exported
+. . exporting table             SMP_VAB_SAVED_JOB_
+                                                            0 rows exported
+. . exporting table        SMP_VAR_LIST_DATABASES_
+                                                            0 rows exported
+. . exporting table                    SMRELEASE_S
+                                                            0 rows exported
+. . exporting table                        SMRUN_S
+                                                            0 rows exported
+. . exporting table                   SMSCHEDULE_S
+                                                            0 rows exported
+. . exporting table         SMSHAREDORACLECLIENT_S
+                                                            0 rows exported
+. . exporting table  SMSHAREDORACLECONFIGURATION_S
+                                                            0 rows exported
+. . exporting table                 SMTABLESPACE_S
+                                                            0 rows exported
+. . exporting table                 SMVCENDPOINT_S
+                                                            0 rows exported
+. . exporting table                SMWEEKLYENTRY_S
+                                                            0 rows exported
+. . exporting table                       TABLASIS
+                                                           72 rows exported
+. . exporting table                   TABLE_CONFIG
+                                                           24 rows exported
+. . exporting table                    TEMPONOMBRE
+                                                            0 rows exported
+. . exporting table                       TEMPORAL
+                                                            0 rows exported
+. . exporting table               TIPOCOMPLICACION
+                                                            3 rows exported
+. . exporting table                     TIPODENGUE
+                                                            3 rows exported
+. . exporting table                  TIPODOCUMENTO
+                                                           15 rows exported
+. . exporting table                    TIPOESTABLE
+                                                           62 rows exported
+. . exporting table                     TIPOEVENTO
+                                                            7 rows exported
+. . exporting table                     TIPOEXAMEN
+                                                            4 rows exported
+. . exporting table                      TIPOLOCAL
+                                                            5 rows exported
+. . exporting table                    TIPOPERIODO
+                                                            4 rows exported
+. . exporting table                  TIPOSITUACION
+                                                            4 rows exported
+. . exporting table                 TIPO_ACCIDENTE
+                                                            6 rows exported
+. . exporting table                TIPO_EXPOSICION
+                                                            5 rows exported
+. . exporting table                     TIPO_HECHO
+                                                           29 rows exported
+. . exporting table                         TIPO_M
+                                                            7 rows exported
+. . exporting table                    TIPO_OBJETO
+                                                            4 rows exported
+. . exporting table                  TIPO_VEHICULO
+                                                            8 rows exported
+. . exporting table                      TPACIENTE
+                                                            0 rows exported
+. . exporting table               TRANSMISION_SIDA
+                                                           18 rows exported
+. . exporting table                    TRATAMIENTO
+                                                            0 rows exported
+. . exporting table               TRATAMIENTO_PROG
+                                                           79 rows exported
+. . exporting table                TRATAMIENTO_SEG
+                                                            0 rows exported
+. . exporting table          TRATAMIENTO_SEGCARDIO
+                                                            0 rows exported
+. . exporting table       TRATAMIENTO_TUBERCULOSIS
+                                                            0 rows exported
+. . exporting table                      TRNACIDOS
+                                                            0 rows exported
+. . exporting table                          T_DOC
+                                                            0 rows exported
+. . exporting table                 UBICACION_DIAG
+                                                           24 rows exported
+. . exporting table                    ULTIMOGRADO
+                                                            9 rows exported
+. . exporting table                       USUARIOS
+                                                          844 rows exported
+. . exporting table                  USUARIO_ESTAB
+                                                            0 rows exported
+. . exporting table                   VALIDARCIE10
+.
+                                                        14340 rows exported
+. . exporting table                       V_LISTA3
+                                                           68 rows exported
+. . exporting table                V_MUERTEMATERNA
+                                                           52 rows exported
+. . exporting table                   V_NACIMIENTO
+                                                            0 rows exported
+. . exporting table                     X_CANT_HAB
+                                                            2 rows exported
+. . exporting table               X_CAUSAS_MUERTES
+                                                            5 rows exported
+. about to export HISTORICO's tables via Conventional Path ...
+. . exporting table                        ERRORES
+                                                            0 rows exported
+. . exporting table                       ERRORESB
+                                                            0 rows exported
+. . exporting table                       ERRORESC
+                                                            0 rows exported
+. . exporting table                   ERRORES_LABO
+                                                            0 rows exported
+. . exporting table                   ERRORES_RESI
+                                                            0 rows exported
+. . exporting table                   ERRORES_SINC
+                                                            0 rows exported
+. . exporting table                        EVENTO2
+                                                            0 rows exported
+. . exporting table                        EVENTOS
+.
+                                                        15281 rows exported
+. . exporting table                 EVENTOS_DBLINK
+                                                            0 rows exported
+. . exporting table                   EVENTOS_RESP
+...........................................................................
+...........................................................................
+..........................................
+                                                      1927311 rows exported
+. about to export TSMSYS's tables via Conventional Path ...
+. . exporting table                           SRS$
+                                                            0 rows exported
+. about to export RESPALDO's tables via Conventional Path ...
+. about to export ANALISTA's tables via Conventional Path ...
+. about to export INBDLAR1's tables via Conventional Path ...
+. . exporting table                     T_ACCILABO
+                                                            0 rows exported
+. . exporting table                     T_ACCTRANS
+                                                            0 rows exported
+. . exporting table                     T_ALABCARD
+                                                            0 rows exported
+. . exporting table                     T_ANALABOR
+                                                            0 rows exported
+. . exporting table                     T_ANTEFACT
+                                                            0 rows exported
+. . exporting table                    T_AUDITORIA
+                                                         4085 rows exported
+. . exporting table                      T_BIOPSEG
+                                                            0 rows exported
+. . exporting table                     T_BIOPSIAT
+                                                            0 rows exported
+. . exporting table                      T_CASOSMM
+                                                            0 rows exported
+. . exporting table                     T_CASOSMMI
+                                                            0 rows exported
+. . exporting table                     T_CAUMMEDI
+                                                            0 rows exported
+. . exporting table                     T_CERTMORT
+                                                          120 rows exported
+. . exporting table                     T_CERTNACI
+                                                          321 rows exported
+. . exporting table                     T_COMAGUDA
+                                                            0 rows exported
+. . exporting table                     T_COMCRONI
+                                                            0 rows exported
+. . exporting table                     T_COMDISCA
+                                                            0 rows exported
+. . exporting table                     T_COMPCARD
+                                                            0 rows exported
+. . exporting table                     T_COMPLICA
+                                                            0 rows exported
+. . exporting table                      T_COMQUIR
+                                                            0 rows exported
+. . exporting table                     T_COMSEGIM
+                                                            0 rows exported
+. . exporting table                     T_DIAGASOC
+                                                            0 rows exported
+. . exporting table                     T_DOCUDENG
+                                                            0 rows exported
+. . exporting table                     T_DOCUMENT
+                                                           96 rows exported
+. . exporting table                     T_DOCUSOSP
+                                                            0 rows exported
+. . exporting table                      T_ESTABLE
+                                                            0 rows exported
+. . exporting table                      T_EVENTOS
+.
+                                                        18680 rows exported
+. . exporting table                     T_FDOLORTO
+                                                            0 rows exported
+. . exporting table                     T_FICHAACC
+                                                            0 rows exported
+. . exporting table                     T_FICHASEP
+                                                            0 rows exported
+. . exporting table                     T_HECHOSVI
+                                                            0 rows exported
+. . exporting table                      T_INTQUIR
+                                                            0 rows exported
+. . exporting table                     T_LUGARVIS
+                                                            0 rows exported
+. . exporting table                     T_MADRNACI
+                                                          321 rows exported
+. . exporting table                       T_MBASED
+                                                           56 rows exported
+. . exporting table                     T_MCAUMORB
+                                                            0 rows exported
+. . exporting table                     T_MCAUSMRE
+                                                            0 rows exported
+. . exporting table                     T_MHOJAREP
+                                                            1 rows exported
+. . exporting table                     T_MORTANUL
+                                                            0 rows exported
+. . exporting table                     T_MORTCAUS
+                                                          195 rows exported
+. . exporting table                     T_MORTFETA
+                                                            6 rows exported
+. . exporting table                     T_MORTMADR
+                                                            7 rows exported
+. . exporting table                     T_MORTVIOL
+                                                            7 rows exported
+. . exporting table                       T_MRESPA
+                                                            8 rows exported
+. . exporting table                     T_NOTDSP04
+                                                            0 rows exported
+. . exporting table                      T_ORGGEOG
+                                                            0 rows exported
+. . exporting table                     T_OTROTRAT
+                                                            0 rows exported
+. . exporting table                     T_PACCONDE
+                                                            0 rows exported
+. . exporting table                      T_PACIEND
+                                                            0 rows exported
+. . exporting table                     T_PACIENFE
+                                                            0 rows exported
+. . exporting table                     T_PACIENTT
+                                                            0 rows exported
+. . exporting table                     T_PACIMISI
+                                                            0 rows exported
+. . exporting table                      T_PERQUIR
+                                                            0 rows exported
+. . exporting table                     T_PERSMEDI
+                                                            0 rows exported
+. . exporting table                      T_POBESTA
+                                                            0 rows exported
+. . exporting table                     T_PRODIABE
+                                                            0 rows exported
+. . exporting table                     T_PROGCARD
+                                                            0 rows exported
+. . exporting table                     T_PROGMCHE
+                                                            0 rows exported
+. . exporting table                     T_PROGTUBE
+                                                            0 rows exported
+. . exporting table                     T_PROTTROM
+                                                            0 rows exported
+. . exporting table                     T_PRVIHSID
+                                                            0 rows exported
+. . exporting table                     T_RCASOSMI
+                                                           12 rows exported
+. . exporting table                     T_RCASOSMM
+                                                            2 rows exported
+. . exporting table                      T_REGCIRU
+                                                            0 rows exported
+. . exporting table                      T_REGVACU
+                                                            0 rows exported
+. . exporting table                     T_RENDSP04
+                                                            0 rows exported
+. . exporting table                     T_RENEPI15
+                                                            0 rows exported
+. . exporting table                      T_RENGRES
+                                                         7555 rows exported
+. . exporting table                      T_RENGSIT
+                                                         2654 rows exported
+. . exporting table                     T_RENGTELE
+                                                         2592 rows exported
+. . exporting table                      T_RESUMEN
+                                                         1081 rows exported
+. . exporting table                     T_RNACANUL
+                                                            0 rows exported
+. . exporting table                     T_RNACNACI
+                                                          321 rows exported
+. . exporting table                     T_SEGDIABE
+                                                            0 rows exported
+. . exporting table                     T_SEGEVOLP
+                                                            0 rows exported
+. . exporting table                     T_SEGUCARD
+                                                            0 rows exported
+. . exporting table                     T_SIGNSINT
+                                                            0 rows exported
+. . exporting table                     T_SIGSINSE
+                                                            0 rows exported
+. . exporting table                     T_SITUESPE
+                                                            0 rows exported
+. . exporting table                     T_TRASEGIM
+                                                            0 rows exported
+. . exporting table                     T_TRATAMIE
+                                                            0 rows exported
+. . exporting table                     T_TRATUBER
+                                                            0 rows exported
+. . exporting table                     T_TSEGCARD
+                                                            0 rows exported
+. . exporting table                     T_USUARIOS
+                                                          670 rows exported
+. about to export TEMP's tables via Conventional Path ...
+. . exporting table                     T_ACCILABO
+                                                            0 rows exported
+. . exporting table                     T_ACCTRANS
+                                                            0 rows exported
+. . exporting table                     T_ALABCARD
+                                                            0 rows exported
+. . exporting table                     T_ANALABOR
+                                                            0 rows exported
+. . exporting table                     T_ANTEFACT
+                                                            0 rows exported
+. . exporting table                    T_AUDITORIA
+                                                         7403 rows exported
+. . exporting table                      T_BIOPSEG
+                                                            0 rows exported
+. . exporting table                     T_BIOPSIAT
+                                                            0 rows exported
+. . exporting table                      T_CASOSMM
+                                                            4 rows exported
+. . exporting table                     T_CASOSMMI
+                                                            6 rows exported
+. . exporting table                     T_CAUMMEDI
+                                                          544 rows exported
+. . exporting table                     T_CERTMORT
+                                                          185 rows exported
+. . exporting table                     T_COMAGUDA
+                                                            0 rows exported
+. . exporting table                     T_COMCRONI
+                                                            0 rows exported
+. . exporting table                     T_COMDISCA
+                                                            0 rows exported
+. . exporting table                     T_COMPCARD
+                                                            0 rows exported
+. . exporting table                     T_COMPLICA
+                                                            0 rows exported
+. . exporting table                      T_COMQUIR
+                                                            0 rows exported
+. . exporting table                     T_COMSEGIM
+                                                            0 rows exported
+. . exporting table                     T_DIAGASOC
+                                                            0 rows exported
+. . exporting table                     T_DOCUDENG
+                                                            0 rows exported
+. . exporting table                     T_DOCUMENT
+                                                          364 rows exported
+. . exporting table                     T_DOCUSOSP
+                                                            0 rows exported
+. . exporting table                      T_ESTABLE
+                                                            0 rows exported
+. . exporting table                      T_EVENTOS
+                                                         7802 rows exported
+. . exporting table                     T_FDOLORTO
+                                                            0 rows exported
+. . exporting table                     T_FICHAACC
+                                                            0 rows exported
+. . exporting table                     T_FICHASEP
+                                                            0 rows exported
+. . exporting table                     T_HECHOSVI
+                                                            0 rows exported
+. . exporting table                      T_INTQUIR
+                                                            0 rows exported
+. . exporting table                     T_LUGARVIS
+                                                            0 rows exported
+. . exporting table                     T_MADRNACI
+                                                          241 rows exported
+. . exporting table                       T_MBASED
+                                                           49 rows exported
+. . exporting table                     T_MCAUMORB
+                                                            0 rows exported
+. . exporting table                     T_MCAUSMRE
+                                                            0 rows exported
+. . exporting table                     T_MHOJAREP
+                                                            0 rows exported
+. . exporting table                     T_MORTANUL
+                                                           64 rows exported
+. . exporting table                     T_MORTCAUS
+                                                            0 rows exported
+. . exporting table                     T_MORTFETA
+                                                           23 rows exported
+. . exporting table                     T_MORTMADR
+                                                           23 rows exported
+. . exporting table                     T_MORTVIOL
+                                                            0 rows exported
+. . exporting table                       T_MRESPA
+                                                            7 rows exported
+. . exporting table                     T_NOTDSP04
+                                                            0 rows exported
+. . exporting table                      T_ORGGEOG
+                                                            0 rows exported
+. . exporting table                     T_OTROTRAT
+                                                            0 rows exported
+. . exporting table                     T_PACCONDE
+                                                            0 rows exported
+. . exporting table                      T_PACIEND
+                                                            0 rows exported
+. . exporting table                     T_PACIENFE
+                                                            0 rows exported
+. . exporting table                     T_PACIENTT
+                                                            0 rows exported
+. . exporting table                     T_PACIMISI
+                                                            0 rows exported
+. . exporting table                      T_PERQUIR
+                                                            0 rows exported
+. . exporting table                     T_PERSMEDI
+                                                            0 rows exported
+. . exporting table                      T_POBESTA
+                                                            0 rows exported
+. . exporting table                     T_PRODIABE
+                                                            0 rows exported
+. . exporting table                     T_PROGCARD
+                                                            0 rows exported
+. . exporting table                     T_PROGMCHE
+                                                            0 rows exported
+. . exporting table                     T_PROGTUBE
+                                                            0 rows exported
+. . exporting table                     T_PROTTROM
+                                                            0 rows exported
+. . exporting table                     T_PRVIHSID
+                                                            0 rows exported
+. . exporting table                     T_RCASOSMI
+                                                            6 rows exported
+. . exporting table                     T_RCASOSMM
+                                                            0 rows exported
+. . exporting table                      T_REGCIRU
+                                                            0 rows exported
+. . exporting table                      T_REGVACU
+                                                            0 rows exported
+. . exporting table                     T_RENDSP04
+                                                            0 rows exported
+. . exporting table                     T_RENEPI15
+                                                          521 rows exported
+. . exporting table                      T_RENGRES
+                                                           63 rows exported
+. . exporting table                      T_RENGSIT
+                                                            0 rows exported
+. . exporting table                     T_RENGTELE
+                                                         5007 rows exported
+. . exporting table                      T_RESUMEN
+                                                            9 rows exported
+. . exporting table                     T_RNACANUL
+                                                            0 rows exported
+. . exporting table                     T_RNACNACI
+                                                          241 rows exported
+. . exporting table                     T_SEGDIABE
+                                                            0 rows exported
+. . exporting table                     T_SEGEVOLP
+                                                            0 rows exported
+. . exporting table                     T_SEGUCARD
+                                                            0 rows exported
+. . exporting table                     T_SIGNSINT
+                                                            0 rows exported
+. . exporting table                     T_SIGSINSE
+                                                            0 rows exported
+. . exporting table                     T_SITUESPE
+                                                            0 rows exported
+. . exporting table                     T_TRASEGIM
+                                                            0 rows exported
+. . exporting table                     T_TRATAMIE
+                                                            0 rows exported
+. . exporting table                     T_TRATUBER
+                                                            0 rows exported
+. . exporting table                     T_TSEGCARD
+                                                            0 rows exported
+. . exporting table                     T_USUARIOS
+                                                            0 rows exported
+. exporting synonyms
+. exporting views
+. exporting referential integrity constraints
+. exporting stored procedures
+. exporting operators
+. exporting indextypes
+. exporting bitmap, functional and extensible indexes
+. exporting posttables actions
+. exporting triggers
+. exporting materialized views
+. exporting snapshot logs
+. exporting job queues
+. exporting refresh groups and children
+. exporting dimensions
+. exporting post-schema procedural objects and actions
+. exporting user history table
+. exporting default and system auditing options
+. exporting statistics
+Export terminated successfully without warnings.
