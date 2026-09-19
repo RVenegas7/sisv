@@ -151,7 +151,9 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
 
 ## Convenciones y estado
 
-- Repositorio aún **no es git** (no inicializado; no hacer `git init` sin pedirlo).
+- Repositorio **git iniciado** (19/09/2026): remoto `git@github.com:RVenegas7/sisv.git`, rama `main`
+  (origin configurado). Llave SSH dedicada `~/.ssh/sisv_github`. Antes de commitear revisar
+  `.gitignore` (dumps legacy, `legancy_conf/*.env`, etc.).
 - Código base Django/React ya creado: backend con serializers + vistas mock y frontend con los
   formularios de carga de Nacimientos, Defunciones y Fichas de Vigilancia, más el buscador CIE
   reutilizable (smart search + árbol/cascada). Falta: reportes y mapeos.

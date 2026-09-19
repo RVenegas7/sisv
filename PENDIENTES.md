@@ -112,9 +112,12 @@
 - **Estado:** pendiente — Django y React aún no tienen lint/tests configurados.
 - Verificación manual vigente: `manage.py check`, cliente de pruebas de Django y `npm run build`.
 
-## 10. [PENDIENTE] Repositorio Git
+## 10. [COMPLETADO] Repositorio Git
 
-- **Estado:** pendiente — el repositorio **no está inicializado** (no hacer `git init` sin pedirlo explícitamente).
+- **Estado:** completado (19/09/2026) — repositorio inicializado y publicado.
+- Remoto: `git@github.com:RVenegas7/sisv.git`, rama `main`. Llave SSH dedicada `~/.ssh/sisv_github` (registrada en la cuenta RVenegas7; entrada `github.com` en `~/.ssh/config`).
+- Commit inicial `bbfe9e0` (backend + frontend + catálogos + vigilancia + migración legacy).
+- No versionados (`.gitignore`): `.venv`, `node_modules`, dumps/backups legacy (`legancy/*.DMP|tgz|zip`), `legancy_conf/*.env` y `tnsnames.ora`, `borrar/`.
 
 ## 11. [PENDIENTE - REVISAR] Despliegue en producción (Proxmox 9.2)
 
