@@ -4,8 +4,8 @@ Idioma de trabajo: **responder siempre en español**.
 
 ## Stack del proyecto
 
-- **Backend:** Django REST Framework (no creado aún).
-- **Frontend:** React + Vite, consumo de API con Axios (no creado aún).
+- **Backend:** Django REST Framework (operativo, ver sección Backend).
+- **Frontend:** React + Vite, consumo de API con Axios (operativo).
 - **BD destino:** PostgreSQL **18.6** (última versión estable, publicada 2026-08-13) vía Docker.
 - **BD origen:** Oracle 10g en servidor openSUSE 11.4 (acceso por SSH con usuario de sistema `oracle`, privilegios DBA implícitos).
 - Migración MariaDB 10.11 → PostgreSQL 18.6 **completada** (jun 2026): MariaDB quedó fuera de uso.
@@ -45,7 +45,7 @@ Idioma de trabajo: **responder siempre en español**.
 ### Estructura de apps (backend/)
 
 - `catalogos`: modelos `CIE10`, `CIE11` (jerárquico self-referential: capítulo→bloque→categoría→subgrupo),
-  `MapeoCIE` (cross-walk). Serializers + vistas **mock**.
+  `MapeoCIE` (cross-walk). Serializers + vistas con datos reales en BD.
 - `registros`: `Nacimiento`, `Defuncion`, `FichaVigilancia` heredan `RegistroConCIE`.
 - `seguridad`: `Organizacion` (jerárquica: ministerio→gobernación→regional→centro) y `Perfil` con rol.
   Endpoints `/api/seguridad/` (organizaciones, roles). Cada `RegistroConCIE` enlaza `organizacion`.
@@ -66,8 +66,8 @@ Idioma de trabajo: **responder siempre en español**.
     solo DIRECTOR y superusuario; **EPIDEMIÓLOGO** es solo lectura. El frontend deshabilita el formulario
     (bloqueo con `fieldset disabled`) y oculta los botones según `usuario.permisos`.
   - **Usuarios demo (clave `Sisv.2026!`, cambiar en producción):** `admin` (superusuario, acceso total),
-    `laraepid` (transcripor direcc. regional Lara), `codificadora` (codificadora regional, no elimina),
-    `hbcentral` (transcripor Hospital Central de Barquisimeto). Organizaciones demo bajo MPPS→Gobernación Lara→
+    `laraepid` (transcriptor direcc. regional Lara), `codificadora` (codificadora regional, no elimina),
+    `hbcentral` (transcriptor Hospital Central de Barquisimeto). Organizaciones demo bajo MPPS→Gobernación Lara→
     Dirección Epidemiología Lara→ Hospital Central de Barquisimeto / Ambulatorio Cabudare.
     Crear más desde `/admin` (Django) asignando `Perfil` (rol + organización).
 - `territorio`: división política `DivisionTerritorial` (self-referential, niveles ESTADO→MUNICIPIO→PARROQUIA→COMUNIDAD).
@@ -154,9 +154,10 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
 - Repositorio **git iniciado** (19/09/2026): remoto `git@github.com:RVenegas7/sisv.git`, rama `main`
   (origin configurado). Llave SSH dedicada `~/.ssh/sisv_github`. Antes de commitear revisar
   `.gitignore` (dumps legacy, `legancy_conf/*.env`, etc.).
-- Código base Django/React ya creado: backend con serializers + vistas mock y frontend con los
+- Código base Django/React ya creado: backend con serializers + vistas de datos reales y frontend con los
   formularios de carga de Nacimientos, Defunciones y Fichas de Vigilancia, más el buscador CIE
-  reutilizable (smart search + árbol/cascada). Falta: reportes y mapeos.
+  reutilizable (smart search + árbol/cascada). Los reportes (`/reportes`) y el módulo de vigilancia
+  (`/vigilancia`) están implementados.
 - Componentes frontend clave: `CIESearch` (autocomplete + cascada CIE-11 + subgrupos obligatorios),
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
