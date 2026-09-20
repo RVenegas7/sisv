@@ -16,6 +16,7 @@ User = get_user_model()
 
 
 def _serializar_org(o):
+    asic = getattr(o, "asic", None)
     return {
         "id": o.id,
         "codigo": o.codigo,
@@ -24,6 +25,10 @@ def _serializar_org(o):
         "nivel_label": o.get_nivel_display(),
         "estado": o.estado,
         "municipio": o.municipio,
+        "parroquia": o.parroquia,
+        "asic_id": o.asic_id,
+        "asic_nombre": asic.nombre if asic else None,
+        "asic_ubicacion": asic.ubicacion() if asic else None,
         "padre_id": o.padre_id,
         "padre_nombre": o.padre.nombre if o.padre else None,
         "hijos": o.hijos.count(),
@@ -72,6 +77,8 @@ class OrganizacionesView(APIView):
             nivel=datos.get("nivel") or Organizacion.NIVEL_CENTRO,
             estado=str(datos.get("estado", "")).strip(),
             municipio=str(datos.get("municipio", "")).strip(),
+            parroquia=str(datos.get("parroquia", "")).strip(),
+            asic_id=datos.get("asic") or None,
             padre_id=datos.get("padre") or None,
             activo=True,
         )
@@ -95,9 +102,11 @@ class OrganizacionDetalleView(APIView):
         if org is None:
             return error("Organización no encontrada", status=404)
         datos = request.data or {}
-        for campo in ["codigo", "nombre", "nivel", "estado", "municipio"]:
+        for campo in ["codigo", "nombre", "nivel", "estado", "municipio", "parroquia"]:
             if campo in datos and datos[campo] is not None:
                 setattr(org, campo, datos[campo])
+        if "asic" in datos:
+            org.asic_id = datos.get("asic") or None
         if "padre" in datos:
             org.padre_id = datos.get("padre") or None
         org.save()

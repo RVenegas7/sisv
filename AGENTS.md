@@ -71,6 +71,24 @@ Idioma de trabajo: **responder siempre en español**.
     Dirección Epidemiología Lara→ Hospital Central de Barquisimeto / Ambulatorio Cabudare.
     Crear más desde `/admin` (Django) asignando `Perfil` (rol + organización).
 - `territorio`: división política `DivisionTerritorial` (self-referential, niveles ESTADO→MUNICIPIO→PARROQUIA→COMUNIDAD).
+  **ASIC**: modelo `ASIC` (área de salud integral comunitaria) con `parroquia` sede (FK), dirección, responsable,
+  teléfono, email y `establecimientos_adscritos` (consultorios/CDI/CRI/ambulatorios de su red). Endpoints
+  `/api/territorio/asic/` (GET filtrable por estado/municipio/parroquia/q + POST) y `/api/territorio/asic/<id>/`
+  (GET/PATCH/DELETE); crear/editar/eliminar requiere `puede_configurar` (DIRECTOR/superusuario). La org
+  (centro de salud) se vincula con `Organizacion.asic` y expone `parroquia`; cada centro queda asociado a
+  **ASIC + parroquia + municipio + estado** (derivado del ASIC).
+  **Fuente oficial del territorio completo (hasta comunidades):** API de la APN `apisegen.apn.gob.ve`
+  (División Político Territorial y de Población, Sede/IGVSB+INE, proyección 2023). Requiere
+  **token de desarrollador**: registrarse en `https://apisegen.apn.gob.ve/registroUsuario/`, luego
+  `POST /api/v1/login` (usuario/clave form-urlencoded) devuelve `token`; los GET (`listadoEntidad`,
+  `listadoMunicipio?codEntidad=`, `listadoParroquia?...`, `listadoComunidad?...`) reciben `token` por query.
+  Swagger en `https://apisegen.apn.gob.ve/api/v1/api-doc/`. Comando:
+  `./.venv/bin/python backend/manage.py descargar_territorio_apn --usuario <dev> --clave <clave>` (o env
+  `APN_USUARIO`/`APN_CLAVE`); siembra ESTADO→MUNICIPIO→PARROQUIA→COMUNIDAD con códigos INE; `--borrar`
+  vacía, `--sin-comunidades` omite el nivel fino. El dataset complementario `marydn/venezuela-sql` valida
+  conteos (25 estados / 335 municipios / 1.138 parroquias). Filas instaladas en
+  `territorio/data/estados.py` y `territorio_banco_sangre.csv` (este último incompleto, sin comunidades;
+  se reemplazará con la descarga APN).
 - `vigilancia`: **Consolidado Semanal de ENO (SIS-04/EPI-12 y EPI-14)**. Modelos: `EventoENO` (catálogo 123 eventos
   `en_epi12`/`en_epi14` con orden oficial), `ConsolidadoSemanal` (anio/semana/tipo MORBILIDAD|MORTALIDAD, estado
   BORRADOR|ENVIADO|CERRADO, origen PROPIO|CONSOLIDADO_SUPERIOR; unique por org+año+semana+tipo), `FilaConsolidado`

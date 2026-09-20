@@ -37,6 +37,9 @@ def perfil_de(user):
             "nivel_label": o.get_nivel_display(),
             "estado": o.estado,
             "municipio": o.municipio,
+            "parroquia": o.parroquia,
+            "asic_id": o.asic_id,
+            "asic_nombre": o.asic.nombre if o.asic_id else None,
         }
     return {
         "id": user.id,

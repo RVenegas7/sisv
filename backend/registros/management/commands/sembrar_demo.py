@@ -4,6 +4,7 @@ from django.utils import timezone
 
 from catalogos.models import CIE10, CIE11
 from seguridad.models import Organizacion, Perfil
+from territorio.models import ASIC, DivisionTerritorial
 
 from registros import mock_data
 from registros.models import Defuncion, FichaVigilancia, Nacimiento
@@ -63,6 +64,7 @@ class Command(BaseCommand):
         if not options["sin_usuarios"]:
             organizaciones = self._sembrar_organizaciones()
             self._sembrar_usuarios(organizaciones)
+            self._sembrar_asic(organizaciones)
 
         if options["borrar"]:
             for modelo in (Nacimiento, Defuncion, FichaVigilancia):
@@ -144,6 +146,43 @@ class Command(BaseCommand):
                     },
                 )
         self.stdout.write(self.style.SUCCESS(f"Usuarios demo: {creados} creados, {len(USUARIOS)} totales"))
+
+    def _sembrar_asic(self, organizaciones):
+        lara = DivisionTerritorial.objects.filter(nivel="ESTADO", nombre__iexact="Lara").order_by("id").first()
+        if lara is None:
+            self.stdout.write("Sin estado Lara en territorio: se omite el ASIC demo.")
+            return
+        iribarren, _ = DivisionTerritorial.objects.get_or_create(
+            nivel=DivisionTerritorial.NIVEL_MUNICIPIO, nombre="Iribarren", padre=lara,
+            defaults={"codigo": ""},
+        )
+        catedral, _ = DivisionTerritorial.objects.get_or_create(
+            nivel=DivisionTerritorial.NIVEL_PARROQUIA, nombre="Catedral", padre=iribarren,
+            defaults={"codigo": ""},
+        )
+        asic, nuevo = ASIC.objects.update_or_create(
+            codigo="ASIC-LARA-NORTE",
+            defaults={
+                "nombre": "ASIC Barquisimeto Norte",
+                "parroquia": catedral,
+                "direccion": "Av. Vargas con Calle 23, Barquisimeto",
+                "responsable": "Coordinación ASIC (designe)",
+                "telefono": "0251-0000000",
+                "email": "asic.norte@mpps.gob.ve",
+                "establecimientos_adscritos": 1,
+                "activo": True,
+            },
+        )
+        hcb = organizaciones.get("LARA-HCB")
+        if hcb is not None:
+            hcb.asic = asic
+            hcb.parroquia = "Catedral"
+            hcb.save(update_fields=["asic", "parroquia"])
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"ASIC demo: {'creado' if nuevo else 'ya existía'} → {asic} · vinculado a {hcb.nombre if hcb else 'HCB'}."
+            )
+        )
 
     def _sembrar_consolidado(self, org):
         if org is None:

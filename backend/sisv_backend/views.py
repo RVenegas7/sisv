@@ -25,6 +25,12 @@ ENDPOINTS = {
         "consolidados_detail": "/api/vigilancia/consolidados/<id>/",
         "consolidados_exportar": "/api/vigilancia/consolidados/exportar/?anio=&semana=&tipo=",
     },
+    "territorio": {
+        "arbol": "/api/territorio/?nivel=ESTADO|MUNICIPIO|PARROQUIA|COMUNIDAD&padre=<id>",
+        "ruta": "/api/territorio/<id>/ruta/",
+        "asic": "/api/territorio/asic/?estado=&municipio=&parroquia=&q=",
+        "asic_detail": "/api/territorio/asic/<id>/",
+    },
     "nota": "Los endpoints de catalogos/registros sirven datos simulados (mock) en memoria; los de vigilancia persisten en PostgreSQL.",
 }
 

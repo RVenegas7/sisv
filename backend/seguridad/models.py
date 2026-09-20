@@ -19,6 +19,16 @@ class Organizacion(models.Model):
     nivel = models.CharField("Nivel", max_length=15, choices=NIVEL_CHOICES, default=NIVEL_CENTRO)
     estado = models.CharField("Estado", max_length=60, blank=True)
     municipio = models.CharField("Municipio", max_length=100, blank=True)
+    parroquia = models.CharField("Parroquia", max_length=100, blank=True)
+    asic = models.ForeignKey(
+        "territorio.ASIC",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="organizaciones",
+        verbose_name="ASIC asociado",
+        help_text="Área de Salud Integral Comunitaria a la que pertenece el centro de salud.",
+    )
     padre = models.ForeignKey(
         "self",
         null=True,

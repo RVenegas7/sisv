@@ -52,11 +52,24 @@
 - Verificado: 341 omitidos son CIE-10 no cubiertos por el scrape español (ej. `A09.0`, `A92.5`, `A97`, `B18.00`).
   Endpoint `/api/catalogos/mapeos/?cie10=<codigo>` devuelve equivalencias con título CIE-11 en español.
 
-## 4. [PENDIENTE] Territorio (estados, municipios, parroquias, comunidades)
+## 4. [EN CURSO] Territorio (estados, municipios, parroquias, comunidades) y ASIC
 
-- **Estado:** pendiente — la tabla `territorio_divisionterritorial` está vacía; los registros demo no tienen org geográfica completa.
-- Paso 1: `manage.py cargar_territorio --solo-estados` (25 estados).
-- Paso 2: importar municipios/parroquias/comunidades desde la API externa (falta obtener registro y permisos del usuario).
+- **Estado:** backend de territorio/ASIC implementado y probado (19/09/2026); falta la **descarga real** del territorio.
+- **Completado:**
+  - Modelo `ASIC` (parroquia sede, dirección, responsable, teléfono, email, establecimientos_adscritos,
+    observaciones) con endpoints `/api/territorio/asic/` (GET filtrable + POST) y `/api/territorio/asic/<id>/`
+    (GET/PATCH/DELETE; borrado bloqueado si hay centros asociados). CRUD restringido a `puede_configurar`.
+  - `Organizacion` vinculada a ASIC (`Organizacion.asic` + `parroquia`); cada centro queda asociado a
+    ASIC + parroquia + municipio + estado (derivado del ASIC). El perfil `/auth/me/` expone
+    `organizacion.asic_id`/`asic_nombre`. `sembrar_demo` crea el ASIC demo y lo vincula al Hospital
+    Central de Barquisimeto.
+  - Comando `manage.py descargar_territorio_apn` (login + descarga Estado→Municipio→Parroquia→Comunidad
+    desde la API de la APN; arg `--usuario/--clave` o env `APN_USUARIO/APN_CLAVE`, `--borrar`,
+    `--sin-comunidades`).
+- **Pendiente (punto 3):** descarga real del territorio → requiere **registro/credenciales de desarrollador**
+  en `https://apisegen.apn.gob.ve/registroUsuario/` (usuario registrado + clave → `POST /api/v1/login` → token).
+  Con las credenciales: `./.venv/bin/python backend/manage.py descargar_territorio_apn --usuario <dev> --clave <clave>`.
+  Conteos de referencia: 25 estados / 335 municipios / 1.138 parroquias (`marydn/venezuela-sql`).
 
 ## 5. [COMPLETADO] Migración Oracle 10g → PostgreSQL (datos del sistema legado)
 
@@ -139,15 +152,21 @@
   - Revisar `requirements.txt` y dependencias npm por vulnerabilidades conocidas
     (pip-audit / npm audit).
 
-## 13. [PENDIENTE] Responsive (celular / tablet / computador)
+## 13. [COMPLETADO] Responsive (celular / tablet / computador)
 
-- **Estado:** pendiente (registrado 19/09/2026).
-- Validar que la aplicación sea **responsiva**: probar y ajustar vistas en celular, tablet y
-  computador (breakpoints de `styles.css`), especialmente:
-  - Panel lateral (`aside.panel-lateral`) y navegación en pantallas pequeñas.
-  - Tablas de registros, reportes y la matriz 13×2 del consolidado de vigilancia (scroll horizontal).
-  - Formularios de carga (Nacimientos, Defunciones, Fichas) y selectores CIE.
-  - `meta viewport` ya presente en `index.html`; revisar toques, zeugma de ancho y legibilidad.
+- **Estado:** completado (19/09/2026).
+- `meta viewport` ya existía en `index.html`. Breakpoints en `styles.css`:
+  - **≤1100px (tablet apaisado):** panel lateral reducido a 220px y `main` con menos padding.
+  - **≤820px (tablet vertical / celular):** layout de una columna; el `aside.panel-lateral` pasa a
+    **drawer deslizable** (`transform: translateX`) con **botón hamburguesa** `menu-boton` fijo y
+    `menu-backdrop` para cerrar al tocar fuera; los enlaces de navegación cierran el menú al hacer clic.
+    Las tablas (registros, reportes, matriz 13×2, tabla-grupos, tabla-mensual) toman `min-width: max-content`
+    dentro de contenedores con **scroll horizontal** (`overflow-x: auto`). Inputs/selects/textareas a
+    **16px** (evita el zoom automático de iOS), `.btn-mini` con área táctil mínima y `.pie-form` en columna
+    (botones a ancho completo).
+  - **≤480px (celular):** `.grid` y `.filtros` a una columna (formularios de carga), tarjetas apiladas,
+    stats a ancho completo, jerarquía tipográfica del título y acciones de jerarquía sin flotar.
+- Verificación: `npm run build` (vite) sin errores.
 
 ---
 

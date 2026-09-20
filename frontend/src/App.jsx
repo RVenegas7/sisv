@@ -60,6 +60,11 @@ function Credencial({ usuario, onSalir }) {
 export default function App() {
   const [cargandoSesion, setCargandoSesion] = useState(true)
   const [usuario, setUsuario] = useState(null)
+  const [menuAbierto, setMenuAbierto] = useState(false)
+
+  function cerrarMenu() {
+    setMenuAbierto(false)
+  }
 
   useEffect(() => {
     async function cargarSesion() {
@@ -103,7 +108,17 @@ export default function App() {
   const esMulticentro = ["REGIONAL", "GOBERNACION", "MINISTERIO"].includes(usuario.organizacion?.nivel)
 
   return (
-    <div className="app">
+    <div className={`app ${menuAbierto ? "menu-abierto" : ""}`}>
+      <button
+        type="button"
+        className="menu-boton"
+        aria-label={menuAbierto ? "Cerrar menú" : "Abrir menú"}
+        aria-expanded={menuAbierto}
+        onClick={() => setMenuAbierto((v) => !v)}
+      >
+        {menuAbierto ? "✕" : "☰"}
+      </button>
+      {menuAbierto && <div className="menu-backdrop" onClick={cerrarMenu} />}
       <aside className="panel-lateral">
         <div className="marca">
           <span className="logo">SISV</span>
@@ -116,19 +131,19 @@ export default function App() {
               <div className="grupo-menu" key={`${item.grupo}-${i}`}>
                 <span className="cabecera-grupo">{item.grupo}</span>
                 {item.items.map((sub) => (
-                  <NavLink key={sub.enlace} to={sub.enlace} end={sub.exacto}>
+                  <NavLink key={sub.enlace} to={sub.enlace} end={sub.exacto} onClick={cerrarMenu}>
                     {sub.rotulo}
                   </NavLink>
                 ))}
               </div>
             ) : (
-              <NavLink key={item.enlace} to={item.enlace}>
+              <NavLink key={item.enlace} to={item.enlace} onClick={cerrarMenu}>
                 {item.rotulo}
               </NavLink>
             )
           )}
         </nav>
-        <a className="api-enlace" href="http://127.0.0.1:8000/api/" target="_blank" rel="noreferrer">
+        <a className="api-enlace" href="http://127.0.0.1:8000/api/" target="_blank" rel="noreferrer" onClick={cerrarMenu}>
           Documentación API
         </a>
       </aside>
