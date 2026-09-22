@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "seguridad",
     "territorio",
     "vigilancia",
+    "legacy",
 ]
 
 MIDDLEWARE = [

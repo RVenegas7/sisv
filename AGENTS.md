@@ -107,6 +107,13 @@ Idioma de trabajo: **responder siempre en español**.
   y filtros (módulo/desde/hasta/estado). `ConfiguracionGeneral` en `registros` (GET/PUT `/configuracion/`).
   Los serializers decoran cada registro con `organizacion`, `organizacion_id`, `organizacion_nombre` y
   `organizacion_nivel`; PATCH parcial valida CIE solo si se tocan campos CIE.
+- `legacy`: **mapa de modelos del legado SISMAI** (no altera el flujo). App con `models_legacy.py`
+  **generado** (modelos `managed=False`, solo lectura) para las **430 tablas/vistas** de
+  `sismai`/`inbdlar1`/`legacy`/`historico`, y el inventario priorizado
+  `legancy/analisis/PRIORIDADES_LEGACY.md` (P1 dominio=32, P2 operativo=185, P3=213). Regenerar con
+  `manage.py mapear_legacy`; pruebas `legacy/tests.py` (correr con `DJANGO_DB_ENGINE=sqlite`). Detalle
+  en PENDIENTES.md §8. Modelos de ejemplo: `legacy.models_legacy.Establecimiento` (centros, fuente de
+  `seguridad.Organizacion`), `Usuarios` (ESTATUS: 2=activo, 1=deshabilitado), `OrgGeografica`, `CasosMmi`.
 - Datos de demostración: sembrar con `./.venv/bin/python backend/manage.py sembrar_demo [--borrar]`
   (crea/fija de forma idempotente las **organizaciones y usuarios demo** documentados arriba, carga
   `mock_data.py` y asigna la org demo LARA-HCB con su estado/municipio; usar `--sin-usuarios` para

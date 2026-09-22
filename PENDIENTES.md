@@ -116,9 +116,29 @@
   (→ `tnsnames.ora`, no versionado) y `conectar_legacy.sh` (prueba de conexión con `sqlplus`).
 - Seguridad: `.gitignore` raíz ignora `legancy_conf/*.env` y `legancy_conf/tnsnames.ora`.
 
-## 8. [PENDIENTE] Mapa de modelos legados (`models_legacy.py`)
+## 8. [COMPLETADO] Mapa de modelos legados (`models_legacy.py`)
 
-- **Estado:** pendiente — ejecutar `manage.py inspectdb` contra Oracle para extraer el mapa de tablas, analizarlas y ordenarlas por prioridades. Escribir pruebas de lectura/escritura sin alterar el flujo del sistema.
+- **Estado:** completado (21/09/2026).
+- **App** `legacy` en `backend/` con la generación automática y pruebas:
+  - `manage.py mapear_legacy` → genera **`backend/legacy/models_legacy.py`** con un modelo
+    `managed=False` por cada una de las **430 tablas/vistas** de `sismai`/`inbdlar1`/`legacy`/`historico`
+    (equivalente a `inspectdb` pero con `db_table` calificado por esquema: `"sismai"."ESTABLECIMIENTO"`
+    y columna `db_column` en original, porque el nombre de campo va en minúsculas). Todos verificados
+    consultables por ORM (`objects.count()` sin errores en las 430).
+  - Las clases duplicadas entre esquemas se distinguen con prefijo del esquema (ej. `TUsuarios` (inbdlar1)
+    vs `LegacyTUsuarios`). Las tablas sin PK (casi todas en el legacy) reciben **PK nominal** en la primera
+    columna, marcada en comentario, para permitir el ORM en solo lectura.
+  - Genera también **`legancy/analisis/PRIORIDADES_LEGACY.md`**: inventario priorizado de las 430 tablas
+    por tier: **P1 = 32** (dominio/negocio: ESTABLECIMIENTO, USUARIOS, territorio, CIE legacy y las fuentes
+    de vigilancia por integrar como RENGLONTELE/CASOS_MMI/M_VIOLENTA/INFORME_EPI), **P2 = 185**
+    (operativo/registro y espejos T_*), **P3 = 213** (catálogos/colas/config). Cada P1 con conteo exacto.
+  - **Pruebas** `legacy/tests.py` (5, todas pasan): esquemas y total 430, centro 130659 (STATUS='I'),
+    YASMINMORB ESTATUS=2, el mapa coincide 1:1 con el catálogo real, y **lectura/escritura en un esquema
+    temporal** `zz_test_legacy` que se crea y elimina en la propia prueba (no altera el flujo del sistema;
+    correr con `DJANGO_DB_ENGINE=sqlite` para evitar crear base de pruebas en PostgreSQL).
+- **Uso previsto:** lectura/auditoría del legado migrado y trampolín del ETL hacia los modelos nuevos
+  (`registros`/`vigilancia`/`seguridad`). Los catálogos P1 son la fuente directa para poblar
+  `seguridad.Organizacion` (centros) y `territorio.DivisionTerritorial`.
 
 ## 9. [PENDIENTE] Lint y pruebas automatizadas
 
