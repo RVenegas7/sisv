@@ -5,9 +5,11 @@ from seguridad.models import Organizacion
 from .models import (
     CAMPOS_COLUMNA,
     AlertaEpidemia,
+    ConsolidadoEpi15,
     ConsolidadoSemanal,
     EventoENO,
     FilaConsolidado,
+    FilaEpi15,
     SituacionEspecial,
     columna,
 )
@@ -63,6 +65,44 @@ class FilaConsolidadoSerializer(serializers.ModelSerializer):
 
 def _entero(v):
     return v or 0
+
+
+class FilaEpi15Serializer(serializers.ModelSerializer):
+    evento_nombre = serializers.SerializerMethodField()
+    total = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FilaEpi15
+        fields = [
+            "id", "legacy_id", "codigo_legacy", "nombre_legacy",
+            "evento", "evento_nombre", "casosp", "casoss", "casosx", "total",
+        ]
+
+    def get_evento_nombre(self, obj):
+        return obj.evento.nombre if obj.evento_id else (obj.nombre_legacy or "Sin evento")
+
+    def get_total(self, obj):
+        return _entero(obj.total)
+
+
+class ConsolidadoEpi15Serializer(serializers.ModelSerializer):
+    organizacion_nombre = serializers.CharField(source="organizacion.nombre", read_only=True)
+    estado_label = serializers.CharField(source="get_estado_display", read_only=True)
+    filas = FilaEpi15Serializer(many=True, read_only=True)
+
+    class Meta:
+        model = ConsolidadoEpi15
+        fields = [
+            "id", "organizacion", "organizacion_nombre", "anio", "semana",
+            "estado", "estado_label", "origen", "legacy_tabla", "legacy_documento",
+            "creado_en", "actualizado_en", "filas",
+        ]
+
+
+class ConsolidadoEpi15EscribeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConsolidadoEpi15
+        fields = ["estado", "origen"]
 
 
 class SituacionEspecialSerializer(serializers.ModelSerializer):

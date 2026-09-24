@@ -50,9 +50,6 @@ SEXO_CERTIFICADO = {1: "F", 2: "M", 0: "I", 3: "I"}
 
 UNIDAD_EDAD = {"D": "Días", "M": "Meses", "A": "Años"}
 
-# Umbral de filas en memoria antes de cada bulk_create.
-_ACUM_MAX = 20000
-
 
 def normalizar(texto):
     """Clave de unión: sin paréntesis, minúsculas, sin tildes, espacios colapsados."""
@@ -285,22 +282,7 @@ class Command(BaseCommand):
         return mapa
 
     def _filas_epi12(self, sql, parametros, mapa):
-        creadas = 0
         acum = {}  # (consolidado_id, evento) -> {columna: valor}
-
-        def flush():
-            nonlocal acum, creadas
-            if not acum:
-                return
-            lote = [
-                FilaConsolidado(consolidado_id=c, evento_id=e, **v)
-                for (c, e), v in acum.items()
-            ]
-            creadas += len(lote)
-            for i in range(0, len(lote), 2000):
-                with transaction.atomic():
-                    FilaConsolidado.objects.bulk_create(lote[i : i + 2000], batch_size=2000)
-            acum = {}
 
         with connection.cursor() as cur:
             cur.arraysize = 2000
@@ -322,9 +304,12 @@ class Command(BaseCommand):
                         cid = mapa.get((org, int(anno), semana, "MORTALIDAD"))
                         if cid is not None:
                             self._acum_fila(acum, cid, enfermedad, edad, "h", "m", mh, mm)
-                    if len(acum) >= _ACUM_MAX:
-                        flush()
-        flush()
+
+        lote = [FilaConsolidado(consolidado_id=c, evento_id=e, **v) for (c, e), v in acum.items()]
+        creadas = len(lote)
+        for i in range(0, len(lote), 2000):
+            with transaction.atomic():
+                FilaConsolidado.objects.bulk_create(lote[i : i + 2000], batch_size=2000)
         return creadas
 
     def _acum_fila(self, acum, consolidado_id, enfermedad, edad, sexo_h, sexo_m, vh, vm):
@@ -368,6 +353,14 @@ class Command(BaseCommand):
     def _epi15(self, limite):
         sql, parametros = self._sql_epi15(limite)
         mapa = self._crear_epi15(sql, parametros)
+        if mapa:
+            con_ids = set(mapa.values())
+            ya_filadas = set(
+                FilaEpi15.objects.filter(consolidado_id__in=con_ids)
+                .values_list("consolidado_id", flat=True)
+                .distinct()
+            )
+            mapa = {k: v for k, v in mapa.items() if v not in ya_filadas}
         creadas = self._filas_epi15(sql, parametros, mapa)
         total = ConsolidadoEpi15.objects.filter(legacy_tabla="RENGLON_EPI15").count()
         self.stdout.write(
@@ -419,32 +412,7 @@ class Command(BaseCommand):
         return mapa
 
     def _filas_epi15(self, sql, parametros, mapa):
-        creadas = 0
         acum = {}  # (consolidado_id, legacy_id) -> (evento_id, cp, cs, cx)
-
-        def flush():
-            nonlocal acum, creadas
-            if not acum:
-                return
-            lote = []
-            for (cons_id, leg), (evento, cp, cs, cx) in acum.items():
-                lote.append(
-                    FilaEpi15(
-                        consolidado_id=cons_id,
-                        legacy_id=leg,
-                        codigo_legacy="",
-                        nombre_legacy=LEGACY_ENFERMEDAD_NOMBRE.get(leg, ""),
-                        evento_id=evento,
-                        casosp=cp,
-                        casoss=cs,
-                        casosx=cx,
-                    )
-                )
-            creadas += len(lote)
-            for i in range(0, len(lote), 2000):
-                with transaction.atomic():
-                    FilaEpi15.objects.bulk_create(lote[i : i + 2000], batch_size=2000)
-            acum = {}
 
         with connection.cursor() as cur:
             cur.arraysize = 2000
@@ -472,9 +440,31 @@ class Command(BaseCommand):
                         acum[(cons_id, leg)] = (evento, ap + cp, aq + cs, ax + cx)
                     else:
                         acum[(cons_id, leg)] = (evento, cp, cs, cx)
-                    if len(acum) >= _ACUM_MAX:
-                        flush()
-        flush()
+
+        lote = []
+        creadas = 0
+        for (cons_id, leg), (evento, cp, cs, cx) in acum.items():
+            lote.append(
+                FilaEpi15(
+                    consolidado_id=cons_id,
+                    legacy_id=leg,
+                    codigo_legacy="",
+                    nombre_legacy=LEGACY_ENFERMEDAD_NOMBRE.get(leg, ""),
+                    evento_id=evento,
+                    casosp=cp,
+                    casoss=cs,
+                    casosx=cx,
+                )
+            )
+            if len(lote) >= 2000:
+                with transaction.atomic():
+                    FilaEpi15.objects.bulk_create(lote, batch_size=2000)
+                creadas += len(lote)
+                lote = []
+        if lote:
+            with transaction.atomic():
+                FilaEpi15.objects.bulk_create(lote, batch_size=2000)
+            creadas += len(lote)
         return creadas
 
     # ------------------------------------------------------------------

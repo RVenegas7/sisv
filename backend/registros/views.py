@@ -5,6 +5,7 @@ from datetime import date
 
 from django.db.models import Q, Count
 from django.db.models.functions import TruncMonth, ExtractWeek, ExtractYear
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse, StreamingHttpResponse
 from rest_framework.views import APIView
 
@@ -117,6 +118,30 @@ def _grupo_contar(qs, campo, sin_filtro="Sin dato"):
     }
 
 
+def _por_estado_evento(qs):
+    """Estado geográfico del registro: el del centro (organización), o el del
+    evento cuando la org no está asignada (p. ej. defunciones de domicilio)."""
+    return _grupo_contar(
+        qs.annotate(estado_evento=Coalesce("organizacion__estado", "estado")), "estado_evento"
+    )
+
+
+def _residentes_otros_estados(qs, estado_evento):
+    """Registros ocurridos en ``estado_evento`` con residencia en otro estado,
+    agrupados por estado de residencia de mayor a menor."""
+    return {
+        str(est): n
+        for est, n in qs.annotate(estado_evento=Coalesce("organizacion__estado", "estado"))
+        .filter(estado_evento=estado_evento)
+        .exclude(estado="")
+        .exclude(Q(estado=estado_evento))
+        .values("estado")
+        .annotate(n=Count("id"))
+        .order_by("-n")
+        .values_list("estado", "n")
+    }
+
+
 def _por_semana(qs):
     """Conteo por semana epidemiológica (SQL EXTRACT WEEK, norma ISO) {SE: cantidad}."""
     return {
@@ -127,6 +152,28 @@ def _por_semana(qs):
         .values_list("se", "n")
         if se
     }
+
+
+def _neonatales_por_semana(qs):
+    """Muertes neonatales (0-27 días de vida) por semana epidemiológica ISO."""
+    contador = Counter()
+    for fecha_evento, fecha_nacimiento in (
+        qs.filter(fecha_nacimiento__isnull=False).values_list("fecha_evento", "fecha_nacimiento")
+    ):
+        if fecha_evento and fecha_nacimiento and 0 <= (fecha_evento - fecha_nacimiento).days <= 27:
+            contador[fecha_evento.isocalendar()[1]] += 1
+    return {int(se): n for se, n in contador.items()}
+
+
+def contar_neonatales(qs):
+    """Total de muertes neonatales (0-27 días de vida) en el queryset."""
+    total = 0
+    for fecha_evento, fecha_nacimiento in (
+        qs.filter(fecha_nacimiento__isnull=False).values_list("fecha_evento", "fecha_nacimiento")
+    ):
+        if fecha_evento and fecha_nacimiento and 0 <= (fecha_evento - fecha_nacimiento).days <= 27:
+            total += 1
+    return total
 
 
 def _fusionar(series):
@@ -361,7 +408,7 @@ class DashboardView(APIView):
         por_estado = Counter()
         por_version = Counter()
         for qs in (qs_nac, qs_def, qs_fic):
-            por_estado.update(_grupo_contar(qs, "estado"))
+            por_estado.update(_por_estado_evento(qs))
             por_version.update(_grupo_contar(qs, "version_cie"))
         por_estado = dict(sorted(por_estado.items(), key=lambda kv: -kv[1]))
 
@@ -411,6 +458,11 @@ class DashboardView(APIView):
                     "certificado_vivo": qs_def.count(),
                     "nacimientos_defunciones": 0,
                 },
+                "mortalidad_materno_infantil": {
+                    "mm": qs_def.filter(embarazo_o_puerperio=True, codificacion_pendiente=False).count(),
+                    "mm_pendientes": qs_def.filter(embarazo_o_puerperio=True, codificacion_pendiente=True).count(),
+                    "mn": contar_neonatales(qs_def),
+                },
                 "nacimientos_salud": {
                     "nacidos_vivos": qs_nac.filter(nacido_vivo=True).count(),
                     "por_sexo": _grupo_contar(qs_nac, "sexo"),
@@ -449,7 +501,7 @@ class ReportesView(APIView):
                 continue
             qs = _filtros_fecha_estado(_por_alcance(modelo.objects.all(), request), desde, hasta, estado)
             totales[m] = qs.count()
-            por_estado[m] = _grupo_contar(qs, "estado")
+            por_estado[m] = _por_estado_evento(qs)
             por_capitulo[m] = _capitulo_por_mapeo(qs)
         return ok(
             {
@@ -460,11 +512,29 @@ class ReportesView(APIView):
             }
         )
 
+
+class ResidentesOtrosEstadosView(APIView):
+    """Nacidos/fallecidos en el estado predeterminado con residencia en otro
+    estado, agrupados por estado de residencia (mayor a menor)."""
+
+    def get(self, request):
+        desde = request.query_params.get("desde", "").strip()
+        hasta = request.query_params.get("hasta", "").strip()
+        alc = alcance_registros(request.user)
+        estado_evento = (alc.get("estado") if isinstance(alc, dict) else "") or "Lara"
+        data = {"estado_evento": estado_evento}
+        for modulo, modelo in (("nacimientos", Nacimiento), ("defunciones", Defuncion)):
+            qs = _filtros_fecha_estado(_por_alcance(modelo.objects.all(), request), desde, hasta, "")
+            data[modulo] = _residentes_otros_estados(qs, estado_evento)
+        return ok(data)
+
+
 class ReporteComparativoView(APIView):
     SERIES = [
         ("nacimientos", "Nacimientos"),
         ("muertes", "Muertes"),
-        ("muertes_maternas", "Muertes maternas (M)"),
+        ("muertes_maternas", "Muertes maternas codificadas (MM)"),
+        ("muertes_neonatales", "Muertes neonatales (MN)"),
         ("mmi", "Vigilancia materno-infantil (MMI)"),
     ]
     LOTES_MMI = ["LEGACY-MMI", "LEGACY-VIOLENTA"]
@@ -481,7 +551,10 @@ class ReporteComparativoView(APIView):
             return {
                 "nacimientos": contar(Nacimiento),
                 "muertes": contar(Defuncion),
-                "muertes_maternas": contar(Defuncion, embarazo_o_puerperio=True),
+                "muertes_maternas": contar(Defuncion, embarazo_o_puerperio=True, codificacion_pendiente=False),
+                "muertes_neonatales": _neonatales_por_semana(
+                    _por_alcance(Defuncion.objects.filter(fecha_evento__year=anio), request)
+                ),
                 "mmi": contar(FichaVigilancia, lote_id__in=self.LOTES_MMI),
             }
 

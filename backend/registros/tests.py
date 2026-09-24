@@ -242,7 +242,7 @@ class ReportesYConfigTests(SISVBase):
         data = r.json()["data"]
         self.assertEqual(data["anio1"], 2023)
         claves = [s["clave"] for s in data["series"]]
-        self.assertEqual(claves, ["nacimientos", "muertes", "muertes_maternas", "mmi"])
+        self.assertEqual(claves, ["nacimientos", "muertes", "muertes_maternas", "muertes_neonatales", "mmi"])
         self.assertEqual(data["totales"]["nacimientos"]["2023"], 1)
         self.assertEqual(len(data["semanas"]), 53)
         serie_nac = data["series"][0]["anio1"]

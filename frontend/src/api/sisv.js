@@ -134,6 +134,11 @@ export async function obtenerReportes(params = {}) {
   return r.data.data
 }
 
+export async function obtenerResidentesOtrosEstados(params = {}) {
+  const r = await api.get("/registros/reportes/residentes/", { params })
+  return r.data.data
+}
+
 export async function obtenerReporteComparativo(params = {}) {
   const r = await api.get("/registros/reportes/comparativo/", { params })
   return r.data.data

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { exportarReportes, obtenerReporteComparativo, obtenerReportes } from "../api/sisv"
+import { exportarReportes, obtenerReporteComparativo, obtenerReportes, obtenerResidentesOtrosEstados } from "../api/sisv"
 import { Boton, Campo, Input, Select } from "../components/ui"
 
 const MODULOS = [
@@ -22,6 +22,29 @@ export default function Reportes() {
   const [anios, setAnios] = useState({ anio1: "", anio2: "" })
   const [comparativo, setComparativo] = useState(null)
   const [cargandoComparativo, setCargandoComparativo] = useState(false)
+  const [verResidentes, setVerResidentes] = useState(false)
+  const [datosResidentes, setDatosResidentes] = useState(null)
+  const [cargandoResidentes, setCargandoResidentes] = useState(false)
+
+  async function cargarResidentes(mostrar) {
+    setVerResidentes(mostrar)
+    if (!mostrar) {
+      setDatosResidentes(null)
+      return
+    }
+    setCargandoResidentes(true)
+    try {
+      const params = Object.fromEntries(
+        Object.entries(filtros).filter(([k, v]) => v && (k === "desde" || k === "hasta")),
+      )
+      const d = await obtenerResidentesOtrosEstados(params)
+      setDatosResidentes(d)
+    } catch {
+      setDatosResidentes(null)
+    } finally {
+      setCargandoResidentes(false)
+    }
+  }
 
   async function correr() {
     setCargando(true)
@@ -110,6 +133,14 @@ export default function Reportes() {
           <button type="button" className="boton" onClick={exportarCsv}>
             Exportar CSV
           </button>
+          <label className="chk-residentes">
+            <input
+              type="checkbox"
+              checked={verResidentes}
+              onChange={(e) => cargarResidentes(e.target.checked)}
+            />
+            Residentes de otros estados (evento en Lara)
+          </label>
         </div>
       </form>
 
@@ -144,7 +175,7 @@ export default function Reportes() {
           </section>
 
           <section className="lista">
-            <h2>Registros por estado</h2>
+            <h2>Registros por estado (centro/evento)</h2>
             {Object.entries(datos.por_estado).map(([m, estados]) => (
               <details key={m} open>
                 <summary>{MODULO_LABEL[m]}</summary>
@@ -167,6 +198,39 @@ export default function Reportes() {
               </details>
             ))}
           </section>
+
+          {verResidentes && (
+            <section className="lista">
+              <h2>Nacidos/fallecidos en {datosResidentes?.estado_evento || "el estado"} con residencia en otro estado</h2>
+              {cargandoResidentes && <div className="aviso aviso-info">Generando…</div>}
+              {datosResidentes &&
+                ["nacimientos", "defunciones"].map((m) => (
+                  <details key={m} open>
+                    <summary>{MODULO_LABEL[m]}</summary>
+                    {Object.keys(datosResidentes[m]).length === 0 ? (
+                      <p className="ayuda">Sin residentes de otros estados con los criterios seleccionados.</p>
+                    ) : (
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Estado de residencia</th>
+                            <th>Cantidad</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(datosResidentes[m]).map(([e, n]) => (
+                            <tr key={e}>
+                              <td>{e}</td>
+                              <td>{n}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </details>
+                ))}
+            </section>
+          )}
 
           {datos.consolidados_semanales && Object.keys(datos.consolidados_semanales).length > 0 && (
             <section className="lista">
@@ -245,8 +309,9 @@ export default function Reportes() {
       <section className="lista comparativo">
         <h2>Comparativo anual por semana epidemiológica</h2>
         <p className="ayuda">
-          Compara dos años para ver la tendencia semanal de nacimientos, defunciones, muertes maternas (M) y
-          vigilancia materno-infantil (MMI, lotes LEGACY-MMI/LEGACY-VIOLENTA).
+Compara dos años para ver la tendencia semanal de nacimientos, defunciones, muertes maternas
+            codificadas (MM), muertes neonatales (MN, 0-27 días de vida) y vigilancia materno-infantil
+            (MMI, lotes LEGACY-MMI/LEGACY-VIOLENTA).
         </p>
         <form
           className="filtros"
@@ -288,7 +353,7 @@ export default function Reportes() {
               </span>
             </div>
             {comparativo.series.map((s) => (
-              <details key={s.clave} open={s.clave === "muertes_maternas"}>
+              <details key={s.clave} open={["muertes_maternas", "muertes_neonatales"].includes(s.clave)}>
                 <summary>
                   {s.rotulo} · {comparativo.anio1}: {comparativo.totales[s.clave][comparativo.anio1]} ·{" "}
                   {comparativo.anio2}: {comparativo.totales[s.clave][comparativo.anio2]}

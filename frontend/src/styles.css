@@ -1281,6 +1281,16 @@ main.contenido {
   gap: 0.5rem;
 }
 
+.filtros .chk-residentes {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--texto, inherit);
+  cursor: pointer;
+  flex-wrap: wrap;
+}
+
 .lista details {
   background: var(--tarjeta);
   border: 1px solid var(--borde);

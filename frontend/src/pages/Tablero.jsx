@@ -67,6 +67,8 @@ export default function Tablero() {
         {[
           ["Nacimientos", datos.totales.nacimientos, "/nacimientos", COLORES.nacimientos],
           ["Defunciones", datos.totales.defunciones, "/defunciones", COLORES.defunciones],
+          ["MM codificadas", datos.mortalidad_materno_infantil?.mm || 0, "/defunciones", "#e11d48"],
+          ["MN (0–27 días)", datos.mortalidad_materno_infantil?.mn || 0, "/defunciones", "#f59e0b"],
           ["Fichas de vigilancia", datos.totales.fichas, "/vigilancia", COLORES.fichas],
           ["Consolidados ENO", datos.consolidados_semanales?.total || 0, "/vigilancia", "#7c3aed"],
           ["Registros totales", datos.totales.total, null, "#6b7280"],
@@ -81,7 +83,7 @@ export default function Tablero() {
 
       <div className="dash-grid">
         <section className="panel">
-          <h2>Registros por estado</h2>
+          <h2>Registros por estado (centro/evento)</h2>
           {Object.keys(datos.por_estado).length === 0 && <p className="ayuda">Sin registros aún.</p>}
           <ul className="barras">
             {Object.entries(datos.por_estado).map(([estado, n]) => (

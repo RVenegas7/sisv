@@ -304,6 +304,72 @@
   roles VIGILANCIA/SECRETARIA, exportación de BDs, ASIC↔comunidades y reporte comparativo ya están en el
   código; pendiente solo **actualizar el repositorio** y (opcional) la corrida completa del ETL de vigilancia.
 
+## 16. [EN CURSO] Punto crítico EVENTOS_SINC y verificación MM/MN (24/09/2026)
+
+- **Punto crítico EVENTOS_SINC → NO RESUELTO por el envío del 22/09:**
+  - El último envío semanal (`routlar1_2292026_1238.ZIP`, 22/09/2026 12:38) fue importado a
+    `sis_postgres_dev` (82/82 tablas `legacy`, 27.472 filas) y verificado: consolida **PERIODO=37/2026**
+    (T_RESUMEN 10 filas), pero **NO contiene el backlog** — `T_RENGTELE` 5.520 renglones (no millones) y
+    `T_EVENTOS` cubre solo 2026-09-16→22 (9.496 filas). El espejo `SISMAI.EVENTOS_SINC` sigue con
+    **3.372.065 filas estancadas desde 2026-08-27 12:53:50** (3.359.781 del 27/08 con STATUS NULL);
+    `EVENTOS_DBLINK` 2.326.848 y `HISTORICO.EVENTOS_RESP` 1.927.311, ambos 100% STATUS=0.
+  - **Scripts de diagnóstico (solo lectura; NO corrigen):** `migracion/verificar_sinc_eventos_sinc.sql`
+    (8 secciones: cola, DBLINK/RESP, bitácoras, errores, sobres TEMP, veredicto) y
+    `migracion/verificar_sinc_live.sh` (conexión SSH a 192.168.5.200 con sshpass/expect/manual). Validados
+    contra el espejo Oracle XE; **pendiente ejecutarlos en vivo** en el servidor (requiere red de
+    oficina / VPN y herramienta de contraseña).
+  - **Pendiente (seguimiento 29/09/2026):** el envío automático del martes 29/09 **solo llevará lo que esté
+    en `TEMP.T_*`** (lo nuevo desde el último ruteo); **sin intervención manual en el servidor (reprocesar
+    `EVENTOS_SINC` / migración Fase 0 del PLAN_CORTE) el backlog NO llegará** al nivel central.
+- **Verificación MM/MN con la Lcda (24/09/2026):** reporta **MM=0 y MN=228** acumulado 2026→semana 37.
+  - Hallazgo: **la BD SISV tiene defunciones solo hasta el 27/08/2026** (`sismai.CERTIFICADO`: max
+    `FECHAOPERACION` 16/09, max `FECHA_M` 27/08) — el mismo corte del punto crítico. Semanas 36-37 sin datos.
+  - Con la data existente a 2026→SE35: MM (flag `embarazo_o_puerperio`) = **7** (todas pendientes de
+    codificación, 6 Lara + 1 Portuguesa), MN (edad 0-27 días con `fecha_nacimiento`) = **213**. No cuadra
+    con MM=0/MN=228: faltan las semanas 36-37 (~400 defunciones) y ~15 defunciones neonatales no
+    clasificables (sin fecha de nacimiento ni CIE, `codificacion_pendiente=t`).
+  - **Pendiente:** el tablero/reportes no exponen **MN**. Adicionar serie **`muertes_neonatales`** (edad
+    0-27 días) a `ReporteComparativoView`/dashboard y considerar MM=**codificadas/confirmadas** (hoy el
+    reporte usa el flag bruto del certificado, que incluye puerperio/pendientes). Reconciliar con la Lcda
+    qué fuente oficial usar (ENO semanal vs certificados).
+- **MM/MN implementado (24/09/2026):** serie `muertes_neonatales` (MN, 0-27 días) + MM restringida a
+  **codificadas** (`codificacion_pendiente=False`) en `ReporteComparativoView`/`DashboardView`; tarjetas
+  «MM codificadas»/«MN (0-27 días)» en `Tablero.jsx`; ayuda y `details` en `Reportes.jsx`. Auditoría
+  `auditoria/*.csv` (6 pendientes + 1 codificada + 213 MN) con regenerador `auditoria/exportar_auditoria_mm_mn.py`.
+  **Descuadra con la Lcda (MM=0/MN=228)** por el corte 27/08 (faltan SE36-37). Verificado: 77/77 tests + build.
+- **Organizaciones asignadas a legacy (24/09/2026):** comando `asignar_organizacion_legacy [--ejecutar]` crea
+  org CENTRO bajo Dir. Epidemiología Lara por cada establecimiento del árbol Lara presente en los registros
+  (414 creadas, 182 reutilizadas/deduplicadas por nombre normalizado) y asigna `organizacion_id` a
+  **nacimientos 438.577 / defunciones 86.223** (fichas legacy no traen centro); las 84.892 defunciones de
+  domicilio quedan sin org y agrupan por residencia (Lara). El dashboard/reportes ahora agrupan
+  `por_estado` por **`organizacion__estado`** (evento) con fallback al estado del registro
+  (helper `_por_estado_evento`, COALESCE) → todo Lara; `por_centro` muestra los centros reales. Backend
+  reiniciado (pid 34702). Verificado: 77/77 tests + build + dashboard 2026 `{'Lara': 15629}`.
+- **Reporte «residentes de otros estados» (24/09/2026):** endpoint `GET /api/registros/reportes/residentes/`
+  (`desde`/`hasta`) + vista `ResidentesOtrosEstadosView` (helper `_residentes_otros_estados`) que agrupa
+  nacidos/fallecidos ocurridos en el estado predeterminado (Lara, derive del alcance del usuario) **con
+  residencia en otro estado**, por estado de residencia **mayor→menor**. En `Reportes.jsx` checkbox
+  «Residentes de otros estados (evento en Lara)» (usa `desde`/`hasta` del filtro, respeta alcance).
+  2026 en BD: nac 139 residentes externos (Yaracuy 95, Portuguesa 28…) y def 155 (Portuguesa 77,
+  Yaracuy 21…). Nota: en nacimientos `estado` hereda la residencia de la madre solo cuando no hay
+  localidad de ocurrencia, por eso el granular de «residencia» es aproximado.
+- **`repllar1.log` ausente en envíos post-corte (24/09/2026):** en `enviados/` TODOS los ZIP pre-críticos
+  (15/10/2025…04/08/2026, 10 archivos) traen **5 archivos**; el contenido de `repllar1.log` (24.237 B) es la
+  bitácora de la fase de **replicación/poblado de `TEMP.T_*`** (crea tablas + conteo por sobre que coincide
+  exacto con los `filas exportadas` de `routlar1.log`). Los envíos del **08/09, 16/09 y 22/09** solo traen
+  **4 archivos (sin `repllar1.log`)** y `routlar1.log`/`bloqlar1.log` pasan a español (cambió NLS_LANG).
+  → **SÍ se relaciona con el hallazgo crítico:** la desaparición del log coincide con el corte del motor de
+  sincronización (27/08/2026): esa fase ya no se ejecuta ni deja bitácora en el envío. **Monitorizar en el
+  próximo envío:** el ZIP debe llevar los 5 archivos; si falta `repllar1.log`, la replicación no corrió.
+- **Prueba de exportación pendiente → línea base pre-crítica (24/09/2026):** la prueba planificada es
+  PLAN_CORTE Fase 1 ítem 3 (validar en local el generador `T_*` contra ZIP histórico real). Línea base
+  disponible: `enviados/routlar1_482026_1526.ZIP` (**04/08/2026, SE-32**, último envío completo pre-corte;
+  la semana 19-25/08 sugerida en el plan no está en la carpeta). Reconciliación inicial con el espejo PG:
+  `T_CERTNACI=422` del envío ⇔ **421 `CERTNACIMIENTO`** con `FECHAOPERACION` en la semana previa (Δ=1);
+  `T_CERTMORT=398` ⇔ **306 `CERTIFICADO`** por `FECHAOPERACION` (Δ=92, hay que afinar el criterio de
+  fecha/corte del sobre, probablemente `FECHADEFUNCION`). Los ZIP del 08/09/16/09 y 22/09 (4 archivos) son
+  posteriores al corte y **no** deben usarse como referencia.
+
 ---
 
 *Registro creado el 12/09/2026.*
