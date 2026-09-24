@@ -52,9 +52,9 @@
 - Verificado: 341 omitidos son CIE-10 no cubiertos por el scrape español (ej. `A09.0`, `A92.5`, `A97`, `B18.00`).
   Endpoint `/api/catalogos/mapeos/?cie10=<codigo>` devuelve equivalencias con título CIE-11 en español.
 
-## 4. [EN CURSO] Territorio (estados, municipios, parroquias, comunidades) y ASIC
+## 4. [COMPLETADO] Territorio (estados, municipios, parroquias, comunidades) y ASIC
 
-- **Estado:** backend de territorio/ASIC implementado y probado (19/09/2026); falta la **descarga real** del territorio.
+- **Estado:** **completado** (24/09/2026) — territorio real descargado de la APN y base auxiliar `territorio_apn` creada.
 - **Completado:**
   - Modelo `ASIC` (parroquia sede, dirección, responsable, teléfono, email, establecimientos_adscritos,
     observaciones) con endpoints `/api/territorio/asic/` (GET filtrable + POST) y `/api/territorio/asic/<id>/`
@@ -66,10 +66,11 @@
   - Comando `manage.py descargar_territorio_apn` (login + descarga Estado→Municipio→Parroquia→Comunidad
     desde la API de la APN; arg `--usuario/--clave` o env `APN_USUARIO/APN_CLAVE`, `--borrar`,
     `--sin-comunidades`).
-- **Pendiente (punto 3):** descarga real del territorio → requiere **registro/credenciales de desarrollador**
-  en `https://apisegen.apn.gob.ve/registroUsuario/` (usuario registrado + clave → `POST /api/v1/login` → token).
-  Con las credenciales: `./.venv/bin/python backend/manage.py descargar_territorio_apn --usuario <dev> --clave <clave>`.
-  Conteos de referencia: 25 estados / 335 municipios / 1.138 parroquias (`marydn/venezuela-sql`).
+- **Hecho (24/09/2026):** territorio completo cargado vía APN (credenciales de desarrollador `venegas`):
+  `./.venv/bin/python backend/manage.py descargar_territorio_apn --usuario <dev> --clave <clave>` → en BD
+  **24 estados / 335 municipios / 1.125 parroquias / 74.631 comunidades** (la API solo entrega 24 entidades;
+  el 25/1.138 es teoría). Base auxiliar `territorio_apn` en `sis_postgres_dev` (5436) poblada con
+  `manage.py exportar_territorio_pg` (estados/municipios/parroquias/comunidades normalizados + vista).
 
 ## 5. [COMPLETADO] Migración Oracle 10g → PostgreSQL (datos del sistema legado)
 
@@ -95,9 +96,30 @@
   **173.391 defunciones**, preservando el CIE-10 original en `cie10_legacy`, resolviendo el catálogo
   nuevo (154 códigos legacy importados con `origen=LEGACY`) y dejando **49.162 defunciones** en
   `codificacion_pendiente` para el codificador (CIE-11 post-corte / causa solo en texto).
-- **Pendiente:** decidir el mapeo de fichas individuales (`CASOS_MMI`/`M_VIOLENTA`) y de la vigilancia
-  agregada (`RENGLONTELE`, `RENGLON_EPI15`, `INFORME_EPI`) a `vigilancia.ConsolidadoSemanal`; decidir
-  el destino de los catálogos CIE legacy. Ver `legancy/analisis/INFORME_MIGRACION_LEGACY.md` §8-9.
+- **ETL a `vigilancia` (23/09/2026):** decisiones tomadas con el usuario y comando
+  `importar_legacy_vigilancia` implementado (--modelo todos|epi12|epi15|mmi|violenta, --borrar,
+  --limite, --desde, --todo-pais). **Alcance: solo el árbol de establecimientos de Lara**
+  (raíces DES LARA=67754 y DPS LARA=3441583108 → **1.022 establecimientos**, cubre 575/577
+  HORIGEN y 105.732/105.734 documentos tipo 1 ≈ todo el EPI-12 real):
+  - **RENGLONTELE** (SIS-04/EPI-12) → `ConsolidadoSemanal` MORBILIDAD y MORTALIDAD con
+    `FilaConsolidado` (matriz 13×2); los grupos `EDADES` legacy con HCATEGORIA=1 son los 13
+    oficiales; los desbordes históricos ("Menor de 7 Días", "7 a 28 Días", "Menor de 2 años") se
+    suman a su grupo y "MENORES DE 25 AÑOS" va a `edad_ignorada_h` (regla oficial Hombres).
+    Mapeo curado **98 enfermedades legacy → EventoENO** en `vigilancia/legacy_mapeo.py`
+    (`LEGACY_ENFERMEDAD_EVENTO`/`LEGACY_ENFERMEDAD_NOMBRE`/`GRUPO_EDAD_LEGACY`). Sin equivalente
+    (se reportan como «no importados»): SÍNDROME VIRAL (70.979 filas), EMPONZOÑAMIENTO OFÍDICO,
+    ONCOCERCOSIS, LEPRA, ACULIADURA DE ALACRÁN, URETRITIS NO GONOCÓCCICA y el código header 67972.
+  - **RENGLON_EPI15** → nuevos modelos `ConsolidadoEpi15` + `FilaEpi15` (sin matriz de edad;
+    `evento` nullable conserva el `nombre_legacy`). Infraestructura/modelos/migraciones nuevas.
+  - **CASOS_MMI y M_VIOLENTA** → `FichaVigilancia` con `lote_id` LEGACY-MMI/LEGACY-VIOLENTA y
+    `legacy_tabla`; geo por `ORG_GEOGRAFICA` + establecimiento por `DOCUMENTO.HORIGEN` / `CERTIFICADO`.
+  - Organización destino: por nombre normalizado del establecimiento contra las `Organizacion`
+    activas; si no aparece, se consolida en **«Legacy regional (histórico)»** (`codigo=LEGACY-LARA`,
+    nivel REGIONAL) creada al vuelo. Consolidados con traza `legacy_tabla`/`legacy_documento`;
+    re-carga sin `--borrar` es idempotente (los existentes se reusan). Pruebas sqlite-safe añadidas
+    (77 totales backend).
+- **Pendiente:** decidir el destino de los catálogos CIE legacy (`sismai."CIE10"` y asociados).
+  Ver `legancy/analisis/INFORME_MIGRACION_LEGACY.md` §8-9.
 
 ## 6. [COMPLETADO] Módulo de Vigilancia (modernización de ventanas legacy)
 
@@ -140,10 +162,31 @@
   (`registros`/`vigilancia`/`seguridad`). Los catálogos P1 son la fuente directa para poblar
   `seguridad.Organizacion` (centros) y `territorio.DivisionTerritorial`.
 
-## 9. [PENDIENTE] Lint y pruebas automatizadas
+## 9. [COMPLETADO] Lint y pruebas automatizadas
 
-- **Estado:** pendiente — Django y React aún no tienen lint/tests configurados.
-- Verificación manual vigente: `manage.py check`, cliente de pruebas de Django y `npm run build`.
+- **Estado:** completado (23/09/2026).
+- Backend (Django/DRF) usando `DJANGO_DB_ENGINE=sqlite manage.py test`:
+  `./.venv/bin/python backend/manage.py test registros seguridad vigilancia territorio catalogos legacy`
+  → **77 pruebas, todas pasan** (72 nuevas + 5 de legacy, 24/09/2026).
+  - Base compartida en `backend/tests_sisv.py` (territorio, orgs, usuarios demo, CIE y eventos ENO con
+    `setUpTestData`). Para descubrir las pruebas fue necesario añadir `__init__.py` a las apps
+    `registros`, `seguridad`, `territorio` y `catalogos` (eran paquetes namespace).
+  - `seguridad/tests.py`: login/logout/me, **throttle 429** del login, permisos org/usuarios.
+  - `registros/tests.py`: CRUD nacimientos/defunciones/fichas, alcance CENTRO/REGIONAL/todos,
+    validación CIE por `FECHA_CORTE_CIE11`, obligación de subgrupo, dashboard por `anio`(todos/particular),
+    export CSV con BOM, permisos de configuración.
+  - `vigilancia/tests.py`: `eventos-eno`, creación de consolidado que siembra filas, org forzada en
+    CENTRO, elección de destino en REGIONAL, org obligatoria en niveles superiores, alcance, permisos,
+    export CSV.
+  - `territorio/tests.py`: árbol, ruta territorial y permisos CRUD de ASIC.
+  - `catalogos/tests.py`: búsquedas CIE-10/CIE-11 y mapeos.
+- Frontend (Vitest): `npm test` en `frontend/` → **13 pruebas pasan** (2 archivos).
+  - `frontend/src/utils/cie.test.js`: `validarCIE` (CIE-10 obligatorio en históricos, subgrupo
+    obligatorio), `versionParaFecha` y `seleccionDesdeRegistro` (con `vi.mock` de la API).
+  - `frontend/src/api/sisv.test.js`: `iniciarSesion` (setea CSRF), `listarNacimientos`,
+    `exportarReportes` (blob) con `./axios` mockeado.
+  - Nada de lint configurado aún (no aplica en este repo); verificación manual sigue siendo
+    `manage.py check` y `npm run build` (ambos OK tras los cambios).
 
 ## 10. [COMPLETADO] Repositorio Git
 
@@ -158,19 +201,27 @@
 - Qué significa (para decidir más adelante): cuando el sistema esté listo, pasará del equipo de desarrollo a un **servidor de producción**, que en este caso sería una máquina virtual con **Proxmox 9.2**. Allí PostgreSQL se instala **nativo** (sin Docker) y la base se exporta/importa con `pg_dump` (no con `mysqldump` como se planeaba antes).
 - Se descarta por ahora mientras el proyecto siga en desarrollo local.
 
-## 12. [PENDIENTE] Revisión de seguridad contra ataques
+## 12. [COMPLETADO] Revisión de seguridad contra ataques
 
-- **Estado:** pendiente (registrado 19/09/2026).
-- Revisar y endurecer el sistema contra ataques, al menos:
-  - **OWASP Top 10:** inyección (SQL/ORM), XSS, CSRF (ya hay token), autenticación/sesiones,
-    exposición de datos sensibles, cabeceras de seguridad (HSTS, CSP, X-Frame-Options, etc.).
-  - Backend Django: `DEBUG=False`, secretos por variable de entorno, `ALLOWED_HOSTS` restringido,
-    límites de tasa (rate limiting) en `/api/auth/`, validación estricta de entradas en registros
-    (CE 12: validación CIE por fecha, alcance multicentro, permisos).
-  - Frontend: sanitización de salida, no exponer tokens en el cliente, manejo de errores sin fuga
-    de info interna.
-  - Revisar `requirements.txt` y dependencias npm por vulnerabilidades conocidas
-    (pip-audit / npm audit).
+- **Estado:** completado (23/09/2026). Resumen de lo aplicado:
+  - **Autenticación global en la API:** `REST_FRAMEWORK.DEFAULT_PERMISSION_CLASSES` =
+    `IsAuthenticated`; solo `LoginView`, `LogoutView`, `MeView`, `CsrfView` y `ApiRoot` quedan
+    públicos (`AllowAny`). Sin sesión, cualquier dato devuelve `403` (verificado en vivo con curl).
+  - **Rate limiting en `/api/auth/login/`:** `seguridad/throttle.py` — 5 intentos/5 min por IP+usuario,
+    bloqueo de 15 min → `429`. Probado en unittest.
+  - **CSRF:** se quitó `csrf_exempt` de login/logout; el frontend ya envía `X-CSRFToken`
+    (interceptor de axios). Verificado el flujo completo login→datos vía curl (cookie + CSRF + Origin).
+  - **Sesiones y cabeceras:** `SESSION_COOKIE_HTTPONLY`, `SESSION_COOKIE_SAMESITE="Lax"`,
+    `CSRF_COOKIE_SAMESITE="Lax"`, `SECURE_CONTENT_TYPE_NOSNIFF`, `SECURE_REFERRER_POLICY="same-origin"`,
+    `X_FRAME_OPTIONS="DENY"`, HSTS cuando `DEBUG=False`.
+  - **Permisos finos ya operativos:** crear/editar → TRANSCRIPTOR/CODIFICADOR/DIRECTOR/super;
+    eliminar/configurar → DIRECTOR/super; EPIDEMIÓLOGO solo lectura (también en consolidados y ASIC).
+    Todo cubierto por las pruebas de §9.
+  - **Dependencias auditadas:** `pip-audit` → `sqlparse>=0.6.0` en `requirements.txt` (**0 vulnerabilidades**);
+    `npm audit` → `vite ^8.3.0`, `@vitejs/plugin-react ^6.1.1`, `react-router-dom ^7.18.4`
+    (**0 vulnerabilidades**). Frontend sin `dangerouslySetInnerHTML` (grep verificado).
+  - **Pendiente consciente:** CSP no activado (Vite inyecta estilos; se revisaría en producción Proxmox,
+    sección 11). Secretos de BD/sesiones siguen vía `.env` (dotenv ya cargado).
 
 ## 13. [COMPLETADO] Responsive (celular / tablet / computador)
 
@@ -187,6 +238,71 @@
   - **≤480px (celular):** `.grid` y `.filtros` a una columna (formularios de carga), tarjetas apiladas,
     stats a ancho completo, jerarquía tipográfica del título y acciones de jerarquía sin flotar.
 - Verificación: `npm run build` (vite) sin errores.
+
+## 14. [EN CURSO] Trabajo del 24/09/2026 — codificación pendiente, solo-Lara y sin demo
+
+- **Roles nuevos:** `ROL_VIGILANCIA` (escribe: crear/editar registros, como
+  TRANSCRIPTOR/CODIFICADOR/DIRECTOR) y `ROL_SECRETARIA` (solo lectura, no escribe/edita/elimina/configura)
+  agregados a `Perfil.ROL_CHOICES` (`backend/seguridad/models.py`), `permisos_de` actualizado y migración
+  `0003_alter_perfil_rol` aplicada. `Seguridad.jsx` muestra las descripciones de los roles.
+- **Solo datos del estado Lara + sin data demo (guardado):**
+  - Criterio acordado: **Centro Lara + domicilio Lara** — eliminar solo los registros cuyo centro de salud
+    **no** es del árbol de Lara (raíces DES LARA=67754 y DPS LARA=3441583108) y los de residencia ≠ Lara;
+    las defunciones en domicilio con residencia Lara (84.893) se conservan. `estado` en los legacy es la
+    **residencia** (madre/fallecido), no el centro.
+  - Comando: `backend/registros/management/commands/limpiar_legacy_no_lara.py` (dry-run por defecto;
+    `--ejecutar` aplica). **Ejecutado.** Conteos finales: **Nacimientos 438.577, Defunciones 171.115,
+    Fichas 0, Consolidados 0**. Se eliminaron los lotes `LOTE-*`, las fichas demo y el consolidado sin
+    `legacy_tabla`; **usuarios y organizaciones demo se conservan** (admin, laraepid, hbcentral,
+    codificadora, epi, dir, tester_legacy).
+- **Bandeja de codificación (`codificacion_pendiente`):** las **49.162 defunciones** pendientes de
+  CIE se ven en **`/defunciones` (CargaDefunciones.jsx)** con el filtro **«Solo pendientes de
+  codificación»** (checkbox sobre la tabla). Backend: endpoint de defunciones acepta `?pendientes=1`
+  (filtra `codificacion_pendiente=True`); el serializer de `Defuncion` expone `codificacion_pendiente`
+  y `cie10_legacy`. El codificador abre cada registro con **Editar** y aplica `CIESearch`
+  (versión por fecha del evento); al guardar, `validar_seleccion_cie` marca `codificacion_pendiente=False`.
+- **Exportar BDs a la oficina (24/09/2026):** `dumps/sis_salud_db_20260924.dump` (176M) y
+  `dumps/territorio_apn_20260924.dump` (594K) generados con `docker exec sis_postgres_dev pg_dump -U
+  sis_user -Fc` + `docker cp` a `dumps/`.
+- **Pendiente (próxima sesión):**
+  - Módulo CRUD de **ASIC ↔ comunidades del territorio**: asociar a cada ASIC sus comunidades
+    (`DivisionTerritorial` nivel COMUNIDAD bajo la parroquia sede), endpoint + UI.
+  - Reporte **comparativo entre dos años por semana epidemiológica** con gráfico: series **MMI**
+    (fichas materno-infantil de lotes LEGACY-MMI/VIOLENTA), **M** (muertes maternas,
+    `embarazo_o_puerperio=True`), **Nacimientos** y **Muertes** (defunciones).
+  - Actualizar el repositorio (git add/commit/push) al cerrar esta tanda.
+
+## 15. [COMPLETADO] ASIC ↔ comunidades del territorio y reporte comparativo anual
+
+- **ASIC ↔ comunidades (completado 24/09/2026):**
+  - Modelo: M2M `ASIC.comunidades` → `DivisionTerritorial` (nivel COMUNIDAD) relacionada como
+    `asics_territoriales`; migración `territorio/0003_asic_comunidades` aplicada.
+  - API: `_serializar_asic` expone `comunidades` (id/nombre/codigo) y `comunidad_count` (con
+    `prefetch_related`); POST y PATCH de `/api/territorio/asic/` aceptan `comunidades` (lista de ids o
+    CSV), validando que sean nivel COMUNIDAD (400 con mensaje si no). `activo` y `centros` se conservan.
+  - Frontend: página **`/asic`** (`Asic.jsx`, grupo Sistema) con formulario de creación/edición
+    (código, nombre, parroquia sede por cascada estado→municipio→parroquia, establecimientos, director,
+    teléfono/email, activo), **checkbox de comunidades** de la parroquia seleccionada y tabla de ASIC con
+    ubicación, nº de comunidades y centros. Edición precarga el árbol territorial según la sede.
+  - Permisos: administrar ASIC sigue siendo solo `puede_configurar` (DIRECTOR/superusuario).
+  - Pruebas: `territorio/tests.py` ampliado (11 pruebas) — asociar comunidades, rechazo de ids de otro
+    nivel, limpieza con lista vacía.
+- **Reporte comparativo anual por semana (completado 24/09/2026):**
+  - Endpoint **`/api/registros/reportes/comparativo/?anio1=&anio2=`** (`ReporteComparativoView`):
+    series **nacimientos**, **muertes** (defunciones), **muertes_maternas** (M, `embarazo_o_puerperio=True`)
+    y **mmi** (fichas de lotes `LEGACY-MMI`/`LEGACY-VIOLENTA`), por semana epidemiológica (ISO, 1–53),
+    respetando el alcance del usuario. Devuelve también totales por año y lista de series listas para el gráfico.
+  - Frontend: sección **«Comparativo anual por semana epidemiológica»** en `/reportes` (Reportes.jsx):
+    selector de dos años, y por cada serie un `<details>` con resumen (rotulo + totales por año) y un
+    **gráfico de líneas SVG** (`GraficoLineas`, sin dependencias): `anio1` línea sólida, `anio2` punteada,
+    ejes S semana y leyenda de años. Los 0 se rellenan para las 53 semanas.
+  - Nota: la serie **MMI aparece en 0** porque las fichas `LEGACY-MMI`/`LEGACY-VIOLENTA` aún no se cargan
+    (el ETL de `CASOS_MMI`/`M_VIOLENTA` → `FichaVigilancia` no se ha ejecutado en producción de datos;
+    ver §5); la infraestructura del reporte ya la contempla.
+  - Prueba backend `test_reporte_comparativo` (año1=2023 con un nacimiento, series y totales correctos).
+- **Estado global del día:** bandeja de codificación (checklist en `/defunciones`), solo Lara + sin demo,
+  roles VIGILANCIA/SECRETARIA, exportación de BDs, ASIC↔comunidades y reporte comparativo ya están en el
+  código; pendiente solo **actualizar el repositorio** y (opcional) la corrida completa del ETL de vigilancia.
 
 ---
 

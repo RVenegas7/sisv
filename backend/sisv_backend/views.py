@@ -1,3 +1,4 @@
+from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
 from sisv_backend.api import ok
@@ -36,6 +37,8 @@ ENDPOINTS = {
 
 
 class ApiRoot(APIView):
+    permission_classes = [AllowAny]
+
     def get(self, request):
         return ok(
             ENDPOINTS,

@@ -11,6 +11,7 @@ import Reportes from "./pages/Reportes"
 import Mapeos from "./pages/Mapeos"
 import Configuracion from "./pages/Configuracion"
 import Seguridad from "./pages/Seguridad"
+import Asic from "./pages/Asic"
 import Login from "./pages/Login"
 
 const NAVEGACION = [
@@ -34,6 +35,7 @@ const NAVEGACION = [
   {
     grupo: "Sistema",
     items: [
+      { enlace: "/asic", rotulo: "ASIC y comunidades" },
       { enlace: "/configuracion", rotulo: "Configuración" },
       { enlace: "/seguridad", rotulo: "Seguridad" },
     ],
@@ -109,15 +111,18 @@ export default function App() {
 
   return (
     <div className={`app ${menuAbierto ? "menu-abierto" : ""}`}>
-      <button
-        type="button"
-        className="menu-boton"
-        aria-label={menuAbierto ? "Cerrar menú" : "Abrir menú"}
-        aria-expanded={menuAbierto}
-        onClick={() => setMenuAbierto((v) => !v)}
-      >
-        {menuAbierto ? "✕" : "☰"}
-      </button>
+      <header className="barra-movil">
+        <button
+          type="button"
+          className="menu-boton"
+          aria-label={menuAbierto ? "Cerrar menú" : "Abrir menú"}
+          aria-expanded={menuAbierto}
+          onClick={() => setMenuAbierto((v) => !v)}
+        >
+          {menuAbierto ? "✕" : "☰"}
+        </button>
+        <span className="marca-movil">SISV · Sistema Integral de Salud</span>
+      </header>
       {menuAbierto && <div className="menu-backdrop" onClick={cerrarMenu} />}
       <aside className="panel-lateral">
         <div className="marca">
@@ -159,6 +164,7 @@ export default function App() {
           <Route path="/mapeos" element={<Mapeos />} />
           <Route path="/configuracion" element={<Configuracion usuario={usuario} />} />
           <Route path="/seguridad" element={<Seguridad usuario={usuario} />} />
+          <Route path="/asic" element={<Asic usuario={usuario} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <footer className="firma-app">Desarrollado por Rafael Venegas</footer>

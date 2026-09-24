@@ -456,6 +456,8 @@ export default function Seguridad({ usuario }) {
                     {r.valor === "TRANSCRIPTOR" && "Carga registros de nacimiento, defunción y vigilancia."}
                     {r.valor === "CODIFICADOR" && "Valida y codifica diagnósticos CIE-10 / CIE-11."}
                     {r.valor === "EPIDEMIOLOGO" && "Consulta reportes e indicadores de vigilancia."}
+                    {r.valor === "VIGILANCIA" && "Carga y revisa el consolidado semanal, fichas y alertas epidemiológicas."}
+                    {r.valor === "SECRETARIA" && "Consulta y habilita trámites administrativos (solo lectura de registros)."}
                     {r.valor === "DIRECTOR" && "Administra configuración, organización y usuarios."}
                   </td>
                 </tr>

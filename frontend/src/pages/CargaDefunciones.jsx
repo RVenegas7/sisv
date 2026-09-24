@@ -31,6 +31,9 @@ const VACIO = {
   certificador_cedula: "",
 }
 
+const ANIO_ACTUAL = new Date().getFullYear()
+const ANIOS_DISPONIBLES = Array.from({ length: ANIO_ACTUAL - 2018 }, (_, i) => ANIO_ACTUAL - i)
+
 const REQUERIDOS = ["registro_numero", "fecha_evento", "fallecido_nombres", "fallecido_apellidos", "sexo"]
 
 const OPCIONES = {
@@ -79,10 +82,31 @@ export default function CargaDefunciones({ usuario }) {
   const [errores, setErrores] = useState({})
   const [estado, setEstado] = useState({ tipo: "", texto: "" })
   const [lista, setLista] = useState([])
+  const [paginacion, setPaginacion] = useState(null)
+  const [anioLista, setAnioLista] = useState(ANIO_ACTUAL)
+  const [soloPendientes, setSoloPendientes] = useState(false)
   const [editandoId, setEditandoId] = useState(null)
 
+  async function cargarLista(pagina = 1, anio = anioLista, pendientes = soloPendientes) {
+    try {
+      const resp = await listarDefunciones({
+        pagina,
+        por_pagina: 100,
+        anio,
+        ...(pendientes ? { pendientes: 1 } : {}),
+      })
+      setLista(resp.items)
+      setPaginacion(resp.pagination)
+      return resp.items
+    } catch {
+      setLista([])
+      setPaginacion(null)
+      return []
+    }
+  }
+
   useEffect(() => {
-    listarDefunciones().then(setLista).catch(() => setLista([]))
+    cargarLista()
     obtenerConfiguracion()
       .then((cfg) => {
         if (cfg.estado || cfg.municipio || cfg.parroquia || cfg.establecimiento) {
@@ -130,7 +154,11 @@ export default function CargaDefunciones({ usuario }) {
     if (!window.confirm(`¿Eliminar el certificado #${reg.id} (${reg.registro_numero})?`)) return
     try {
       await eliminarDefuncion(reg.id)
-      setLista(await listarDefunciones())
+      if (lista.length === 1 && paginacion?.pagina > 1) {
+        await cargarLista(paginacion.pagina - 1)
+      } else {
+        await cargarLista(paginacion?.pagina || 1)
+      }
       setEstado({ tipo: "ok", texto: `Certificado #${reg.id} eliminado.` })
     } catch (err) {
       setEstado({ tipo: "error", texto: err.message })
@@ -164,7 +192,7 @@ export default function CargaDefunciones({ usuario }) {
         const creado = await crearDefuncion(payload)
         setEstado({ tipo: "ok", texto: `Certificado creado: ${creado.registro_numero} #${creado.id}` })
       }
-      setLista(await listarDefunciones())
+      setLista(await cargarLista(paginacion?.pagina || 1))
       cancelarEdicion()
     } catch (err) {
       setEstado({ tipo: "error", texto: err.message })
@@ -304,7 +332,40 @@ export default function CargaDefunciones({ usuario }) {
       </form>
 
       <section className="lista">
-        <h2>Certificados registrados ({lista.length})</h2>
+        <div className="cabecera-lista">
+          <h2>Certificados registrados</h2>
+          <div className="selector-anio">
+            <label className="caja">
+              <input
+                type="checkbox"
+                checked={soloPendientes}
+                onChange={(e) => {
+                  const v = e.target.checked
+                  setSoloPendientes(v)
+                  cargarLista(1, anioLista, v)
+                }}
+              />
+              Solo pendientes de codificación ({paginacion?.total ?? lista.length})
+            </label>
+            <label htmlFor="anio-defunciones">Año</label>
+            <select
+              id="anio-defunciones"
+              value={anioLista}
+              onChange={(e) => {
+                const v = e.target.value === "todos" ? "todos" : Number(e.target.value)
+                setAnioLista(v)
+                cargarLista(1, v)
+              }}
+            >
+              {ANIOS_DISPONIBLES.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+              <option value="todos">Todos los años</option>
+            </select>
+          </div>
+        </div>
         <table>
           <thead>
             <tr>
@@ -316,6 +377,7 @@ export default function CargaDefunciones({ usuario }) {
               <th>Municipio</th>
               <th>CIE</th>
               <th>Centro</th>
+              <th>Codificación</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -330,6 +392,9 @@ export default function CargaDefunciones({ usuario }) {
                 <td>{r.municipio || "—"}</td>
                 <td>{mostrarCIE(r)}</td>
                 <td>{r.organizacion_nombre || "—"}</td>
+                <td>
+                  {r.codificacion_pendiente ? <span className="etiqueta">Pendiente</span> : <span>OK</span>}
+                </td>
                 <td className="acciones">
                   {permisos.puede_editar && (
                     <button type="button" className="btn-mini" onClick={() => cargarEdicion(r)}>
@@ -346,6 +411,29 @@ export default function CargaDefunciones({ usuario }) {
             ))}
           </tbody>
         </table>
+        {paginacion && (
+          <div className="paginacion">
+            <button
+              type="button"
+              className="btn-mini"
+              disabled={paginacion.pagina <= 1}
+              onClick={() => cargarLista(paginacion.pagina - 1)}
+            >
+              ‹ Anterior
+            </button>
+            <span>
+              Página {paginacion.pagina} de {paginacion.paginas}
+            </span>
+            <button
+              type="button"
+              className="btn-mini"
+              disabled={paginacion.pagina >= paginacion.paginas}
+              onClick={() => cargarLista(paginacion.pagina + 1)}
+            >
+              Siguiente ›
+            </button>
+          </div>
+        )}
       </section>
     </div>
   )

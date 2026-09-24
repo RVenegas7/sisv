@@ -118,6 +118,8 @@ class ConsolidadoSemanal(models.Model):
         related_name="consolidados_semanales",
         verbose_name="Creado por",
     )
+    legacy_tabla = models.CharField("Tabla legacy de origen", max_length=40, blank=True, db_index=True)
+    legacy_documento = models.CharField("Documento legacy de origen", max_length=40, blank=True, db_index=True)
     enviado_en = models.DateTimeField("Enviado en", null=True, blank=True)
     creado_en = models.DateTimeField("Creado en", auto_now_add=True)
     actualizado_en = models.DateTimeField("Actualizado en", auto_now=True)
@@ -206,6 +208,86 @@ class FilaConsolidado(models.Model):
     @property
     def total(self):
         return self.total_hombres() + self.total_mujeres()
+
+
+class ConsolidadoEpi15(models.Model):
+    """Consolidado semanal del formulario SIS-04/EPI-15 (enfermedades de notificación).
+
+    El EPI-15 no usa la matriz de 13 grupos etarios del EPI-12/14: cada evento
+    lleva sus propios renglones (con desglose de edad en el propio nombre) y no
+    desglosa por sexo ni muertes. Se preserva con traza legacy.
+    """
+
+    ESTADO_CHOICES = ConsolidadoSemanal.ESTADO_CHOICES
+    ORIGEN_CHOICES = ConsolidadoSemanal.ORIGEN_CHOICES
+
+    organizacion = models.ForeignKey(
+        "seguridad.Organizacion",
+        on_delete=models.PROTECT,
+        related_name="consolidados_epi15",
+        verbose_name="Organización / establecimiento",
+    )
+    anio = models.PositiveSmallIntegerField("Año")
+    semana = models.PositiveSmallIntegerField("Semana epidemiológica (1-53)")
+    estado = models.CharField("Estado", max_length=10, choices=ESTADO_CHOICES, default="BORRADOR")
+    origen = models.CharField("Origen", max_length=22, choices=ORIGEN_CHOICES, default="PROPIO")
+    legacy_tabla = models.CharField("Tabla legacy de origen", max_length=40, blank=True, db_index=True)
+    legacy_documento = models.CharField("Documento legacy de origen", max_length=40, blank=True, db_index=True)
+    creado_en = models.DateTimeField("Creado en", auto_now_add=True)
+    actualizado_en = models.DateTimeField("Actualizado en", auto_now=True)
+
+    class Meta:
+        verbose_name = "Consolidado semanal EPI-15"
+        verbose_name_plural = "Consolidados semanales EPI-15"
+        ordering = ["-anio", "-semana"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organizacion", "anio", "semana"], name="uq_consolidado_epi15"
+            )
+        ]
+
+    def __str__(self):
+        return f"EPI-15 {self.anio}-S{self.semana:02d} @ {self.organizacion}"
+
+    def clean(self):
+        super().clean()
+        if not (1 <= self.semana <= 53):
+            raise ValidationError({"semana": "La semana debe estar entre 1 y 53."})
+
+
+class FilaEpi15(models.Model):
+    """Renglón del EPI-15: evento (si hay equivalencia con el catálogo ENO) o
+    nombre legacy original, con los tres conteos del formulario."""
+
+    consolidado = models.ForeignKey(
+        ConsolidadoEpi15, on_delete=models.CASCADE, related_name="filas"
+    )
+    legacy_id = models.PositiveBigIntegerField("ID legacy (INFORME_EPI)")
+    codigo_legacy = models.CharField("Código legacy", max_length=20, blank=True)
+    nombre_legacy = models.CharField("Nombre legacy", max_length=200, blank=True)
+    evento = models.ForeignKey(
+        EventoENO, null=True, blank=True, on_delete=models.SET_NULL, related_name="filas_epi15"
+    )
+    casosp = models.PositiveIntegerField("Casos primeras consultas", default=0)
+    casoss = models.PositiveIntegerField("Casos subsiguientes", default=0)
+    casosx = models.PositiveIntegerField("Casos (columna X)", default=0)
+
+    class Meta:
+        verbose_name = "Fila del EPI-15"
+        verbose_name_plural = "Filas del EPI-15"
+        ordering = ["nombre_legacy"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["consolidado", "legacy_id"], name="uq_fila_epi15_legacy"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.consolidado} — {self.nombre_legacy or self.evento}"
+
+    @property
+    def total(self):
+        return (self.casosp or 0) + (self.casoss or 0) + (self.casosx or 0)
 
 
 class SituacionEspecial(models.Model):

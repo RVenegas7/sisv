@@ -1,6 +1,14 @@
 from django.contrib import admin
 
-from .models import AlertaEpidemia, ConsolidadoSemanal, EventoENO, FilaConsolidado, SituacionEspecial
+from .models import (
+    AlertaEpidemia,
+    ConsolidadoEpi15,
+    ConsolidadoSemanal,
+    EventoENO,
+    FilaConsolidado,
+    FilaEpi15,
+    SituacionEspecial,
+)
 
 
 @admin.register(EventoENO)
@@ -31,3 +39,16 @@ class ConsolidadoSemanalAdmin(admin.ModelAdmin):
     list_filter = ["tipo", "estado", "origen", "anio", "organizacion"]
     search_fields = ["organizacion__nombre"]
     inlines = [FilaConsolidadoInline, SituacionEspecialInline, AlertaEpidemiaInline]
+
+
+class FilaEpi15Inline(admin.TabularInline):
+    model = FilaEpi15
+    extra = 0
+
+
+@admin.register(ConsolidadoEpi15)
+class ConsolidadoEpi15Admin(admin.ModelAdmin):
+    list_display = ["anio", "semana", "organizacion", "estado", "origen"]
+    list_filter = ["estado", "origen", "anio", "organizacion"]
+    search_fields = ["organizacion__nombre"]
+    inlines = [FilaEpi15Inline]

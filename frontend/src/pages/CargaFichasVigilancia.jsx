@@ -28,6 +28,9 @@ const VACIO = {
   nota: "",
 }
 
+const ANIO_ACTUAL = new Date().getFullYear()
+const ANIOS_DISPONIBLES = Array.from({ length: ANIO_ACTUAL - 2018 }, (_, i) => ANIO_ACTUAL - i)
+
 const REQUERIDOS = [
   "codigo_notificacion",
   "nombre_evento",
@@ -84,10 +87,25 @@ export default function CargaFichasVigilancia({ usuario }) {
   const [errores, setErrores] = useState({})
   const [estado, setEstado] = useState({ tipo: "", texto: "" })
   const [lista, setLista] = useState([])
+  const [paginacion, setPaginacion] = useState(null)
+  const [anioLista, setAnioLista] = useState(ANIO_ACTUAL)
   const [editandoId, setEditandoId] = useState(null)
 
+  async function cargarLista(pagina = 1, anio = anioLista) {
+    try {
+      const resp = await listarFichas({ pagina, por_pagina: 100, anio })
+      setLista(resp.items)
+      setPaginacion(resp.pagination)
+      return resp.items
+    } catch {
+      setLista([])
+      setPaginacion(null)
+      return []
+    }
+  }
+
   useEffect(() => {
-    listarFichas().then(setLista).catch(() => setLista([]))
+    cargarLista()
     obtenerConfiguracion()
       .then((cfg) => {
         if (cfg.estado || cfg.municipio || cfg.parroquia || cfg.establecimiento) {
@@ -135,7 +153,11 @@ export default function CargaFichasVigilancia({ usuario }) {
     if (!window.confirm(`¿Eliminar la ficha #${reg.id} (${reg.codigo_notificacion})?`)) return
     try {
       await eliminarFicha(reg.id)
-      setLista(await listarFichas())
+      if (lista.length === 1 && paginacion?.pagina > 1) {
+        await cargarLista(paginacion.pagina - 1)
+      } else {
+        await cargarLista(paginacion?.pagina || 1)
+      }
       setEstado({ tipo: "ok", texto: `Ficha #${reg.id} eliminada.` })
     } catch (err) {
       setEstado({ tipo: "error", texto: err.message })
@@ -170,7 +192,7 @@ export default function CargaFichasVigilancia({ usuario }) {
         const creado = await crearFicha(payload)
         setEstado({ tipo: "ok", texto: `Ficha de vigilancia creada: ${creado.codigo_notificacion} #${creado.id}` })
       }
-      setLista(await listarFichas())
+      setLista(await cargarLista(paginacion?.pagina || 1))
       cancelarEdicion()
     } catch (err) {
       setEstado({ tipo: "error", texto: err.message })
@@ -310,7 +332,28 @@ export default function CargaFichasVigilancia({ usuario }) {
       </form>
 
       <section className="lista">
-        <h2>Fichas registradas ({lista.length})</h2>
+        <div className="cabecera-lista">
+          <h2>Fichas registradas ({paginacion?.total ?? lista.length})</h2>
+          <div className="selector-anio">
+            <label htmlFor="anio-fichas">Año</label>
+            <select
+              id="anio-fichas"
+              value={anioLista}
+              onChange={(e) => {
+                const v = e.target.value === "todos" ? "todos" : Number(e.target.value)
+                setAnioLista(v)
+                cargarLista(1, v)
+              }}
+            >
+              {ANIOS_DISPONIBLES.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+              <option value="todos">Todos los años</option>
+            </select>
+          </div>
+        </div>
         <table>
           <thead>
             <tr>
@@ -352,6 +395,29 @@ export default function CargaFichasVigilancia({ usuario }) {
             ))}
           </tbody>
         </table>
+        {paginacion && (
+          <div className="paginacion">
+            <button
+              type="button"
+              className="btn-mini"
+              disabled={paginacion.pagina <= 1}
+              onClick={() => cargarLista(paginacion.pagina - 1)}
+            >
+              ‹ Anterior
+            </button>
+            <span>
+              Página {paginacion.pagina} de {paginacion.paginas}
+            </span>
+            <button
+              type="button"
+              className="btn-mini"
+              disabled={paginacion.pagina >= paginacion.paginas}
+              onClick={() => cargarLista(paginacion.pagina + 1)}
+            >
+              Siguiente ›
+            </button>
+          </div>
+        )}
       </section>
     </div>
   )

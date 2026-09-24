@@ -102,7 +102,7 @@ class Command(BaseCommand):
 
     def _login(self, usuario, clave):
         datos = urllib.parse.urlencode({"usuario": usuario, "clave": clave}).encode("utf-8")
-        resp = self._llamar("/api/v1/login", datos=datos, headers={"Content-Type": "application/x-www-form-urlencoded"})
+        resp = self._llamar(BASE + "/api/v1/login", datos=datos, headers={"Content-Type": "application/x-www-form-urlencoded"})
         token = (resp.get("token") or "").strip()
         if not token:
             raise CommandError("La API no devolvió token. Revise el usuario/clave o la aprobación como desarrollador.")

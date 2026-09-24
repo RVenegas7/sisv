@@ -96,6 +96,7 @@ class DefuncionSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.Mode
             "causa_directa", "embarazo_o_puerperio", "autopsia", "embalsamado",
             "certificador_nombres", "certificador_cedula",
             "version_cie", "cie10", "cie11", "cie10_detalle", "cie11_detalle", "creado_en",
+            "cie10_legacy", "codificacion_pendiente",
             "organizacion", "organizacion_id", "organizacion_nombre", "organizacion_nivel",
         ]
 

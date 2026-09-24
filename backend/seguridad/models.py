@@ -52,11 +52,15 @@ class Perfil(models.Model):
     ROL_TRANSCRIPTOR = "TRANSCRIPTOR"
     ROL_CODIFICADOR = "CODIFICADOR"
     ROL_EPIDEMIOLOGO = "EPIDEMIOLOGO"
+    ROL_VIGILANCIA = "VIGILANCIA"
+    ROL_SECRETARIA = "SECRETARIA"
     ROL_DIRECTOR = "DIRECTOR"
     ROL_CHOICES = [
         (ROL_TRANSCRIPTOR, "Transcriptor"),
         (ROL_CODIFICADOR, "Codificador"),
         (ROL_EPIDEMIOLOGO, "Epidemiólogo"),
+        (ROL_VIGILANCIA, "Vigilancia"),
+        (ROL_SECRETARIA, "Secretaría"),
         (ROL_DIRECTOR, "Director"),
     ]
 

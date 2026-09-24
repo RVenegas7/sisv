@@ -2,15 +2,65 @@ import os
 from datetime import date
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-insecure-sisv-dev-no-usar-en-produccion")
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
-ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
-CSRF_TRUSTED_ORIGINS = os.environ.get(
-    "DJANGO_CSRF_TRUSTED_ORIGINS",
-    "http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:8000,http://localhost:8000",
-).split(",")
+if DEBUG:
+    ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
+else:
+    ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+
+
+def _ip_local():
+    """IP principal del equipo en la red local (para CSRF/CORS al acceder desde el celular)."""
+    try:
+        import socket
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+        finally:
+            s.close()
+    except Exception:
+        return None
+
+
+_ip_local = _ip_local()
+
+_origenes_confiables = set(
+    os.environ.get(
+        "DJANGO_CSRF_TRUSTED_ORIGINS",
+        "http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:8000,http://localhost:8000",
+    ).split(",")
+)
+if _ip_local:
+    for _puerto in ("5173", "8000"):
+        _origenes_confiables.add(f"http://{_ip_local}:{_puerto}")
+CSRF_TRUSTED_ORIGINS = sorted(_origenes_confiables)
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+    }
+}
+
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+X_FRAME_OPTIONS = "DENY"
+SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_DOMAIN = None
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -100,11 +150,15 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.JSONRenderer",
         "rest_framework.renderers.BrowsableAPIRenderer",
     ],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
 }
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+if _ip_local:
+    CORS_ALLOWED_ORIGINS += [f"http://{_ip_local}:5173", f"http://{_ip_local}:8000"]
+CORS_ALLOW_ALL_ORIGINS = False
 
 FECHA_CORTE_CIE11 = date.fromisoformat(os.environ.get("FECHA_CORTE_CIE11", "2022-01-01"))

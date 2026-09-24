@@ -7,31 +7,60 @@ const MESES = [
   "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
 ]
 
+const MODULOS = ["nacimientos", "defunciones", "fichas"]
+const MODULO_LABEL = { nacimientos: "Nacimientos", defunciones: "Defunciones", fichas: "Vigilancia" }
+const COLORES = { nacimientos: "#0b7a4b", defunciones: "#b91c1c", fichas: "#0f5aa0" }
+
 function maximo(mensual) {
   return Math.max(1, ...Object.values(mensual).flatMap((serie) => Object.values(serie)))
+}
+
+function SumaSerie({ serie }) {
+  const total = MODULOS.reduce((acc, m) => acc + (serie[m] || 0), 0)
+  return <b>{total}</b>
 }
 
 export default function Tablero() {
   const [datos, setDatos] = useState(null)
   const [error, setError] = useState("")
+  const [anio, setAnio] = useState(new Date().getFullYear())
 
   useEffect(() => {
-    obtenerDashboard().then(setDatos).catch((e) => setError(e.message))
-  }, [])
+    setDatos(null)
+    setError("")
+    obtenerDashboard({ anio })
+      .then(setDatos)
+      .catch((e) => setError(e.message))
+  }, [anio])
 
   if (error) return <div className="aviso aviso-error">No se pudo cargar el tablero: {error}</div>
   if (!datos) return <div className="aviso aviso-info">Cargando indicadores…</div>
 
   const meses = [...new Set(Object.values(datos.mensual).flatMap((s) => Object.keys(s)))].sort()
   const max = maximo(datos.mensual)
-  const MODULO_LABEL = { nacimientos: "Nacimientos", defunciones: "Defunciones", fichas: "Vigilancia" }
-  const COLORES = { nacimientos: "#0b7a4b", defunciones: "#b91c1c", fichas: "#0f5aa0" }
 
   return (
     <div className="pagina">
-      <header className="cabecera-pagina">
-        <h1>Tablero de indicadores</h1>
-        <p>Resumen de nacimientos, defunciones y fichas de vigilancia del SISV.</p>
+      <header className="cabecera-pagina cabecera-con-control">
+        <div>
+          <h1>Tablero de indicadores</h1>
+          <p>Resumen de nacimientos, defunciones y fichas de vigilancia del SISV.</p>
+        </div>
+        <div className="selector-anio">
+          <label htmlFor="anio-dash">Año</label>
+          <select
+            id="anio-dash"
+            value={anio}
+            onChange={(e) => setAnio(e.target.value === "todos" ? "todos" : Number(e.target.value))}
+          >
+            {datos.anios_disponibles.map((a) => (
+              <option key={a} value={a}>
+                {a} {a === new Date().getFullYear() ? "(activo)" : ""}
+              </option>
+            ))}
+            <option value="todos">Todos los años</option>
+          </select>
+        </div>
       </header>
 
       <section className="tarjetas">
@@ -159,6 +188,96 @@ export default function Tablero() {
             ))}
           </tbody>
         </table>
+      </section>
+
+      <section className="panel">
+        <h2>Comparativa por semana epidemiológica (SE)</h2>
+        {Object.keys(datos.por_semana).length === 0 ? (
+          <p className="ayuda">Sin registros en este período.</p>
+        ) : (
+          <table className="tabla-dash">
+            <thead>
+              <tr>
+                <th>Semana</th>
+                {MODULOS.map((m) => (
+                  <th key={m}>{MODULO_LABEL[m]}</th>
+                ))}
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(datos.por_semana).map(([se, serie]) => (
+                <tr key={se}>
+                  <td>SE-{se}</td>
+                  {MODULOS.map((m) => (
+                    <td key={m}>{serie[m] || 0}</td>
+                  ))}
+                  <td><SumaSerie serie={serie} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="panel">
+        <h2>Por centro médico</h2>
+        {Object.keys(datos.por_centro).length === 0 ? (
+          <p className="ayuda">Sin registros en este período.</p>
+        ) : (
+          <table className="tabla-dash">
+            <thead>
+              <tr>
+                <th>Centro</th>
+                {MODULOS.map((m) => (
+                  <th key={m}>{MODULO_LABEL[m]}</th>
+                ))}
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(datos.por_centro).map(([c, serie]) => (
+                <tr key={c}>
+                  <td>{c}</td>
+                  {MODULOS.map((m) => (
+                    <td key={m}>{serie[m] || 0}</td>
+                  ))}
+                  <td><SumaSerie serie={serie} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="panel">
+        <h2>Por ASIC</h2>
+        {Object.keys(datos.por_asic).length === 0 ? (
+          <p className="ayuda">Sin registros en este período.</p>
+        ) : (
+          <table className="tabla-dash">
+            <thead>
+              <tr>
+                <th>ASIC</th>
+                {MODULOS.map((m) => (
+                  <th key={m}>{MODULO_LABEL[m]}</th>
+                ))}
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(datos.por_asic).map(([a, serie]) => (
+                <tr key={a}>
+                  <td>{a}</td>
+                  {MODULOS.map((m) => (
+                    <td key={m}>{serie[m] || 0}</td>
+                  ))}
+                  <td><SumaSerie serie={serie} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
     </div>
   )

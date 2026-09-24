@@ -41,6 +41,9 @@ const VACIO = {
   acta: "",
 }
 
+const ANIO_ACTUAL = new Date().getFullYear()
+const ANIOS_DISPONIBLES = Array.from({ length: ANIO_ACTUAL - 2018 }, (_, i) => ANIO_ACTUAL - i)
+
 const OPCIONES = {
   SEXO: [
     ["F", "Femenino"],
@@ -110,11 +113,26 @@ export default function CargaNacimientos({ usuario }) {
   const [errores, setErrores] = useState({})
   const [estado, setEstado] = useState({ tipo: "", texto: "" })
   const [lista, setLista] = useState([])
+  const [paginacion, setPaginacion] = useState(null)
+  const [anioLista, setAnioLista] = useState(ANIO_ACTUAL)
   const [stats, setStats] = useState(null)
   const [editandoId, setEditandoId] = useState(null)
 
+  async function cargarLista(pagina = 1, anio = anioLista) {
+    try {
+      const resp = await listarNacimientos({ pagina, por_pagina: 100, anio })
+      setLista(resp.items)
+      setPaginacion(resp.pagination)
+      return resp.items
+    } catch {
+      setLista([])
+      setPaginacion(null)
+      return []
+    }
+  }
+
   useEffect(() => {
-    listarNacimientos().then(setLista).catch(() => setLista([]))
+    cargarLista()
     obtenerDashboard()
       .then((d) => setStats({ total: d.totales.nacimientos, nacidos_vivos: d.nacimientos_salud.nacidos_vivos, por_sexo: d.nacimientos_salud.por_sexo, por_tipo_parto: d.nacimientos_salud.por_tipo_parto }))
       .catch(() => setStats(null))
@@ -165,7 +183,11 @@ export default function CargaNacimientos({ usuario }) {
     if (!window.confirm(`¿Eliminar el registro de nacimiento #${reg.id} (${reg.registro_numero})?`)) return
     try {
       await eliminarNacimiento(reg.id)
-      setLista(await listarNacimientos())
+      if (lista.length === 1 && paginacion?.pagina > 1) {
+        await cargarLista(paginacion.pagina - 1)
+      } else {
+        await cargarLista(paginacion?.pagina || 1)
+      }
       obtenerDashboard()
         .then((d) => setStats({ total: d.totales.nacimientos, nacidos_vivos: d.nacimientos_salud.nacidos_vivos, por_sexo: d.nacimientos_salud.por_sexo, por_tipo_parto: d.nacimientos_salud.por_tipo_parto }))
         .catch(() => null)
@@ -208,7 +230,7 @@ export default function CargaNacimientos({ usuario }) {
         const creado = await crearNacimiento(payload)
         setEstado({ tipo: "ok", texto: `Registro creado: ${creado.registro_numero} #${creado.id}` })
       }
-      const nuevaLista = await listarNacimientos()
+      const nuevaLista = await cargarLista(paginacion?.pagina || 1)
       setLista(nuevaLista)
       obtenerDashboard()
         .then((d) => setStats({ total: d.totales.nacimientos, nacidos_vivos: d.nacimientos_salud.nacidos_vivos, por_sexo: d.nacimientos_salud.por_sexo, por_tipo_parto: d.nacimientos_salud.por_tipo_parto }))
@@ -390,7 +412,28 @@ export default function CargaNacimientos({ usuario }) {
       </form>
 
       <section className="lista">
-        <h2>Últimos registros ({lista.length})</h2>
+        <div className="cabecera-lista">
+          <h2>Registros ({paginacion?.total ?? lista.length})</h2>
+          <div className="selector-anio">
+            <label htmlFor="anio-nacimientos">Año</label>
+            <select
+              id="anio-nacimientos"
+              value={anioLista}
+              onChange={(e) => {
+                const v = e.target.value === "todos" ? "todos" : Number(e.target.value)
+                setAnioLista(v)
+                cargarLista(1, v)
+              }}
+            >
+              {ANIOS_DISPONIBLES.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+              <option value="todos">Todos los años</option>
+            </select>
+          </div>
+        </div>
         <table>
           <thead>
             <tr>
@@ -440,6 +483,29 @@ export default function CargaNacimientos({ usuario }) {
             ))}
           </tbody>
         </table>
+        {paginacion && (
+          <div className="paginacion">
+            <button
+              type="button"
+              className="btn-mini"
+              disabled={paginacion.pagina <= 1}
+              onClick={() => cargarLista(paginacion.pagina - 1)}
+            >
+              ‹ Anterior
+            </button>
+            <span>
+              Página {paginacion.pagina} de {paginacion.paginas}
+            </span>
+            <button
+              type="button"
+              className="btn-mini"
+              disabled={paginacion.pagina >= paginacion.paginas}
+              onClick={() => cargarLista(paginacion.pagina + 1)}
+            >
+              Siguiente ›
+            </button>
+          </div>
+        )}
       </section>
     </div>
   )

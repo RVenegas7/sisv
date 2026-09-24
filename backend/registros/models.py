@@ -48,6 +48,11 @@ class RegistroConCIE(models.Model):
     class Meta:
         abstract = True
 
+    def save(self, *args, **kwargs):
+        if self.cie10_id or self.cie11_id:
+            self.codificacion_pendiente = False
+        super().save(*args, **kwargs)
+
     def clean(self):
         super().clean()
         if self.fecha_evento:
@@ -174,6 +179,7 @@ class FichaVigilancia(RegistroConCIE):
     ]
 
     codigo_notificacion = models.CharField("Código de notificación", max_length=30, unique=True)
+    lote_id = models.CharField("Lote de carga masiva", max_length=40, blank=True, db_index=True)
     nombre_evento = models.CharField("Evento de salud", max_length=200)
     fecha_notificacion = models.DateField("Fecha de notificación")
     fecha_inicio_sintomas = models.DateField("Fecha de inicio de síntomas", null=True, blank=True)

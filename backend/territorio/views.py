@@ -47,6 +47,7 @@ class RutaTerritorialView(APIView):
 
 def _serializar_asic(a):
     ub = a.ubicacion()
+    comunidades = [{"id": c.id, "nombre": c.nombre, "codigo": c.codigo} for c in a.comunidades.all()]
     return {
         "id": a.id,
         "codigo": a.codigo,
@@ -63,12 +64,43 @@ def _serializar_asic(a):
         "observaciones": a.observaciones,
         "activo": a.activo,
         "centros": a.organizaciones.filter(activo=True).count(),
+        "comunidades": comunidades,
+        "comunidad_count": len(comunidades),
     }
+
+
+def _validar_parroquia_sede(parroquia_id):
+    p = DivisionTerritorial.objects.filter(pk=parroquia_id).first()
+    if p is None or p.nivel != DivisionTerritorial.NIVEL_PARROQUIA:
+        return None
+    return p
+
+
+def _procesar_comunidades(datos):
+    ids = datos.get("comunidades")
+    if ids is None:
+        return None
+    if isinstance(ids, str):
+        ids = [x for x in ids.split(",") if x.strip()]
+    ids = [int(x) for x in ids if str(x).strip().isdigit()]
+    if not ids:
+        return []
+    qs = DivisionTerritorial.objects.filter(pk__in=ids, nivel=DivisionTerritorial.NIVEL_COMUNIDAD)
+    validos = set(qs.values_list("pk", flat=True))
+    invalidos = [x for x in ids if x not in validos]
+    if invalidos:
+        raise ValueError(f"Comunidades inválidas (deben ser nivel COMUNIDAD): {invalidos}")
+    return list(validos)
 
 
 class AsicView(APIView):
     def get(self, request):
-        qs = ASIC.objects.filter(activo=True).select_related("parroquia__padre__padre").order_by("nombre")
+        qs = (
+            ASIC.objects.filter(activo=True)
+            .select_related("parroquia__padre__padre")
+            .prefetch_related("comunidades")
+            .order_by("nombre")
+        )
         estado = request.query_params.get("estado", "").strip().lower()
         municipio = request.query_params.get("municipio", "").strip().lower()
         parroquia = request.query_params.get("parroquia", "").strip().lower()
@@ -97,9 +129,13 @@ class AsicView(APIView):
             return error("El código ya existe.", {"codigo": "Ya existe un ASIC con este código."}, 400)
         parroquia_id = datos.get("parroquia") or None
         if parroquia_id:
-            p = DivisionTerritorial.objects.filter(pk=parroquia_id).first()
-            if p is None or p.nivel != DivisionTerritorial.NIVEL_PARROQUIA:
+            p = _validar_parroquia_sede(parroquia_id)
+            if p is None:
                 return error("La sede debe ser una parroquia válida.", status=400)
+        try:
+            comunidades_ids = _procesar_comunidades(datos)
+        except ValueError as e:
+            return error(str(e), status=400)
         asic = ASIC.objects.create(
             codigo=codigo,
             nombre=nombre,
@@ -112,12 +148,19 @@ class AsicView(APIView):
             observaciones=str(datos.get("observaciones", "")).strip(),
             activo=bool(datos.get("activo", True)),
         )
+        if comunidades_ids is not None:
+            asic.comunidades.set(comunidades_ids)
         return ok(_serializar_asic(asic), message="ASIC creado", status=201)
 
 
 class AsicDetalleView(APIView):
     def _obtener(self, pk):
-        return ASIC.objects.filter(pk=pk).select_related("parroquia__padre__padre").first()
+        return (
+            ASIC.objects.filter(pk=pk)
+            .select_related("parroquia__padre__padre")
+            .prefetch_related("comunidades")
+            .first()
+        )
 
     def get(self, request, pk):
         a = self._obtener(pk)
@@ -135,10 +178,14 @@ class AsicDetalleView(APIView):
         if "parroquia" in datos:
             parroquia_id = datos.get("parroquia") or None
             if parroquia_id:
-                p = DivisionTerritorial.objects.filter(pk=parroquia_id).first()
-                if p is None or p.nivel != DivisionTerritorial.NIVEL_PARROQUIA:
+                p = _validar_parroquia_sede(parroquia_id)
+                if p is None:
                     return error("La sede debe ser una parroquia válida.", status=400)
             a.parroquia_id = parroquia_id
+        try:
+            comunidades_ids = _procesar_comunidades(datos)
+        except ValueError as e:
+            return error(str(e), status=400)
         for campo in ["codigo", "nombre", "direccion", "responsable", "telefono", "email", "observaciones"]:
             if campo in datos and datos[campo] is not None:
                 setattr(a, campo, str(datos[campo]).strip())
@@ -149,6 +196,8 @@ class AsicDetalleView(APIView):
         if "codigo" in datos and ASIC.objects.filter(codigo=a.codigo).exclude(pk=a.pk).exists():
             return error("El código ya existe.", {"codigo": "Ya existe un ASIC con este código."}, 400)
         a.save()
+        if comunidades_ids is not None:
+            a.comunidades.set(comunidades_ids)
         return ok(_serializar_asic(a), message="ASIC actualizado")
 
     def delete(self, request, pk):

@@ -29,6 +29,9 @@ legancy/*.tgz
 legancy/*.zip
 legancy/*.ZIP
 
+# Respaldos de las bases del proyecto (para la oficina/producción, no versionar)
+dumps/
+
 # Exportaciones de análisis con datos personales (cedulas/nombres del personal legacy)
 candidatos_usuarios_desactivados.csv
 centros_lara_status_I.csv

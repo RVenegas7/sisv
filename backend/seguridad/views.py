@@ -2,12 +2,12 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth import get_user_model
 from django.db.models.deletion import ProtectedError
 from django.middleware.csrf import get_token
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
+from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
 from seguridad.models import Organizacion, Perfil
 from seguridad.services import perfil_de, permisos_de
+from seguridad.throttle import control_intentos, ip_del_request
 from sisv_backend.api import error, ok
 
 RolesView = None
@@ -229,11 +229,15 @@ class RolesView(APIView):
         return ok([{"valor": v, "rotulo": r} for v, r in Perfil.ROL_CHOICES])
 
 
-@method_decorator(csrf_exempt, name="dispatch")
 class LoginView(APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request):
         usuario = str(request.data.get("username", "")).strip()
         clave = str(request.data.get("password", ""))
+        control = control_intentos(ip_del_request(request), usuario)
+        if not control["permitido"]:
+            return error(control["mensaje"], status=429)
         user = authenticate(request, username=usuario, password=clave)
         if user is None or not user.is_active:
             return error("Usuario o clave incorrectos.", status=401)
@@ -241,14 +245,17 @@ class LoginView(APIView):
         return ok(perfil_de(user), message="Sesión iniciada")
 
 
-@method_decorator(csrf_exempt, name="dispatch")
 class LogoutView(APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request):
         logout(request)
         return ok(None, message="Sesión cerrada")
 
 
 class MeView(APIView):
+    permission_classes = [AllowAny]
+
     def get(self, request):
         if request.user.is_authenticated:
             return ok(perfil_de(request.user))
@@ -256,5 +263,7 @@ class MeView(APIView):
 
 
 class CsrfView(APIView):
+    permission_classes = [AllowAny]
+
     def get(self, request):
         return ok({"csrf": get_token(request)})

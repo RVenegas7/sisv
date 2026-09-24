@@ -11,6 +11,7 @@ urlpatterns = [
     path("fichas-vigilancia/<int:pk>/", views.FichaVigilanciaView.as_view()),
     path("dashboard/", views.DashboardView.as_view()),
     path("reportes/", views.ReportesView.as_view()),
+    path("reportes/comparativo/", views.ReporteComparativoView.as_view()),
     path("reportes/exportar/", views.ReportesExportView.as_view()),
     path("configuracion/", views.ConfiguracionView.as_view()),
 ]

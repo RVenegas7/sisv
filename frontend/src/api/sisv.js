@@ -69,7 +69,7 @@ export async function mapeosCIE11(codigo) {
 
 export async function listarNacimientos(params = {}) {
   const r = await api.get("/registros/nacimientos/", { params })
-  return r.data.data
+  return { items: r.data.data, count: r.data.count, pagination: r.data.pagination }
 }
 
 export async function crearNacimiento(payload) {
@@ -88,7 +88,7 @@ export async function eliminarNacimiento(id) {
 
 export async function listarDefunciones(params = {}) {
   const r = await api.get("/registros/defunciones/", { params })
-  return r.data.data
+  return { items: r.data.data, count: r.data.count, pagination: r.data.pagination }
 }
 
 export async function crearDefuncion(payload) {
@@ -107,7 +107,7 @@ export async function eliminarDefuncion(id) {
 
 export async function listarFichas(params = {}) {
   const r = await api.get("/registros/fichas-vigilancia/", { params })
-  return r.data.data
+  return { items: r.data.data, count: r.data.count, pagination: r.data.pagination }
 }
 
 export async function crearFicha(payload) {
@@ -124,13 +124,18 @@ export async function eliminarFicha(id) {
   await api.delete(`/registros/fichas-vigilancia/${id}/`)
 }
 
-export async function obtenerDashboard() {
-  const r = await api.get("/registros/dashboard/")
+export async function obtenerDashboard(params = {}) {
+  const r = await api.get("/registros/dashboard/", { params })
   return r.data.data
 }
 
 export async function obtenerReportes(params = {}) {
   const r = await api.get("/registros/reportes/", { params })
+  return r.data.data
+}
+
+export async function obtenerReporteComparativo(params = {}) {
+  const r = await api.get("/registros/reportes/comparativo/", { params })
   return r.data.data
 }
 
@@ -200,6 +205,30 @@ export async function nivelTerritorial(nivel, padre = 0) {
 export async function rutaTerritorial(id) {
   const r = await api.get(`/territorio/${id}/ruta/`)
   return r.data.data
+}
+
+export async function listarAsics(params = {}) {
+  const r = await api.get("/territorio/asic/", { params })
+  return r.data.data
+}
+
+export async function obtenerAsic(id) {
+  const r = await api.get(`/territorio/asic/${id}/`)
+  return r.data.data
+}
+
+export async function crearAsic(payload) {
+  const r = await api.post("/territorio/asic/", payload)
+  return r.data.data
+}
+
+export async function actualizarAsic(id, payload) {
+  const r = await api.patch(`/territorio/asic/${id}/`, payload)
+  return r.data.data
+}
+
+export async function eliminarAsic(id) {
+  await api.delete(`/territorio/asic/${id}/`)
 }
 
 export async function listarEventosENO(params = {}) {

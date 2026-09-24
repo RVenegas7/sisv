@@ -13,7 +13,7 @@ def permisos_de(user):
     """Permisos finos por acción según el rol. El superusuario siempre tiene todo."""
     es_super = bool(user) and bool(getattr(user, "is_superuser", False))
     rol = rol_de(user)
-    escribir = es_super or rol in ("TRANSCRIPTOR", "CODIFICADOR", "DIRECTOR")
+    escribir = es_super or rol in ("TRANSCRIPTOR", "CODIFICADOR", "VIGILANCIA", "DIRECTOR")
     return {
         # Rol (para UI): quién puede crear/editar registros
         "puede_escribir": escribir,

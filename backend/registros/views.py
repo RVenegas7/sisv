@@ -3,8 +3,9 @@ import io
 from collections import Counter
 from datetime import date
 
-from django.db.models import Q
-from django.http import HttpResponse
+from django.db.models import Q, Count
+from django.db.models.functions import TruncMonth, ExtractWeek, ExtractYear
+from django.http import HttpResponse, StreamingHttpResponse
 from rest_framework.views import APIView
 
 from sisv_backend.api import error, ok
@@ -86,30 +87,111 @@ def _totales_consolidados(qs):
     }
 
 
-def _qs_con_detalle(modelo, request):
-    return _por_alcance(modelo.objects.all(), request).select_related("cie10", "cie11__capitulo")
-
-
-def _mapa_mapeos(registros):
-    ids = {r.cie10_id for r in registros if r.cie10_id}
-    if not ids:
-        return {}
-    return {
-        x.cie10_id: x
-        for x in MapeoCIE.objects.filter(cie10_id__in=ids).select_related("cie11__capitulo")
-    }
-
-
 def _capitulo_cie11(r, mapa):
     if r.cie11_id:
         cap = r.cie11.capitulo
         return cap.titulo if cap else "CIE-11 sin capítulo"
     if r.cie10_id:
         m = mapa.get(r.cie10_id)
-        if m is not None and m.cie11.capitulo:
+        if m is not None and m.cie11_id and m.cie11.capitulo:
             return m.cie11.capitulo.titulo
         return "CIE-10 sin equivalencia"
     return "Sin código"
+
+
+def _filtros_fecha_estado(qs, desde, hasta, estado):
+    if desde:
+        qs = qs.filter(fecha_evento__gte=desde)
+    if hasta:
+        qs = qs.filter(fecha_evento__lte=hasta)
+    if estado:
+        qs = qs.filter(estado=estado)
+    return qs
+
+
+def _grupo_contar(qs, campo, sin_filtro="Sin dato"):
+    """Agrupación {valor: cantidad} hecha en SQL (GROUP BY), no en Python."""
+    return {
+        (str(v) if v is not None else sin_filtro): n
+        for v, n in qs.values(campo).annotate(n=Count("id")).values_list(campo, "n")
+    }
+
+
+def _por_semana(qs):
+    """Conteo por semana epidemiológica (SQL EXTRACT WEEK, norma ISO) {SE: cantidad}."""
+    return {
+        int(se): n
+        for se, n in qs.annotate(se=ExtractWeek("fecha_evento"))
+        .values("se")
+        .annotate(n=Count("id"))
+        .values_list("se", "n")
+        if se
+    }
+
+
+def _fusionar(series):
+    """Une series {clave: {modulo: n}} rellenando ceros para todas las claves y módulos."""
+    resultado = {}
+    claves = set()
+    for _m, datos in series:
+        claves.update(datos)
+        for k, n in datos.items():
+            resultado.setdefault(k, {})[_m] = n
+    for k in claves:
+        for m, _ in series:
+            resultado[k].setdefault(m, 0)
+    return resultado
+
+
+def _ordenar_por_clave(series_con_suma):
+    return dict(sorted(series_con_suma.items(), key=lambda kv: -sum(kv[1].values())))
+
+
+def _mensual(qs):
+    """Conteo mensual {YYYY-MM: cantidad} con truncamiento de mes en SQL."""
+    return {
+        f"{mes.year}-{mes.month:02d}": n
+        for mes, n in qs.annotate(mes=TruncMonth("fecha_evento"))
+        .values("mes")
+        .annotate(n=Count("id"))
+        .values_list("mes", "n")
+        if mes
+    }
+
+
+def _capitulo_por_mapeo(qs):
+    """Capítulo CIE-11 unificado (cross-walk) agrupado en SQL.
+
+    - Registros CIE-11: por su capítulo directo.
+    - Registros CIE-10: por el capítulo de su equivalencia o «CIE-10 sin equivalencia».
+    - Sin código: «Sin código».
+    """
+    resultado = {}
+    for titulo, n in (
+        qs.exclude(cie11=None)
+        .values("cie11__capitulo__titulo")
+        .annotate(n=Count("id"))
+        .values_list("cie11__capitulo__titulo", "n")
+    ):
+        clave = titulo or "CIE-11 sin capítulo"
+        resultado[clave] = resultado.get(clave, 0) + n
+    ids = list(qs.exclude(cie10=None).values_list("cie10_id", flat=True).distinct())
+    mapa = {}
+    for m in MapeoCIE.objects.filter(cie10_id__in=ids).select_related("cie11__capitulo"):
+        mapa.setdefault(m.cie10_id, m)
+    for c10_id, n in (
+        qs.exclude(cie10=None).values("cie10_id").annotate(n=Count("id")).values_list("cie10_id", "n")
+    ):
+        m = mapa.get(c10_id)
+        cap = None
+        if m is not None and m.cie11_id and m.cie11.capitulo_id:
+            cap = m.cie11.capitulo.titulo
+        clave = cap or "CIE-10 sin equivalencia"
+        resultado[clave] = resultado.get(clave, 0) + n
+    sin_codigo = qs.filter(cie10=None, cie11=None).count()
+    if sin_codigo:
+        resultado["Sin código"] = resultado.get("Sin código", 0) + sin_codigo
+    return resultado
 
 
 class _RegistroAPI(APIView):
@@ -149,8 +231,34 @@ class _RegistroAPI(APIView):
         version = request.query_params.get("version", "").strip().upper()
         if version:
             qs = qs.filter(version_cie=version)
+        pendientes = request.query_params.get("pendientes", "").strip()
+        if pendientes and pendientes.lower() in ("1", "true", "si"):
+            qs = qs.filter(codificacion_pendiente=True)
+        anio = request.query_params.get("anio", "").strip()
+        if anio and anio.lower() != "todos":
+            try:
+                qs = qs.filter(fecha_evento__year=int(anio))
+            except ValueError:
+                pass
         qs = qs.order_by("-fecha_evento", "-creado_en")
-        return ok(self.serializer(qs, many=True).data, count=qs.count())
+        try:
+            pagina = max(1, int(request.query_params.get("pagina", 1)))
+            por_pagina = min(500, max(1, int(request.query_params.get("por_pagina", 100))))
+        except (TypeError, ValueError):
+            pagina, por_pagina = 1, 100
+        total = qs.count()
+        inicio = (pagina - 1) * por_pagina
+        lote = list(qs[inicio : inicio + por_pagina])
+        return ok(
+            self.serializer(lote, many=True).data,
+            count=total,
+            pagination={
+                "pagina": pagina,
+                "por_pagina": por_pagina,
+                "total": total,
+                "paginas": (total + por_pagina - 1) // por_pagina,
+            },
+        )
 
     def post(self, request):
         if not permisos_de(request.user)["puede_escribir"]:
@@ -219,48 +327,102 @@ class FichaVigilanciaView(_RegistroAPI):
 
 class DashboardView(APIView):
     def get(self, request):
-        datos = {
-            m: _por_alcance(modelo.objects.all(), request)
-            for m, modelo in MODELOS.items()
+        anio_raw = (request.query_params.get("anio") or "").strip()
+        hoy = date.today()
+        todos = anio_raw.lower() == "todos"
+        anio_activo = hoy.year
+        filtro = None
+        if anio_raw and not todos:
+            try:
+                anio_activo = int(anio_raw)
+                filtro = {"fecha_evento__year": anio_activo}
+            except ValueError:
+                filtro = {"fecha_evento__year": hoy.year}
+        elif not todos:
+            filtro = {"fecha_evento__year": hoy.year}
+
+        def _qs(modelo):
+            qs = _por_alcance(modelo.objects.all(), request)
+            if filtro:
+                qs = qs.filter(**filtro)
+            return qs
+
+        qs_nac = _qs(Nacimiento)
+        qs_def = _qs(Defuncion)
+        qs_fic = _qs(FichaVigilancia)
+
+        totales = {
+            "nacimientos": qs_nac.count(),
+            "defunciones": qs_def.count(),
+            "fichas": qs_fic.count(),
         }
-        mensual = {m: Counter() for m in datos}
+        totales["total"] = sum(totales.values())
+
         por_estado = Counter()
         por_version = Counter()
-        for m, qs in datos.items():
-            for r in qs.iterator():
-                if r.fecha_evento:
-                    mensual[m][r.fecha_evento.strftime("%Y-%m")] += 1
-                por_estado[r.estado or "Sin estado"] += 1
-                por_version[r.version_cie or "CIE11"] += 1
+        for qs in (qs_nac, qs_def, qs_fic):
+            por_estado.update(_grupo_contar(qs, "estado"))
+            por_version.update(_grupo_contar(qs, "version_cie"))
         por_estado = dict(sorted(por_estado.items(), key=lambda kv: -kv[1]))
-        totales = {k: qs.count() for k, qs in datos.items()}
-        nac = datos["nacimientos"]
-        defs = datos["defunciones"]
-        fichas = datos["fichas"]
+
+        series = (
+            ("nacimientos", qs_nac),
+            ("defunciones", qs_def),
+            ("fichas", qs_fic),
+        )
+
+        por_semana = {k: v for k, v in _fusionar((m, _por_semana(qs)) for m, qs in series).items()}
+        por_centro = _fusionar(
+            (m, _grupo_contar(qs, "organizacion__nombre", sin_filtro="Sin centro"))
+            for m, qs in series
+        )
+        por_asic = _fusionar(
+            (m, _grupo_contar(qs, "organizacion__asic__nombre", sin_filtro="Sin ASIC"))
+            for m, qs in series
+        )
+        por_centro = _ordenar_por_clave(por_centro)
+        por_asic = _ordenar_por_clave(por_asic)
+
+        cons = _consolidados_por_alcance(request)
+        if filtro:
+            cons = cons.filter(anio=anio_activo)
+        consolidados = _totales_consolidados(cons)
+
+        anios = set()
+        for qs_ref in (Nacimiento.objects.all(), Defuncion.objects.all(), FichaVigilancia.objects.all()):
+            anios.update(
+                a for a in qs_ref.annotate(y=ExtractYear("fecha_evento")).values_list("y", flat=True).distinct() if a
+            )
+
         return ok(
             {
-                "totales": {
-                    "total": sum(totales.values()),
-                    "nacimientos": totales["nacimientos"],
-                    "defunciones": totales["defunciones"],
-                    "fichas": totales["fichas"],
-                },
+                "anio": anio_activo,
+                "todos_anios": todos,
+                "anios_disponibles": sorted(anios, reverse=True),
+                "totales": totales,
                 "por_estado": por_estado,
                 "por_version": por_version,
-                "mensual": mensual,
+                "mensual": {
+                    "nacimientos": _mensual(qs_nac),
+                    "defunciones": _mensual(qs_def),
+                    "fichas": _mensual(qs_fic),
+                },
                 "emitidos": {
-                    "certificado_vivo": sum(1 for r in defs if getattr(r, "certificado_vivo", True)),
-                    "nacimientos_defunciones": sum(1 for r in defs if getattr(r, "feto_muerto", False)),
+                    "certificado_vivo": qs_def.count(),
+                    "nacimientos_defunciones": 0,
                 },
                 "nacimientos_salud": {
-                    "nacidos_vivos": sum(1 for r in nac if r.nacido_vivo),
-                    "por_sexo": dict(Counter(r.sexo for r in nac)),
-                    "por_tipo_parto": dict(Counter(r.tipo_parto for r in nac)),
+                    "nacidos_vivos": qs_nac.filter(nacido_vivo=True).count(),
+                    "por_sexo": _grupo_contar(qs_nac, "sexo"),
+                    "por_tipo_parto": _grupo_contar(qs_nac, "tipo_parto"),
                 },
                 "vigilancia_salud": {
-                    "por_clasificacion": dict(Counter(r.clasificacion for r in fichas)),
+                    "por_clasificacion": _grupo_contar(qs_fic, "clasificacion"),
                 },
-                "consolidados_semanales": _totales_consolidados(_consolidados_por_alcance(request)),
+                "consolidados_semanales": consolidados,
+                "por_semana": dict(sorted(por_semana.items())),
+                "por_centro": por_centro,
+                "por_asic": por_asic,
             }
         )
 
@@ -272,43 +434,88 @@ class ReportesView(APIView):
         hasta = request.query_params.get("hasta", "").strip()
         estado = request.query_params.get("estado", "").strip()
 
-        provincias = {}
-        for m, modelo in MODELOS.items():
-            if modulo and m != modulo:
-                continue
-            for r in _qs_con_detalle(modelo, request).iterator():
-                f = r.fecha_evento.isoformat() if r.fecha_evento else ""
-                if desde and f < desde:
-                    continue
-                if hasta and f > hasta:
-                    continue
-                if estado and (r.estado or "") != estado:
-                    continue
-                provincias.setdefault(m, []).append(r)
-        registros = [r for rs in provincias.values() for r in rs]
-        mapa = _mapa_mapeos(registros)
-        por_estado = {m: dict(Counter(r.estado or "Sin estado" for r in rs)) for m, rs in provincias.items()}
-        por_capitulo = {
-            m: dict(Counter(_capitulo_cie11(r, mapa) for r in rs))
-            for m, rs in provincias.items()
-        }
         consolidados = {}
         if not modulo or modulo == "consolidados":
             qs = _consolidados_por_alcance(request)
             if estado:
                 qs = qs.filter(organizacion__estado=estado)
             consolidados = _totales_consolidados(qs)
+
+        totales = {}
+        por_estado = {}
+        por_capitulo = {}
+        for m, modelo in MODELOS.items():
+            if modulo and m != modulo:
+                continue
+            qs = _filtros_fecha_estado(_por_alcance(modelo.objects.all(), request), desde, hasta, estado)
+            totales[m] = qs.count()
+            por_estado[m] = _grupo_contar(qs, "estado")
+            por_capitulo[m] = _capitulo_por_mapeo(qs)
         return ok(
             {
-                "provincias": {
-                    m: SERIALIZADORES[m](rs, many=True).data for m, rs in provincias.items()
-                },
+                "totales": totales,
                 "por_estado": por_estado,
                 "por_capitulo_cie11": por_capitulo,
-                "totales": {m: len(rs) for m, rs in provincias.items()},
                 "consolidados_semanales": consolidados,
             }
         )
+
+class ReporteComparativoView(APIView):
+    SERIES = [
+        ("nacimientos", "Nacimientos"),
+        ("muertes", "Muertes"),
+        ("muertes_maternas", "Muertes maternas (M)"),
+        ("mmi", "Vigilancia materno-infantil (MMI)"),
+    ]
+    LOTES_MMI = ["LEGACY-MMI", "LEGACY-VIOLENTA"]
+
+    def get(self, request):
+        anio1 = int(request.query_params.get("anio1", date.today().year))
+        anio2 = int(request.query_params.get("anio2", date.today().year - 1))
+
+        def _serie(anio):
+            def contar(modelo, **extra):
+                qs = _por_alcance(modelo.objects.filter(fecha_evento__year=anio, **extra), request)
+                return _por_semana(qs)
+
+            return {
+                "nacimientos": contar(Nacimiento),
+                "muertes": contar(Defuncion),
+                "muertes_maternas": contar(Defuncion, embarazo_o_puerperio=True),
+                "mmi": contar(FichaVigilancia, lote_id__in=self.LOTES_MMI),
+            }
+
+        serie1 = _serie(anio1)
+        serie2 = _serie(anio2)
+        semanas = sorted({int(k) for s in (serie1, serie2) for v in s.values() for k in v})
+        semanas = list(range(1, 54)) if semanas else []
+
+        totales = {
+            mod: {
+                anio1: sum(serie1[mod].values()),
+                anio2: sum(serie2[mod].values()),
+            }
+            for mod, _ in self.SERIES
+        }
+
+        return ok(
+            {
+                "anio1": anio1,
+                "anio2": anio2,
+                "series": [
+                    {
+                        "clave": mod,
+                        "rotulo": rotulo,
+                        "anio1": {sem: serie1[mod].get(sem, 0) for sem in semanas},
+                        "anio2": {sem: serie2[mod].get(sem, 0) for sem in semanas},
+                    }
+                    for mod, rotulo in self.SERIES
+                ],
+                "semanas": semanas,
+                "totales": totales,
+            }
+        )
+
 
 class ReportesExportView(APIView):
     COLUMNAS = [
@@ -322,43 +529,50 @@ class ReportesExportView(APIView):
         hasta = request.query_params.get("hasta", "").strip()
         estado = request.query_params.get("estado", "").strip()
 
-        filas = []
-        for m, modelo in MODELOS.items():
-            if modulo and m != modulo:
-                continue
-            for r in _qs_con_detalle(modelo, request).iterator():
-                f = r.fecha_evento.isoformat() if r.fecha_evento else ""
-                if desde and f < desde:
+        def generar():
+            buffer = io.StringIO()
+            escritor = csv.DictWriter(buffer, fieldnames=self.COLUMNAS)
+            escritor.writeheader()
+            yield "\ufeff" + buffer.getvalue()
+            buffer.seek(0)
+            buffer.truncate(0)
+            filas_desde = 0
+            for m, modelo in MODELOS.items():
+                if modulo and m != modulo:
                     continue
-                if hasta and f > hasta:
-                    continue
-                if estado and (r.estado or "") != estado:
-                    continue
-                filas.append((m, r))
-        mapa = _mapa_mapeos([r for _, r in filas])
-        buffer = io.StringIO()
-        escritor = csv.DictWriter(buffer, fieldnames=self.COLUMNAS)
-        escritor.writeheader()
-        for m, r in filas:
-            codigo = r.cie10.codigo if r.cie10 else (r.cie11.codigo if r.cie11 else "")
-            numero = getattr(r, "registro_numero", "") or getattr(r, "codigo_notificacion", "") or ""
-            escritor.writerow({
-                "modulo": m,
-                "numero": numero,
-                "fecha_evento": f,
-                "version_cie": r.version_cie,
-                "codigo_cie": codigo,
-                "capitulo_cie11": _capitulo_cie11(r, mapa),
-                "sexo": r.sexo,
-                "estado": r.estado,
-                "municipio": r.municipio,
-                "parroquia": r.parroquia,
-                "establecimiento": r.establecimiento,
-                "organizacion": r.organizacion.nombre if r.organizacion else "",
-            })
-        contenido = "\ufeff" + buffer.getvalue()
+                qs = _filtros_fecha_estado(_por_alcance(modelo.objects.all(), request), desde, hasta, estado)
+                qs = qs.select_related("cie10", "cie11__capitulo", "organizacion")
+                ids = list(qs.exclude(cie10=None).values_list("cie10_id", flat=True).distinct())
+                mapa = {}
+                for mm in MapeoCIE.objects.filter(cie10_id__in=ids).select_related("cie11__capitulo"):
+                    mapa.setdefault(mm.cie10_id, mm)
+                for r in qs.iterator():
+                    codigo = r.cie10.codigo if r.cie10 else (r.cie11.codigo if r.cie11 else "")
+                    numero = getattr(r, "registro_numero", "") or getattr(r, "codigo_notificacion", "") or ""
+                    escritor.writerow({
+                        "modulo": m,
+                        "numero": numero,
+                        "fecha_evento": r.fecha_evento.isoformat() if r.fecha_evento else "",
+                        "version_cie": r.version_cie,
+                        "codigo_cie": codigo,
+                        "capitulo_cie11": _capitulo_cie11(r, mapa),
+                        "sexo": r.sexo,
+                        "estado": r.estado,
+                        "municipio": r.municipio,
+                        "parroquia": r.parroquia,
+                        "establecimiento": r.establecimiento,
+                        "organizacion": r.organizacion.nombre if r.organizacion else "",
+                    })
+                    filas_desde += 1
+                    if filas_desde % 5000 == 0:
+                        yield buffer.getvalue()
+                        buffer.seek(0)
+                        buffer.truncate(0)
+            if buffer.tell():
+                yield buffer.getvalue()
+
         nombre = f"reporte_sisv_{date.today().isoformat()}.csv"
-        respuesta = HttpResponse(contenido, content_type="text/csv; charset=utf-8")
+        respuesta = StreamingHttpResponse(generar(), content_type="text/csv; charset=utf-8")
         respuesta["Content-Disposition"] = f'attachment; filename="{nombre}"'
         return respuesta
 

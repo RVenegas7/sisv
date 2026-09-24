@@ -79,6 +79,13 @@ class ASIC(models.Model):
         "Establecimientos adscritos", default=0,
         help_text="Consultorios populares, ambulatorios, CDI/CRI y otros de la red del ASIC.",
     )
+    comunidades = models.ManyToManyField(
+        DivisionTerritorial,
+        blank=True,
+        related_name="asics_territoriales",
+        verbose_name="Comunidades del territorio",
+        help_text="Comunidades (nivel COMUNIDAD) que integran el área de salud integral.",
+    )
     observaciones = models.TextField("Observaciones", blank=True)
     activo = models.BooleanField("Activo", default=True)
     creado_en = models.DateTimeField("Creado en", auto_now_add=True)

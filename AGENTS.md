@@ -41,6 +41,13 @@ Idioma de trabajo: **responder siempre en español**.
 - Mover el servidor en segundo plano dentro de una llamada a Bash de OpenCode **cuelga la sesión
   de hasta 120s**: verificar endpoints con el cliente de pruebas de Django
   (`manage.py shell -c "from django.test import Client; ..."`), no con `curl` a un proceso `&`.
+- **Acceso desde la red local (casa/oficina):** `./iniciar_lan.sh` levanta Django en `0.0.0.0:8000`
+  y Vite con `--host 0.0.0.0` (puerto 5173); cualquier dispositivo de la red entra por `http://<IP>:5173`
+  (todo el tráfico `/api` pasa por el proxy de Vite, misma-origen). `settings.py` detecta automáticamente
+  la IP local y la añade a `CSRF_TRUSTED_ORIGINS`/`CORS_ALLOWED_ORIGINS` (por eso el login funciona desde
+  el celular); también se puede fijar con env `DJANGO_CSRF_TRUSTED_ORIGINS`. Vite tiene `server.host: true`
+  en `vite.config.js`. En oficina la IP fija es `192.168.5.202`; en casa es DHCP. La BD vive en el contenedor
+  `sis_postgres_dev` (puerto 5436), no se necesita exponerla en la red.
 
 ### Estructura de apps (backend/)
 
@@ -62,12 +69,14 @@ Idioma de trabajo: **responder siempre en español**.
   - En listas, cada registro devuelve `organizacion_nombre`; hay columna «Centro» en las tablas.
   - Dashboard y reportes también respetan el alcance.
   - Permisos finos por acción en `seguridad/services.py::permisos_de` y enforce en los endpoints:
-    **crear/editar** → TRANSCRIPTOR, CODIFICADOR, DIRECTOR y superusuario; **eliminar y configurar** →
-    solo DIRECTOR y superusuario; **EPIDEMIÓLOGO** es solo lectura. El frontend deshabilita el formulario
-    (bloqueo con `fieldset disabled`) y oculta los botones según `usuario.permisos`.
+    **crear/editar** → TRANSCRIPTOR, CODIFICADOR, **VIGILANCIA**, DIRECTOR y superusuario; **eliminar y
+    configurar** → solo DIRECTOR y superusuario; **EPIDEMIÓLOGO** y **SECRETARIA** son solo lectura.
+    El frontend deshabilita el formulario (bloqueo con `fieldset disabled`) y oculta los botones según
+    `usuario.permisos`.
   - **Usuarios demo (clave `Sisv.2026!`, cambiar en producción):** `admin` (superusuario, acceso total),
     `laraepid` (transcriptor direcc. regional Lara), `codificadora` (codificadora regional, no elimina),
-    `hbcentral` (transcriptor Hospital Central de Barquisimeto). Organizaciones demo bajo MPPS→Gobernación Lara→
+    `hbcentral` (transcriptor Hospital Central de Barquisimeto), `epi` (epidemiólogo, solo lectura),
+    `dir` (director regional). Organizaciones demo bajo MPPS→Gobernación Lara→
     Dirección Epidemiología Lara→ Hospital Central de Barquisimeto / Ambulatorio Cabudare.
     Crear más desde `/admin` (Django) asignando `Perfil` (rol + organización).
 - `territorio`: división política `DivisionTerritorial` (self-referential, niveles ESTADO→MUNICIPIO→PARROQUIA→COMUNIDAD).
@@ -76,7 +85,11 @@ Idioma de trabajo: **responder siempre en español**.
   `/api/territorio/asic/` (GET filtrable por estado/municipio/parroquia/q + POST) y `/api/territorio/asic/<id>/`
   (GET/PATCH/DELETE); crear/editar/eliminar requiere `puede_configurar` (DIRECTOR/superusuario). La org
   (centro de salud) se vincula con `Organizacion.asic` y expone `parroquia`; cada centro queda asociado a
-  **ASIC + parroquia + municipio + estado** (derivado del ASIC).
+  **ASIC + parroquia + municipio + estado** (derivado del ASIC). **Comunidades (24/09/2026):** M2M
+  `ASIC.comunidades` → `DivisionTerritorial` nivel COMUNIDAD (`asics_territoriales`); el serializador
+  expone `comunidades`/`comunidad_count`, y POST/PATCH de `/api/territorio/asic/` aceptan `comunidades`
+  (ids o CSV) validando nivel COMUNIDAD. Frontend **`/asic`** (`Asic.jsx`): formulario + cascada
+  estado→municipio→parroquia + checkboxes de comunidades + tabla.
   **Fuente oficial del territorio completo (hasta comunidades):** API de la APN `apisegen.apn.gob.ve`
   (División Político Territorial y de Población, Sede/IGVSB+INE, proyección 2023). Requiere
   **token de desarrollador**: registrarse en `https://apisegen.apn.gob.ve/registroUsuario/`, luego
@@ -85,10 +98,19 @@ Idioma de trabajo: **responder siempre en español**.
   Swagger en `https://apisegen.apn.gob.ve/api/v1/api-doc/`. Comando:
   `./.venv/bin/python backend/manage.py descargar_territorio_apn --usuario <dev> --clave <clave>` (o env
   `APN_USUARIO`/`APN_CLAVE`); siembra ESTADO→MUNICIPIO→PARROQUIA→COMUNIDAD con códigos INE; `--borrar`
-  vacía, `--sin-comunidades` omite el nivel fino. El dataset complementario `marydn/venezuela-sql` valida
-  conteos (25 estados / 335 municipios / 1.138 parroquias). Filas instaladas en
-  `territorio/data/estados.py` y `territorio_banco_sangre.csv` (este último incompleto, sin comunidades;
-  se reemplazará con la descarga APN).
+  vacía, `--sin-comunidades` omite el nivel fino. **Cargado completo el 23/09/2026** con credenciales de
+  desarrollador de `venegas` (no commitearlas): la API entrega solo **24 entidades** (Dependencias Federales
+  no existe) → en BD **24 estados / 335 municipios / 1.125 parroquias / 74.631 comunidades** (el 25/1.138
+  de `marydn/venezuela-sql` es referencia teórica). Códigos INE parciales por nivel (estado 2 + municipio 2 +
+  parroquia 2 + comunidad 11 díg.); las 28 comunidades "faltantes" son duplicados del INE deduplicados por la
+  restricción única `(nivel, nombre, padre)`. Filas instaladas en `territorio/data/estados.py` y
+  `territorio_banco_sangre.csv` (este último incompleto, sin comunidades; ya sustituido por la descarga APN).
+- **BD territorio aparte para otras aplicaciones:** creada `territorio_apn` en `sis_postgres_dev` (5436),
+  propietario `sis_user`, con entidades normalizadas `estados`(2)/`municipios`(4)/`parroquias`(6)/
+  `comunidades`(17) y vista `division_geografica` (state→comunidad). La puebla
+  `./.venv/bin/python backend/manage.py exportar_territorio_pg` (idempotente, TRUNCATE+insert desde
+  `DivisionTerritorial`; parámetros por CLI o env `APN_PG_*`). Acceso local: `docker exec sis_postgres_dev
+  psql -U sis_user -d territorio_apn`.
 - `vigilancia`: **Consolidado Semanal de ENO (SIS-04/EPI-12 y EPI-14)**. Modelos: `EventoENO` (catálogo 123 eventos
   `en_epi12`/`en_epi14` con orden oficial), `ConsolidadoSemanal` (anio/semana/tipo MORBILIDAD|MORTALIDAD, estado
   BORRADOR|ENVIADO|CERRADO, origen PROPIO|CONSOLIDADO_SUPERIOR; unique por org+año+semana+tipo), `FilaConsolidado`
@@ -107,6 +129,17 @@ Idioma de trabajo: **responder siempre en español**.
   y filtros (módulo/desde/hasta/estado). `ConfiguracionGeneral` en `registros` (GET/PUT `/configuracion/`).
   Los serializers decoran cada registro con `organizacion`, `organizacion_id`, `organizacion_nombre` y
   `organizacion_nivel`; PATCH parcial valida CIE solo si se tocan campos CIE.
+  **Reporte comparativo anual (24/09/2026):** `/registros/reportes/comparativo/?anio1=&anio2=`
+  (`ReporteComparativoView`) por semana epidemiológica (ISO 1–53) con series nacimientos, muertes,
+  muertes_maternas (M, `embarazo_o_puerperio=True`) y mmi (fichas `LEGACY-MMI`/`LEGACY-VIOLENTA`),
+  respetando alcance; en `/reportes` se renderiza con `GraficoLineas` (SVG propio, anio1 sólido/anio2
+  punteado, sin dependencias).
+- **Limpiar legacy fuera de Lara / demo (24/09/2026):** `manage.py limpiar_legacy_no_lara` (criterio
+  **centro Lara + domicilio Lara**, economía del árbol DES LARA=67754/DPS LARA=3441583108; dry-run por
+  defecto, `--ejecutar` aplica). Ejecutado: **Nacimientos 438.577, Defunciones 171.115, Fichas 0,
+  Consolidados 0**. Bandeja de codificación: endpoint de defunciones acepta `?pendientes=1`
+  (`codificacion_pendiente=True`); el checkbox «Solo pendientes de codificación» en `/defunciones`
+  (CargaDefunciones.jsx) lista las **49.162** defunciones que esperan CIE.
 - `legacy`: **mapa de modelos del legado SISMAI** (no altera el flujo). App con `models_legacy.py`
   **generado** (modelos `managed=False`, solo lectura) para las **430 tablas/vistas** de
   `sismai`/`inbdlar1`/`legacy`/`historico`, y el inventario priorizado
@@ -186,5 +219,12 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
 - Componentes frontend clave: `CIESearch` (autocomplete + cascada CIE-11 + subgrupos obligatorios),
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
-- Lint/test de Django y React aún no configurados; verificación manual: `manage.py check`,
-  `manage.py shell -c "from django.test import Client; ..."` y `npm run build`.
+- **Pruebas automatizadas (24/09/2026):** backend con `DJANGO_DB_ENGINE=sqlite manage.py test`
+  (77 pruebas; base en `backend/tests_sisv.py`; requiere `__init__.py` en las apps — registros,
+  seguridad, territorio y catalogos eran namespace packages y por eso el descubrimiento fallaba);
+  frontend con `npm test` (Vitest, 13 pruebas en `src/utils/cie.test.js` y `src/api/sisv.test.js`).
+  Verificación manual: `manage.py check` y `npm run build`.
+- **Seguridad (23/09/2026):** la API exige sesión por defecto (`IsAuthenticated` global; públicos solo
+  `/api/auth/login|logout|me|csrf` y `/api/`). Rate limiting del login en `seguridad/throttle.py`
+  (5 intentos/5 min → 429 con bloqueo 15 min). Dependencias auditadas sin vulnerabilidades
+  (pip-audit + npm audit). Detalle en PENDIENTES.md §9 y §12.
