@@ -321,6 +321,12 @@
 
 ## 16. [EN CURSO] Punto crítico EVENTOS_SINC y verificación MM/MN (24/09/2026)
 
+> ⚠ **DATO DESACTUALIZADO (25/09/2026):** el «espejo `SISMAI.EVENTOS_SINC` con 3.372.065 filas
+> estancadas desde 27/08» de este punto ya **no describe la cola viva**. Verificado en el servidor
+> real: la tabla fue **DROP y recreada el 21/09 09:08:37** y hoy tiene **16.741 filas**; en
+> PostgreSQL la tabla `sismai.EVENTOS_SINC` **ya no existe**. El backlog de 3,37 M solo consta en
+> los dumps de los ZIP. Ver **§17** (diagnóstico en vivo del 25/09/2026).
+
 - **Punto crítico EVENTOS_SINC → NO RESUELTO por el envío del 22/09:**
   - El último envío semanal (`routlar1_2292026_1238.ZIP`, 22/09/2026 12:38) fue importado a
     `sis_postgres_dev` (82/82 tablas `legacy`, 27.472 filas) y verificado: consolida **PERIODO=37/2026**
@@ -454,6 +460,105 @@
   el estado a 15:26 y el espejo PG el estado actual). El contrato queda **cerrado**: la regla «último
   evento 1/2 en el período = viaja» es la correcta. `T_EVENTOS` del generador lleva TODOS los eventos del
   período (1/2/3), como el manifiesto real.
+
+---
+
+## 17. [EN CURSO] Diagnóstico en vivo del servidor SISMAI (25/09/2026)
+
+Trabajo realizado **en el servidor real** `192.168.5.200` (Oracle 10.1.0.3.0, SID `lar1`), con
+acceso SSH de solo lectura. **No se ejecutó ningún DDL ni DML en producción.** Continúa y
+**corrige** lo registrado en §16.
+
+### 17.1 La cola viva ya NO tiene el backlog — fue destruida
+
+- `SISMAI.EVENTOS_SINC` tiene **16.741 filas**, todas con `FECHA = 2026-09-21 09:08:37`
+  (`REG_VACUNACION` 9.876, `PACIENTE_FICHA_EPI` 5.226, `PACIENTE_COND_ESPE` 1.639; `STATUS` NULL).
+- El objeto (y `HISTORICO.ERRORES_SINC`) fue **creado** el `2026-09-21 09:08:37` → coincide con
+  `SincFich/crear.sql`, que hace `DROP TABLE` y recrea. **No fue un TRUNCATE ni un drenaje.**
+  Los 3,37 M de §16 **ya no existen en la cola viva**; el único soporte local son los ZIP.
+- `SISMAI.EVENTOS_SINC` **no tiene ninguna restricción ni índice** (`USER_CONSTRAINTS` y
+  `USER_INDEXES` vacíos): sin clave única `(TABLA,ID)`, cualquier reejecución duplica en silencio.
+- Sin eventos posteriores al 21/09: el motor sigue sin programación visible en el servidor Linux.
+- Espejo en PostgreSQL (verificado 25/09): `sismai."EVENTOS"` **0**, `legacy."T_EVENTOS"` 7.802,
+  `inbdlar1."T_EVENTOS"` 18.680 → **PG no contiene el backlog**; no sirve como sustituto.
+  (Nota de nombres: el esquema es legacy con mayúsculas, requiere comillas dobles en psql.)
+
+### 17.2 Los ZIP del 21/09 capturaron el backlog, pero no prueban su recepción
+
+| ZIP | hora | contenido relevante |
+|---|---|---|
+| `routlar1_2192026_854_sincdoc.ZIP` | 09:02 | `T_EVENTOS=3.391.421` |
+| `routlar1_2192026_854_sincnata.ZIP` | 09:05 | `T_EVENTOS=3.391.421`, tablas de natalidad = **0** |
+| `routlar1_2192026_854_sincmort.ZIP` | 09:07 | `T_EVENTOS=665.254`, `T_CERTMORT=136.210` |
+
+Los tres son **exportaciones, no mecanismos de ejecución**. Secuencia: 09:02–09:05 capturan
+3.391.421 eventos, y la cola se recrea a las **09:08:37** → consistente con una captura del
+backlog, pero **no demuestra que el nivel central lo recibiera**. `sincmort` terminó con
+`ORA-01408` no fatal. **Pendiente: confirmar por escrito con el nivel central.**
+
+### 17.3 Natalidad: falta el paso de encolado, no el exportador
+
+- No existe `routnata.sql`; la guía oficial indica que la sincronización se dispara desde el menú
+  Windows de `SistemaTransferencia.exe`. `cr_repli_nata.sql` solo crea `TEMP.*` desde eventos
+  **ya encolados** → el fallo fue el encolado previo.
+- Alcance del encolado (calculado en vivo, solo lectura): `CERTNACIMIENTO` 429.577,
+  `NAC_MADRE` 429.594, `NAC_RNACIDO` 429.583, `NAC_ANULADOS` 6.398 → **1.295.152 eventos**.
+  Hay **320 certificados** 2010+ sin madre o sin recién nacido que el criterio original no envía
+  (decisión funcional, no se tocó).
+- Defectos de los scripts originales `plcna1/plnma1/plnrn1/plnan1`: sin guarda de duplicados,
+  `V_I NUMBER(3)` sin inicializar (nunca hay commit → 1,3 M de filas en una transacción),
+  `plcna1` incrementa `V_I` dos veces, y `EXCEPTION...GOTO M_MODIFICA` reintenta en bucle infinito.
+- **Candidato no destructivo creado y validado: `migracion/encolar_natalidad_legacy.sql`**
+  (modo seguro por defecto `V_EJECUTAR:=0`; dedup por `MINUS`; lote 5.000; sin `GOTO`).
+  **NO ejecutado contra `SISMAI.EVENTOS_SINC`.** Validado solo contra tablas de prueba del usuario
+  `RESPALDO`: dry-run 0 escrituras → 1ª corrida 29.683 → 2ª y 3ª corrida **0** (dedup probada),
+  0 duplicados. Trampa medida: `NOT EXISTS` correlacionado sin índice = O(n·m) (>10 min);
+  con `MINUS` el mismo conteo baja a **0,95 s**. Ritmo: ~480 filas/s → el lote completo ~**45 min**.
+
+### 17.4 Respaldo verificado
+
+`/home/informatica/Documentos/puente/sincronizado/respaldo_20260925/` — **10 archivos, 10/10
+SHA-256 verificados** tras la copia: los 3 ZIP, `eventos_sinc_20260925.csv` (las 16.741 filas
+actuales, volcado con `SPOOL` en solo lectura), el script candidato, la evidencia de validación,
+el diagnóstico, los SQL, la guía oficial, el informe y el manifiesto. **No es un dump completo de
+la BD**: cubre los artefactos de sincronización, no las 430 tablas del legado.
+
+### 17.5 ⚠ Hallazgo de seguridad: cuentas de aplicación con rol DBA
+
+`SISMAI` y `TEMP` tienen el **rol `DBA`** concedido (`dba_role_privs`, verificado 25/09). Son
+cuentas de aplicación, no administrativas. Agravantes:
+- `System.cfg` guarda la clave **en texto plano** con permisos `-rw-r--r--` (legible por
+  cualquier usuario del servidor, incluido `respaldo`).
+- Ese `System.cfg` es una **copia de abril de 2020** y su clave ya **no valida**
+  (`ORA-01017`); la app real corre en el cliente Windows `DESKTOP-2UMA2G6` con su copia local.
+  La clave vigente de `SISMAI` se desconoce (probablemente rotada sin actualizar el archivo).
+- 5 intentos fallidos con la clave de 2020 **no bloqueaban** las cuentas (`SISMAI`/`TEMP` OPEN;
+  `FAILED_LOGIN_ATTEMPTS` del profile, a revisar).
+- **PENDIENTE DE AUTORIZACIÓN (no ejecutado):** `REVOKE DBA FROM SISMAI, TEMP` sustituyéndolo por
+  los privileges mínimos que la app use; rotar las claves de `SISMAI`, `TEMP` y `oracle` (las
+  tres pasaron en claro por la sesión); `chmod 600` en `System.cfg` o mover las credenciales al
+  cliente Windows; restringir el acceso SSH de `respaldo` a `/home/salud`.
+- **Cómo actuar como DBA en ese servidor:** solo la cuenta de SO **`oracle`** (uid 1002, único
+  miembro del grupo `dba`) → `sqlplus / as sysdba`. `salud` y `respaldo` solo están en `users`,
+  y `respaldo` no tiene `sudo` (el binario no existe). El SID por defecto de `lar1` es `lar1`
+  (`@lar1` da `ORA-12154`, no hay alias TNS).
+
+### 17.6 Pendientes de esta sesión (requieren autorización)
+
+1. Confirmación del nivel central sobre los ZIP `sincdoc`/`sincnata` del 21/09; si no los recibió,
+   cargarlos desde el respaldo **antes** de encolar natalidad, para no repetir ese lote.
+2. Encolar los 1.295.152 eventos de natalidad (usuario de aplicación, ~45 min, ventana de
+   mantenimiento, cola respaldada, **nunca** junto a `crear.sql`).
+3. Índice único `(TABLA, ID)` sobre `EVENTOS_SINC` (DDL, evita duplicados silenciosos).
+4. Revisión de privileges de `SISMAI`/`TEMP` y rotación de credenciales expuestas.
+5. Importación de los `.dmp` a PostgreSQL: sigue **sin herramienta** (`oracledb` falla en modo
+   Thin por cifrado obsoleto; no hay `imp`/`exp`/Instant Client). PostGIS + staging ya resueltos.
+
+### 17.7 limpieza de la prueba (hecho)
+
+- Sesión `sqlplus` huérfana en el servidor (SID 92, `SERIAL#` 36010) por un `INSERT` de prueba
+  que sobrevivió al aborto del cliente: eliminada con `ALTER SYSTEM KILL SESSION` y
+  `RESPALDO.TMP_ES` borrada. `EVENTOS_SINC` verificada intacta (16.741 filas).
 
 ---
 

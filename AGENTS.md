@@ -151,6 +151,29 @@ Idioma de trabajo: **responder siempre en español**.
   (crea/fija de forma idempotente las **organizaciones y usuarios demo** documentados arriba, carga
   `mock_data.py` y asigna la org demo LARA-HCB con su estado/municipio; usar `--sin-usuarios` para
   omitir usuarios/org). Los endpoints que antes eran simulados en memoria ahora consultan la BD real.
+- **Servidor SISMAI en producción (`192.168.5.200`, Oracle 10.1.0.3.0, SID `lar1`, base `bdlar1`) —
+  diagnóstico 25/09/2026, detalle en PENDIENTES.md §17. NO modificar sin autorización expresa:**
+  - Acceso de solo lectura: `ssh respaldo@192.168.5.200` + `export ORACLE_HOME=/opt/oracle
+    ORACLE_SID=lar1` + `sqlplus -s respaldo/respaldo` (sin alias TNS: `@lar1` da `ORA-12154`).
+    La **única** cuenta con DBA es la de SO **`oracle`** (grupo `dba`) vía `sqlplus / as sysdba`.
+  - **`SISMAI.EVENTOS_SINC` fue DROP+recreada el 21/09 09:08:37** (`SincFich/crear.sql`) y tiene
+    **16.741 filas**; el backlog de 3,37 M **ya no existe en la cola viva** (solo en los ZIP del
+    21/09, que confirman que lo capturaron pero no prueban su recepción central). PostgreSQL no lo tiene
+    (`sismai."EVENTOS"`=0, `legacy."T_EVENTOS"`=7.802). En PG el esquema es legacy con mayúsculas:
+    **siempre comillas dobles** (`legacy."T_EVENTOS"`).
+  - `EVENTOS_SINC` **no tiene restricciones ni índices** → sin clave `(TABLA,ID)` cualquier
+    reejecución duplica en silencio.
+  - Natalidad: falta el **encolado**, no el exportador (`cr_repli_nata.sql` solo arma `TEMP.*` desde
+    eventos ya encolados). Los `pl*` originales son defectuosos (sin dedup, `V_I` sin inicializar);
+    usar `migracion/encolar_natalidad_legacy.sql` (1.295.152 eventos, ~45 min, modo seguro por
+    defecto, **nunca** junto a `crear.sql`).
+  - Respaldo verificado de la sincronización (10 archivos, 10/10 SHA-256) en
+    `/home/informatica/Documentos/puente/sincronizado/respaldo_20260925/`. **No es dump completo**
+    de la BD. Copias nuevas al share: `smbclient -N //127.0.0.1/CompartidoInformatica` (escribir
+    directo como `program` en `/home/informatica/...` está denegado).
+  - ⚠ **Seguridad:** `SISMAI` y `TEMP` tienen el **rol `DBA`** siendo cuentas de aplicación, y
+    `System.cfg` tiene la clave en texto plano con permisos `-rw-r--r--`. El `REVOKE` y la rotación
+    de claves están **pendientes de autorización del usuario** (no ejecutados).
 
 ### Scripts de migración (migracion/)
 
