@@ -494,7 +494,14 @@ acceso SSH de solo lectura. **No se ejecutó ningún DDL ni DML en producción.*
 Los tres son **exportaciones, no mecanismos de ejecución**. Secuencia: 09:02–09:05 capturan
 3.391.421 eventos, y la cola se recrea a las **09:08:37** → consistente con una captura del
 backlog, pero **no demuestra que el nivel central lo recibiera**. `sincmort` terminó con
-`ORA-01408` no fatal. **Pendiente: confirmar por escrito con el nivel central.**
+`ORA-01408` no fatal.
+
+> **Contexto del usuario (25/09/2026):** el nivel central **sí ha recibido los comprimidos de los
+> martes**. La instrucción fue «correr la sincronización desde el menú»; eso se ejecutó el
+> **lunes 21/09** y lo que falló fue **solo la sincronización de natalidad**, por no encontrar el
+> orquestador. → **La carga del backlog no es el problema pendiente**; el pendiente es natalidad y
+> el motor. Queda por confirmar si el central recibió además el sobre del lunes 21/09.
+
 
 ### 17.3 Natalidad: falta el paso de encolado, no el exportador
 
@@ -545,8 +552,9 @@ cuentas de aplicación, no administrativas. Agravantes:
 
 ### 17.6 Pendientes de esta sesión (requieren autorización)
 
-1. Confirmación del nivel central sobre los ZIP `sincdoc`/`sincnata` del 21/09; si no los recibió,
-   cargarlos desde el respaldo **antes** de encolar natalidad, para no repetir ese lote.
+1. Confirmar si el nivel central recibió además el sobre del **lunes 21/09** (además de los de
+   los martes, que según el usuario sí llegaron). Si no lo recibió, decidir si se recarga desde
+   el respaldo **antes** de encolar natalidad.
 2. Encolar los 1.295.152 eventos de natalidad (usuario de aplicación, ~45 min, ventana de
    mantenimiento, cola respaldada, **nunca** junto a `crear.sql`).
 3. Índice único `(TABLA, ID)` sobre `EVENTOS_SINC` (DDL, evita duplicados silenciosos).
@@ -554,7 +562,53 @@ cuentas de aplicación, no administrativas. Agravantes:
 5. Importación de los `.dmp` a PostgreSQL: sigue **sin herramienta** (`oracledb` falla en modo
    Thin por cifrado obsoleto; no hay `imp`/`exp`/Instant Client). PostGIS + staging ya resueltos.
 
-### 17.7 limpieza de la prueba (hecho)
+### 17.7 Plan para el lunes 28/09 — encolar natalidad y qué avala el martes 29/09
+
+**Antes de encolar, verificar esto (es lo que decide si el martes funciona):**
+
+- ⚠ **`repllar1.log` ausente desde el 08/09** (§16). Ese log es la bitácora de la fase que
+  **copia la cola a `TEMP.T_*`**, y los envíos del 08/09, 16/09 y 22/09 traen 4 archivos en vez de
+  5. **Si esa fase no corre, encolar el lunes no sirve de nada**: los 1.295.152 eventos quedan en
+  `EVENTOS_SINC` y el martes no viajan. Hay que confirmar si `repllar1` (componente en
+  `/home/salud/bin`, cron, o el paso equivalente de `SincFich/plcer1.sql`) se está ejecutando, y
+  revisar el ZIP del **próximo martes anterior (22/09)** para ver si repone el quinto archivo.
+- Verificar que el nivel central sigue esperando los **5 archivos** del sobre (los mismos que
+  dejó de traer `repllar1.log`); el usuario pregunta si el nivel superior sigue bien: hoy
+  **no está verificado**, y la evidencia de §16 apunta a que viene incompleto desde el 08/09.
+- Encolar **antes** del corte del martes. Ideal: lunes.
+
+**Ejecución del encolado (con el sistema en uso):**
+
+- Se puede con los usuarios trabajando: son `INSERT` en una tabla **sin índices ni
+  restricciones**, no bloquea a nadie.
+- **Riesgo de rendimiento:** con solo 429.500 filas de prueba la base ya mostró esperas por
+  `log buffer space`. Con 1,3 M puede degradar el servicio → hacerlo **en la tarde, fuera de las
+  horas de carga**, con el `exp` diario de las 13:00 en mente (colisión de recursos).
+- **Se puede abortar sin consecuencias graves:** confirma por lotes de 5.000 y deduplica por
+  `MINUS`, así que relanzar continúa donde se quedó sin duplicar. Aun así, un corte deja natalidad
+  **parcial** en la cola, que el martes enviaría incompleta.
+- Secuencia: 1) guardar la salida del dry-run; 2) confirmar que el respaldo de la cola está
+  intacto (`respaldo_20260925/eventos_sinc_20260925.csv`, 10/10 SHA-256); 3) ejecutar con el
+  usuario de aplicación; 4) verificar que `TABLA+ID` no tiene duplicados y que el conteo final
+  cuadró con lo anunciado.
+
+**Qué espera el nivel central:** el sobre del **martes 29/09** llevará lo que esté en
+`TEMP.T_*` ese día. El encolado del lunes es lo que hace que natalidad aparezca ahí — **solo si
+`repllar1` corre**.
+
+### 17.8 Respaldo total Oracle → PostgreSQL
+
+- **Bloqueado por herramienta, no por datos.** `oracledb` falla en modo Thin (protocolos de
+  cifrado obsoletos en Oracle 10g); no hay `imp`/`exp` ni Instant Client en el equipo. Sigue la
+  regla de AGENTS.md: Thick con Instant Client antiguo, o pedirle al DBA que exporte.
+- Ya está en PostgreSQL lo esencial: **nacimientos 438.577, defunciones 171.115** y el espejo de
+  las 430 tablas legacy mapeadas. Falta **completar el espejo** de lo que no se importó.
+- Camino más limpio si se quiere el total: el DBA corre `exp` por esquemas y se traen los `.dmp`
+  (los de los ZIP son solo `TEMP.T_*`, no la base entera). Alternativa sin Oracle: que el DBA
+  exporte CSV por tabla y usar el ETL ya construido.
+
+
+### 17.9 Limpieza de la prueba (hecho)
 
 - Sesión `sqlplus` huérfana en el servidor (SID 92, `SERIAL#` 36010) por un `INSERT` de prueba
   que sobrevivió al aborto del cliente: eliminada con `ALTER SYSTEM KILL SESSION` y
