@@ -4,14 +4,14 @@ from .models import Defuncion, FichaVigilancia, Nacimiento
 from .services import validar_seleccion_cie
 
 
-def _validar_cie(attrs, partial):
+def _validar_cie(attrs, partial, instance=None):
     if partial and not ({"version_cie", "cie10", "cie11", "fecha_evento"} & set(attrs)):
         return
     errores = validar_seleccion_cie(
         attrs.get("version_cie", "CIE11"),
         attrs.get("cie10"),
         attrs.get("cie11"),
-        attrs.get("fecha_evento"),
+        attrs.get("fecha_evento") or getattr(instance, "fecha_evento", None),
     )
     if errores:
         raise serializers.ValidationError(errores)
@@ -34,6 +34,17 @@ class _CIEDetalleMixin:
             "requiere_subgrupo": obj.cie11.requiere_subgrupo,
         }
 
+    def get_cie11_sugerido_detalle(self, obj):
+        if not obj.cie11_sugerido_id:
+            return None
+        return {
+            "id": obj.cie11_sugerido_id,
+            "codigo": obj.cie11_sugerido.codigo,
+            "titulo": obj.cie11_sugerido.titulo,
+            "nivel": obj.cie11_sugerido.nivel,
+            "nivel_label": obj.cie11_sugerido.get_nivel_display(),
+        }
+
 
 class _OrganizacionMixin:
     def get_organizacion(self, obj):
@@ -52,6 +63,7 @@ class _OrganizacionMixin:
 class NacimientoSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.ModelSerializer):
     cie10_detalle = serializers.SerializerMethodField()
     cie11_detalle = serializers.SerializerMethodField()
+    cie11_sugerido_detalle = serializers.SerializerMethodField()
     organizacion = serializers.SerializerMethodField()
     organizacion_id = serializers.SerializerMethodField()
     organizacion_nombre = serializers.SerializerMethodField()
@@ -71,17 +83,19 @@ class NacimientoSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.Mod
             "padre_nombres", "padre_apellidos", "padre_cedula",
             "libro", "folio", "acta",
             "version_cie", "cie10", "cie11", "cie10_detalle", "cie11_detalle", "creado_en",
+            "cie10_legacy", "codificacion_pendiente", "cie11_sugerido", "cie11_sugerido_detalle",
             "organizacion", "organizacion_id", "organizacion_nombre", "organizacion_nivel",
         ]
 
     def validate(self, attrs):
-        _validar_cie(attrs, getattr(self, "partial", False))
+        _validar_cie(attrs, getattr(self, "partial", False), getattr(self, "instance", None))
         return attrs
 
 
 class DefuncionSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.ModelSerializer):
     cie10_detalle = serializers.SerializerMethodField()
     cie11_detalle = serializers.SerializerMethodField()
+    cie11_sugerido_detalle = serializers.SerializerMethodField()
     organizacion = serializers.SerializerMethodField()
     organizacion_id = serializers.SerializerMethodField()
     organizacion_nombre = serializers.SerializerMethodField()
@@ -96,18 +110,19 @@ class DefuncionSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.Mode
             "causa_directa", "embarazo_o_puerperio", "autopsia", "embalsamado",
             "certificador_nombres", "certificador_cedula",
             "version_cie", "cie10", "cie11", "cie10_detalle", "cie11_detalle", "creado_en",
-            "cie10_legacy", "codificacion_pendiente",
+            "cie10_legacy", "codificacion_pendiente", "cie11_sugerido", "cie11_sugerido_detalle",
             "organizacion", "organizacion_id", "organizacion_nombre", "organizacion_nivel",
         ]
 
     def validate(self, attrs):
-        _validar_cie(attrs, getattr(self, "partial", False))
+        _validar_cie(attrs, getattr(self, "partial", False), getattr(self, "instance", None))
         return attrs
 
 
 class FichaVigilanciaSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.ModelSerializer):
     cie10_detalle = serializers.SerializerMethodField()
     cie11_detalle = serializers.SerializerMethodField()
+    cie11_sugerido_detalle = serializers.SerializerMethodField()
     organizacion = serializers.SerializerMethodField()
     organizacion_id = serializers.SerializerMethodField()
     organizacion_nombre = serializers.SerializerMethodField()
@@ -122,9 +137,10 @@ class FichaVigilanciaSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializer
             "paciente_nombres", "paciente_apellidos", "paciente_cedula", "sexo", "edad",
             "sintomas", "nota",
             "version_cie", "cie10", "cie11", "cie10_detalle", "cie11_detalle", "creado_en",
+            "cie10_legacy", "codificacion_pendiente", "cie11_sugerido", "cie11_sugerido_detalle",
             "organizacion", "organizacion_id", "organizacion_nombre", "organizacion_nivel",
         ]
 
     def validate(self, attrs):
-        _validar_cie(attrs, getattr(self, "partial", False))
+        _validar_cie(attrs, getattr(self, "partial", False), getattr(self, "instance", None))
         return attrs

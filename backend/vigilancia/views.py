@@ -14,6 +14,7 @@ from seguridad.models import Organizacion
 from .models import (
     CAMPOS_COLUMNA,
     AlertaEpidemia,
+    ConsolidadoEpi15,
     ConsolidadoSemanal,
     EventoENO,
     FilaConsolidado,
@@ -22,6 +23,7 @@ from .models import (
 )
 from .serializers import (
     AlertaEpidemiaSerializer,
+    ConsolidadoEpi15Serializer,
     ConsolidadoSemanalEscribeSerializer,
     ConsolidadoSemanalSerializer,
     EventoENOSerializer,
@@ -277,6 +279,86 @@ class ConsolidadoSemanalExportView(APIView):
                 escritor.writerow(registro)
         contenido = "\ufeff" + buffer.getvalue()
         nombre = f"consolidado_vigilancia_{date.today().isoformat()}.csv"
+        respuesta = HttpResponse(contenido, content_type="text/csv; charset=utf-8")
+        respuesta["Content-Disposition"] = f'attachment; filename="{nombre}"'
+        return respuesta
+
+
+class Epi15ListView(APIView):
+    """GET: lista de consolidados EPI-15 (SIS-04) visibles según alcance."""
+
+    def get(self, request):
+        qs = ConsolidadoEpi15.objects.select_related("organizacion").prefetch_related(
+            "filas__evento"
+        )
+        qs = _por_alcance_qs(qs, request)
+        anio = request.query_params.get("anio", "").strip()
+        semana = request.query_params.get("semana", "").strip()
+        if anio:
+            qs = qs.filter(anio=int(anio))
+        if semana:
+            qs = qs.filter(semana=int(semana))
+        qs = qs.order_by("-anio", "-semana", "organizacion__nombre")
+        data = ConsolidadoEpi15Serializer(qs, many=True).data
+        return ok(data, count=qs.count())
+
+
+class Epi15DetailView(APIView):
+    """GET: detalle de un consolidado EPI-15 (cabecera + filas)."""
+
+    def _obtener(self, request, pk):
+        qs = ConsolidadoEpi15.objects.select_related("organizacion").prefetch_related(
+            "filas__evento"
+        )
+        qs = _por_alcance_qs(qs, request)
+        try:
+            return qs.get(pk=pk)
+        except ConsolidadoEpi15.DoesNotExist:
+            return None
+
+    def get(self, request, pk):
+        obj = self._obtener(request, pk)
+        if obj is None:
+            return error("Consolidado EPI-15 no encontrado", status=404)
+        return ok(ConsolidadoEpi15Serializer(obj).data)
+
+
+class Epi15ExportView(APIView):
+    """Exporta a CSV los consolidados EPI-15 (respeta alcance)."""
+
+    def get(self, request):
+        qs = ConsolidadoEpi15.objects.select_related("organizacion").prefetch_related(
+            "filas__evento"
+        )
+        qs = _por_alcance_qs(qs, request)
+        anio = request.query_params.get("anio", "").strip()
+        semana = request.query_params.get("semana", "").strip()
+        if anio:
+            qs = qs.filter(anio=int(anio))
+        if semana:
+            qs = qs.filter(semana=int(semana))
+
+        cabeceras = ["organizacion", "anio", "semana", "codigo", "evento", "casosp", "casoss", "casosx", "total"]
+        buffer = io.StringIO()
+        escritor = csv.DictWriter(buffer, fieldnames=cabeceras)
+        escritor.writeheader()
+        for cons in qs.order_by("organizacion__nombre", "anio", "semana"):
+            for fila in cons.filas.select_related("evento").order_by(
+                "evento__orden_epi12", "evento__orden_epi14", "nombre_legacy"
+            ):
+                escritor.writerow({
+                    "organizacion": cons.organizacion.nombre if cons.organizacion_id else "",
+                    "anio": cons.anio,
+                    "semana": cons.semana,
+                    "codigo": fila.codigo_legacy,
+                    "evento": fila.evento.nombre if fila.evento_id else (fila.nombre_legacy or ""),
+                    "casosp": fila.casosp,
+                    "casoss": fila.casoss,
+                    "casosx": fila.casosx,
+                    "total": fila.total,
+                })
+        contenido = "\ufeff" + buffer.getvalue()
+        nombre = f"consolidado_epi15_{date.today().isoformat()}.csv"
         respuesta = HttpResponse(contenido, content_type="text/csv; charset=utf-8")
         respuesta["Content-Disposition"] = f'attachment; filename="{nombre}"'
         return respuesta

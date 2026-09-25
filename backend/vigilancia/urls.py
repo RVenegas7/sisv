@@ -7,4 +7,7 @@ urlpatterns = [
     path("consolidados/", views.ConsolidadoSemanalListView.as_view()),
     path("consolidados/exportar/", views.ConsolidadoSemanalExportView.as_view()),
     path("consolidados/<int:pk>/", views.ConsolidadoSemanalDetailView.as_view()),
+    path("epi15/", views.Epi15ListView.as_view()),
+    path("epi15/exportar/", views.Epi15ExportView.as_view()),
+    path("epi15/<int:pk>/", views.Epi15DetailView.as_view()),
 ]

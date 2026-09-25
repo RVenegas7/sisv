@@ -351,6 +351,79 @@ class _RegistroAPI(APIView):
         return ok(None, message=f"{self.etiqueta.title()} eliminado")
 
 
+class CodificacionView(APIView):
+    """Bandeja de codificación: resumen y lista de pendientes por módulo.
+
+    GET /api/registros/codificacion/?modulo=defunciones&q=...&anio=...&pagina=...
+    Devuelve {resumen: {defunciones, nacimientos, fichas}, count, items, pagination}.
+    La edición del CIE se hace con los PATCH de cada módulo (validan versión por fecha).
+    """
+
+    def get(self, request):
+        resumen = {}
+        for clave, modelo in MODELOS.items():
+            qs = _por_alcance(modelo.objects.filter(codificacion_pendiente=True), request)
+            resumen[clave] = qs.count()
+
+        modulo = (request.query_params.get("modulo", "defunciones") or "defunciones").strip().lower()
+        if modulo not in MODELOS:
+            return error(f"Módulo no válido: {modulo}", status=400)
+        qs = MODELOS[modulo].objects.select_related("organizacion").filter(codificacion_pendiente=True)
+        qs = _por_alcance(qs, request)
+        q = request.query_params.get("q", "").strip()
+        if q:
+            condiciones = []
+            if modulo == "defunciones":
+                condiciones = [
+                    Q(registro_numero__icontains=q),
+                    Q(fallecido_nombres__icontains=q),
+                    Q(fallecido_apellidos__icontains=q),
+                ]
+            elif modulo == "nacimientos":
+                condiciones = [
+                    Q(registro_numero__icontains=q),
+                    Q(madre_nombres__icontains=q),
+                    Q(madre_apellidos__icontains=q),
+                ]
+            else:
+                condiciones = [
+                    Q(codigo_notificacion__icontains=q),
+                    Q(paciente_nombres__icontains=q),
+                    Q(paciente_apellidos__icontains=q),
+                ]
+            cond = condiciones[0]
+            for cc in condiciones[1:]:
+                cond |= cc
+            qs = qs.filter(cond)
+        anio = request.query_params.get("anio", "").strip()
+        if anio and anio.lower() != "todos":
+            try:
+                qs = qs.filter(fecha_evento__year=int(anio))
+            except ValueError:
+                pass
+        qs = qs.order_by("-fecha_evento", "-creado_en")
+        try:
+            pagina = max(1, int(request.query_params.get("pagina", 1)))
+            por_pagina = min(200, max(1, int(request.query_params.get("por_pagina", 50))))
+        except (TypeError, ValueError):
+            pagina, por_pagina = 1, 50
+        total = qs.count()
+        inicio = (pagina - 1) * por_pagina
+        lote = list(qs[inicio : inicio + por_pagina])
+        serializer = SERIALIZADORES[modulo]
+        return ok(
+            serializer(lote, many=True).data,
+            count=total,
+            resumen=resumen,
+            pagination={
+                "pagina": pagina,
+                "por_pagina": por_pagina,
+                "total": total,
+                "paginas": (total + por_pagina - 1) // por_pagina,
+            },
+        )
+
+
 class NacimientoView(_RegistroAPI):
     modelo = Nacimiento
     serializer = NacimientoSerializer

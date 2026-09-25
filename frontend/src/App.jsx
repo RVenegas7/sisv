@@ -6,6 +6,8 @@ import CargaNacimientos from "./pages/CargaNacimientos"
 import CargaDefunciones from "./pages/CargaDefunciones"
 import CargaFichasVigilancia from "./pages/CargaFichasVigilancia"
 import Vigilancia from "./pages/Vigilancia"
+import Epi15 from "./pages/Epi15"
+import Codificacion from "./pages/Codificacion"
 import Tablero from "./pages/Tablero"
 import Reportes from "./pages/Reportes"
 import Mapeos from "./pages/Mapeos"
@@ -21,8 +23,10 @@ const NAVEGACION = [
     items: [
       { enlace: "/nacimientos", rotulo: "Nacimientos" },
       { enlace: "/defunciones", rotulo: "Defunciones" },
+      { enlace: "/codificacion", rotulo: "Codificación" },
       { enlace: "/vigilancia", rotulo: "Consolidado semanal", exacto: true },
       { enlace: "/vigilancia/fichas", rotulo: "Fichas de vigilancia" },
+      { enlace: "/vigilancia/epi15", rotulo: "Consolidado EPI-15" },
     ],
   },
   { enlace: "/reportes", rotulo: "Reportes" },
@@ -158,7 +162,9 @@ export default function App() {
           <Route path="/" element={<Tablero />} />
           <Route path="/nacimientos" element={<CargaNacimientos usuario={usuario} multicentro={esMulticentro} />} />
           <Route path="/defunciones" element={<CargaDefunciones usuario={usuario} multicentro={esMulticentro} />} />
+          <Route path="/codificacion" element={<Codificacion usuario={usuario} />} />
           <Route path="/vigilancia" element={<Vigilancia usuario={usuario} />} />
+          <Route path="/vigilancia/epi15" element={<Epi15 usuario={usuario} />} />
           <Route path="/vigilancia/fichas" element={<CargaFichasVigilancia usuario={usuario} multicentro={esMulticentro} />} />
           <Route path="/reportes" element={<Reportes />} />
           <Route path="/mapeos" element={<Mapeos />} />

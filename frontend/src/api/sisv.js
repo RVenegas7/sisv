@@ -264,3 +264,23 @@ export async function exportarConsolidados(params = {}) {
   const r = await api.get("/vigilancia/consolidados/exportar/", { params, responseType: "blob" })
   return r.data
 }
+
+export async function listarEpi15(params = {}) {
+  const r = await api.get("/vigilancia/epi15/", { params })
+  return r.data.data
+}
+
+export async function obtenerEpi15(id) {
+  const r = await api.get(`/vigilancia/epi15/${id}/`)
+  return r.data.data
+}
+
+export async function exportarEpi15(params = {}) {
+  const r = await api.get("/vigilancia/epi15/exportar/", { params, responseType: "blob" })
+  return r.data
+}
+
+export async function listarCodificacion(params = {}) {
+  const r = await api.get("/registros/codificacion/", { params })
+  return r.data
+}

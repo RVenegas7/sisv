@@ -120,6 +120,13 @@
     (77 totales backend).
 - **Pendiente:** decidir el destino de los catálogos CIE legacy (`sismai."CIE10"` y asociados).
   Ver `legancy/analisis/INFORME_MIGRACION_LEGACY.md` §8-9.
+- **EPI-15 visible en la app (24/09/2026):** añadido `GET /api/vigilancia/epi15/`,
+  `GET /api/vigilancia/epi15/<id>/` y `GET /api/vigilancia/epi15/exportar/` (lista/detalle/CSV,
+  respetan alcance, solo lectura — datos del legado `RENGLON_EPI15`). Frontend: menú
+  **Registros → «Consolidado EPI-15»** (`/vigilancia/epi15`, página `Epi15.jsx`): filtros
+  año/semana, lista de consolidados, detalle con eventos (primeras consultas / subsiguientes /
+  columna X / totales) y exportar CSV. Verificado con el cliente de pruebas de Django: 15.855
+  consolidados (2026-S8 AMB. AUYAMAL), `manage.py check` OK, `npm run build` OK.
 
 ## 6. [COMPLETADO] Módulo de Vigilancia (modernización de ventanas legacy)
 
@@ -257,10 +264,18 @@
     codificadora, epi, dir, tester_legacy).
 - **Bandeja de codificación (`codificacion_pendiente`):** las **49.162 defunciones** pendientes de
   CIE se ven en **`/defunciones` (CargaDefunciones.jsx)** con el filtro **«Solo pendientes de
-  codificación»** (checkbox sobre la tabla). Backend: endpoint de defunciones acepta `?pendientes=1`
-  (filtra `codificacion_pendiente=True`); el serializer de `Defuncion` expone `codificacion_pendiente`
-  y `cie10_legacy`. El codificador abre cada registro con **Editar** y aplica `CIESearch`
-  (versión por fecha del evento); al guardar, `validar_seleccion_cie` marca `codificacion_pendiente=False`.
+  codificación»** (checkbox sobre la tabla) y en el nuevo módulo dedicado **`/codificacion`**
+  (**Codificacion.jsx**, menú **Registros → Codificación**). Backend: endpoint de defunciones acepta
+  `?pendientes=1` (filtra `codificacion_pendiente=True`); **`GET /api/registros/codificacion/`**
+  (`CodificacionView`) devuelve `resumen` de pendientes por módulo (defunciones/nacimientos/fichas,
+  respetando alcance) más la lista filtrable del módulo (`?modulo=&q=&anio=&pagina=&por_pagina=`,
+  paginado). El serializer de `Defuncion` expone `codificacion_pendiente`, `cie10_legacy` y ahora
+  `cie11_sugerido` + `cie11_sugerido_detalle` (cross-walk). La bandeja abre cada registro con la
+  `SeccionCIE` reutilizable (versión por fecha del evento + `CIESearch`), muestra el CIE legacy y la
+  sugerencia, y **edita solo los campos CIE** (PATCH parcial de `version_cie`/`cie10`/`cie11`); al
+  guardar, `validar_seleccion_cie` marca `codificacion_pendiente=False`. Se corrigió `_validar_cie`
+  para PATCHes parciales sin `fecha_evento` en el payload: ahora usa la `fecha_evento` de la instancia
+  para decidir la versión exigida.
 - **Exportar BDs a la oficina (24/09/2026):** `dumps/sis_salud_db_20260924.dump` (176M) y
   `dumps/territorio_apn_20260924.dump` (594K) generados con `docker exec sis_postgres_dev pg_dump -U
   sis_user -Fc` + `docker cp` a `dumps/`.
