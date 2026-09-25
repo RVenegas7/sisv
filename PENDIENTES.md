@@ -318,6 +318,48 @@
     `migracion/verificar_sinc_live.sh` (conexión SSH a 192.168.5.200 con sshpass/expect/manual). Validados
     contra el espejo Oracle XE; **pendiente ejecutarlos en vivo** en el servidor (requiere red de
     oficina / VPN y herramienta de contraseña).
+  - **Scripts de corrección (24/09/2026, listos para el servidor):**
+    `migracion/corregir_sinc_eventos_sinc.sql` + `migracion/corregir_sinc_live.sh`. El SQL hace en
+    orden: [A] **respaldo puntual idempotente** de la cola (`EVENTOS_SINC_BK_<AAAA-MM-DD>`, verifica la
+    fecha del servidor con `SYSDATE`, no duplica si ya existe y contrasta el conteo contra `EVENTOS_SINC`);
+    [B] recompila el esquema `SISMAI` (`DBMS_UTILITY.COMPILE_SCHEMA`) y lista inválidos antes/después
+    (referencia: 16 objetos); [C] indicadores de remediación (cola →0 y `TEMP.*` con semanas 29-36);
+    [D] **purga comentada** (`TRUNCATE EVENTOS_SINC DROP STORAGE`) que se habilita SOLO manualmente cuando
+    el sitio central confirme que la carga del 27-08 llegó por otra vía. Validado el flujo [A]/[B] contra
+    el espejo Oracle XE (`sis_oracle_legacy`), respaldo de prueba eliminado después. Ejecutar en vivo con
+    `./migracion/corregir_sinc_live.sh` (sshpass/expect/manual), mejor como usuario DBA `oracle`.
+  - **Checklist para el día del acceso (oficina/VPN):** 1) `verificar_sinc_live.sh` (estado actual);
+    2) si procede, `corregir_sinc_live.sh` (respaldo + recompilar + indicadores); 3) confirmar con el
+    sitio central el «último martes bueno» y si llegó el `DOCUMENTO_DENGUE` del 27-08; 4) restaurar el
+    componente consumidor (`RoutLar1`/`SincFich`/`plcer1.sql`, `/home/salud/bin`) o el cron, antes de
+    descomentar [D]; 5) verificar el envío del martes 29/09 (que lleve el backlog en `TEMP.T_*`).
+  - **Pendiente: revisar la generación de los 5 archivos del ZIP del martes** (`routlar1_*.ZIP`):
+    `bloqlar1.log`, `copyhistlar1.log`, `repllar1.log`, `routlar1.log` y `routlar1.dmp` (los 5 presentes
+    en todos los ZIP de `enviados/`). Verificar en el servidor que el proceso que los produce
+    (`RoutLar1`/scripts de `/home/salud/bin`, mtime 2020 según informe §5.1) sigue generándolos
+    correctamente el día del envío y que `routlar1.dmp` no crece con el backlog.
+  - **Pendiente: revisar los scripts de sincronización en `192.168.5.200` y el archivo que generan
+    (mañana en la oficina):** el nivel central indica que **desde legacy hay que correr la sincronización**
+    y que **esta genera un archivo**; revisar ese archivo generado. El paso de esa sincronización que
+    **falló fue «nacimientos»**: no consiguió el script/archivo que **orquesta los demás** (falta el
+    componente que ejecuta todo lo demás, tipo `RoutLar1`/`plcer1.sql` según informe §5.1/§6.1).
+  - **Pendiente: definir dónde queda el respaldo de la cola (espacio por red):** la copia de los ~3,37 M
+    filas de `EVENTOS_SINC` (≥ ~1-2 GB) se haría **en el equipo local donde corremos los scripts**
+    (115 GB libres en `/home`), transfiriéndola **por red desde el servidor** (SSH/scp, el server está en
+    `192.168.5.200`); no hay share SMB/NFS actualmente. Confirmar mañana si el servidor permite `scp`
+    de la tabla exportada (por ejemplo `exp ... tables=EVENTOS_SINC file=colon_28.X.dmp` y traerla por
+    SSH) o si el acceso por red es viable en oficina.
+  - **Riesgos de la corrección en vivo (y sus mitigaciones, 24/09/2026):** el script **nunca toca** el
+    esquema `TEMP.*` (lo que se exporta al central) ni modifica la cola original (solo la lee y copia);
+    la única operación destructiva ([D] TRUNCATE) queda comentada y manual. Los tres riesgos residuales
+    reales son: (a) **espacio/undo del respaldo** — copiar 3.37M de filas consume tablespace; mitigado con
+    el pre-check `A.0` (listado de tablespaces con <2 GB libres: si no hay espacio, el CTAS falla limpio y
+    se detiene, no rompe la app); (b) **`COMPILE_SCHEMA` bloquea objetos en uso** — mitigado con
+    advertencia de ejecutar en **ventana de mantenimiento** (fuera de operación y del `exp` diario de las
+    13:00); (c) **colisión con el respaldo lógico diario de las 13:00** (`exp respaldo/respaldo`, ~1.2 GB
+    y undo_retention=900 s con riesgo ORA-01555) — mitigado ejecutando la corrección en madrugada o lunes
+    tarde. En todos los casos el peor escenario es un error controlado (ORA-0165x/ORA-1555) que **no
+    daña** el sistema ni el envío; los objetos que sigan inválidos tras [B] quedan igual que ahora.
   - **Pendiente (seguimiento 29/09/2026):** el envío automático del martes 29/09 **solo llevará lo que esté
     en `TEMP.T_*`** (lo nuevo desde el último ruteo); **sin intervención manual en el servidor (reprocesar
     `EVENTOS_SINC` / migración Fase 0 del PLAN_CORTE) el backlog NO llegará** al nivel central.
@@ -361,14 +403,42 @@
   → **SÍ se relaciona con el hallazgo crítico:** la desaparición del log coincide con el corte del motor de
   sincronización (27/08/2026): esa fase ya no se ejecuta ni deja bitácora en el envío. **Monitorizar en el
   próximo envío:** el ZIP debe llevar los 5 archivos; si falta `repllar1.log`, la replicación no corrió.
-- **Prueba de exportación pendiente → línea base pre-crítica (24/09/2026):** la prueba planificada es
-  PLAN_CORTE Fase 1 ítem 3 (validar en local el generador `T_*` contra ZIP histórico real). Línea base
-  disponible: `enviados/routlar1_482026_1526.ZIP` (**04/08/2026, SE-32**, último envío completo pre-corte;
-  la semana 19-25/08 sugerida en el plan no está en la carpeta). Reconciliación inicial con el espejo PG:
-  `T_CERTNACI=422` del envío ⇔ **421 `CERTNACIMIENTO`** con `FECHAOPERACION` en la semana previa (Δ=1);
-  `T_CERTMORT=398` ⇔ **306 `CERTIFICADO`** por `FECHAOPERACION` (Δ=92, hay que afinar el criterio de
-  fecha/corte del sobre, probablemente `FECHADEFUNCION`). Los ZIP del 08/09/16/09 y 22/09 (4 archivos) son
-  posteriores al corte y **no** deben usarse como referencia.
+- **Línea base pre-crítica validada → contrato del sobre DETERMINADO (24/09/2026, tarea 3):** importada
+  `enviados/routlar1_482026_1526.ZIP` (**04/08/2026, SE-32**, último envío completo pre-corte) en Oracle XE
+  (`gvenzl/oracle-xe:11.2.0.2`, contenedor `sis_oracle_legacy`, esquema `IMPORT29`: 82 tablas `T_*`) y
+  contrastada con espejo `sis_postgres_dev`. **Hallazgo clave:** el sobre NO se arma por fecha del
+  certificado; replica **el estado consolidado de las filas que tuvieron ≥1 evento en `EVENTOS_SINC`
+  durante la ventana del ruteo** — `T_EVENTOS` del propio ZIP es el manifiesto exacto de lo que viaja
+  (columnas `TABLA`+`ID`+`EVENTO` 1=INSERT/2=UPDATE+`FECHA`, ventana 29/07→04/08; también 3=DELETE,
+  `STATUS`, `AMS`). **Regla validada al 100%:** «viaja la fila si su **último** evento en la ventana es
+  INSERT(1) o UPDATE(2); si el último es DELETE(3) no viaja» → reproduce EXACTO los conteos del
+  `routlar1.log`: `CERTIFICADO` 398, `CERTNACIMIENTO` 422, `DOCUMENTO` 413 (2 deletes excluidos),
+  `RENGLONTELE` 5746 (32 deletes excluidos), `CAUSA_M`/`RENGLON_EPI15`/`CASOSMMI` 198/429/24,
+  `MONITOR_BASEDEDATOS` 49, etc. (23 tablas con filas; `T_AUDITORIA` 9118 viaja completa sin eventos).
+  El sobre del 04/08 incluye además pendientes acumulados previos (5 certificados con último evento fuera
+  de la ventana RESP) → usa la cola **completa** (`EVENTOS_SINC`), no solo la ventana RESP. Todos los IDs
+  existen en PG (`CERTNACIMIENTO` 438.910 / `CERTIFICADO` 173.391): 422/422 y 398/398. **Comando
+  construido:** `manage.py exportar_rutalara --semana 2026-W32` (o `--desde/--hasta`; sin rango = cola
+  completa; `--eventos <schema.tabla>`, default `sismai.EVENTOS`; `--salida DIR`; `--solo-eventos`).
+  Emite ZIP con `T_EVENTOS.csv` + CSV por tabla `T_*` (columnas del spec
+  `backend/registros/data/rutarala_spec.json`, de `schema_routlar1.sql`) + `_conteos.txt`. Validado con el
+  manifiesto del sobre cargado en `sismai.eventos_se32` (9.862 eventos): 9531 filas viajeras, conteos
+  idénticos al sobre salvo `RENGLONTELE` 5741 vs 5746 (5 renglones eliminados después del cierre del
+  sobre, verificados con evento 1+3 del 04/08 en `EVENTOS_RESP`). El generador T_* de SISV debe emitir por
+  eventos de modificación (INSERT/UPDATE + fechas), no por `FECHAOPERACION`/`FECHADEFUNCION`, y enlaza
+  directamente con el punto crítico (la cola `EVENTOS_SINC` estancada es la fuente de verdad del sobre).
+  Los ZIP del 08/09/16/09 y 22/09 (4 archivos) son posteriores al corte y **no** deben usarse como
+  referencia.
+- **Validación automática `exportar_rutalara --comparar` (24/09/2026):** el comando acepta
+  `--comparar <routlar1_*.ZIP>` y parsea su `routlar1.log` para comparar conteos por tabla. Contra el ZIP
+  SE-32 con el manifiesto completo (`sismai.eventos_se32`, 9.862 eventos): **81/83 tablas coinciden
+  EXACTO** (T_EVENTOS 9862, CERTIFICADO 398, NACIMIENTOS 422, RESUMEN 9, USUARIOS 7, etc.). Dos DIF
+  esperados y explicados: (1) `T_AUDITORIA` 9118 vs 0 — viaja **completa** sin eventos (bitácora), la
+  fuente `AUDITORIA` no está espejada en `sismai` (falta por mapear/copiar en SISV); (2) `T_RENGTELE`
+  5746 vs 5741 — 5 renglones con evento 1+3 del 04/08 (borrados justo después del corte; el sobre refleja
+  el estado a 15:26 y el espejo PG el estado actual). El contrato queda **cerrado**: la regla «último
+  evento 1/2 en el período = viaja» es la correcta. `T_EVENTOS` del generador lleva TODOS los eventos del
+  período (1/2/3), como el manifiesto real.
 
 ---
 

@@ -29,6 +29,13 @@ legancy/*.tgz
 legancy/*.zip
 legancy/*.ZIP
 
+# Sobre legacy (copia local, referencia de validación; datos personales, no versionar)
+enviados/*.ZIP
+routlar1_*.ZIP
+
+# Análisis con datos personales de personas/instituciones legacy
+auditoria/
+
 # Respaldos de las bases del proyecto (para la oficina/producción, no versionar)
 dumps/
 
