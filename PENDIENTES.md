@@ -703,4 +703,103 @@ sede, el plan B es escribir un script propio que arme `TEMP.T_*` desde la cola �
 
 ---
 
+### 17.12 Plan B: `replicar_controlado.sql` (26/09/2026) — listo, NO ejecutado
+
+**Estado: el script existe y está probado; nunca se ha ejecutado contra `192.168.5.200`.** Es el
+plan B de §17.11: reconstruir el contenido de `TEMP.T_*` desde `SISMAI.EVENTOS_SINC` porque la fase
+original (`plcer1.sql` / `cr_repli_*.sql`) no está disponible y es justamente la que se perdió el
+08/09/2026.
+
+- `migracion/replicar_controlado.sql` — el bloque PL/SQL (un solo archivo, sin dependencias).
+- `migracion/replicar_controlado_live.sh` — wrapper SSH. Es la **única puerta de entrada**: exige
+  las tres condiciones y la frase `AUTORIZAR_PLAN_B_REPLICA_LARA`.
+
+**Regla replicada** (la única verificada al 100 % contra el sobre del 04/08/2026,
+`enviados/routlar1_482026_1526.ZIP`, y la línea base de §17.2): viaja la fila si su **último** evento
+en la cola es `INSERT(1)` o `UPDATE(2)`; si el último es `DELETE(3)` no viaja. Se replica el **estado
+consolidado actual** de la fila de origen, y el manifiesto se arma con la **cola completa** (no solo
+la ventana de la semana). Comprobado en el sobre: las 5 filas de `T_CERTMORT` del 04/08 tienen
+`ID 20-24`, inserted el 04/08 — días y semanas después del rango del sobre.
+
+**Alcance real (23 de 83 tablas).** Cubre los 23 mapeos `TABLA → origen → T_*` de
+`backend/registros/data/rutarala_spec.json`. **No** cubre las ~60 `T_*` restantes (las que llenaba
+`copyhist`, p. ej. `T_AUDITORIA`, que en el 04/08 viajaron enteras y sin eventos), **no** las crea (el
+DDL de `legancy/analisis/schema_routlar1.sql` está truncado: recrearlas sería inventar estructura) y
+**no** trunca la cola. Por eso el sobre que arme este plan B **no es equivalente** al original: es
+una recuperación parcial, y así hay que decirlo al reportar.
+
+**Garantías del script:**
+- No escribe nada en `SISMAI.*`: solo `SELECT` sobre las tablas de origen. La cola queda **intacta**
+  (es el único soporte que queda de los 3,37 M del 27/08, con SHA-256 verificado).
+- Sin DDL, sin `TRUNCATE`, sin envío al central (eso lo hace la aplicación).
+- **Idempotente:** borra de `TEMP.T_*` solo los IDs que va a insertar y los reinserta; las filas de
+  `TEMP` que no están en la cola **no se tocan**. Probado: con un ID previo en `T_CERTMORT` y una fila
+  previa en `T_EVENTOS`, la reejecución los conservó y no duplicó nada.
+- `COMMIT` por tabla: si se interrumpe, quedan las ya confirmadas y se relanza. Error en una tabla →
+  `ROLLBACK` de esa tabla y sigue; el wrapper aborta si la salida trae `ERROR`.
+- Modo seguro por defecto (`V_EJECUTAR := 0` = solo informe). El archivo del repositorio **siempre**
+  queda en 0; la copia temporal es la única que va a 1.
+- `V_RELLENAR_T_EVENTOS` en 0 (modo seguro): el manifiesto se refresca solo para las claves replicadas
+  y las filas de corridas previas se quedan —que volverían a viajar en el sobre—; ponerlo en 1
+  recarga el manifiesto completo, pero descarta el anterior.
+
+**Por qué una sola pasada analítica y no `NOT EXISTS`:** `EVENTOS_SINC` no tiene ningún índice
+(§17.2), así que un `NOT EXISTS` correlacionado sobre `(TABLA, ID)` es cuadrático sobre 1,3 M de
+eventos (mismo aviso que en `encolar_natalidad_legacy.sql`). El lote se resuelve con
+`ROW_NUMBER() OVER (PARTITION BY ID ORDER BY FECHA DESC NULLS LAST, ROWID DESC)`.
+
+**Salvedades que el DBA tiene que confirmar antes de ejecutar:**
+1. Los 3 valores de `TABLA` sin mapeo que hay hoy en la cola —`REG_VACUNACION`,
+   `PACIENTE_FICHA_EPI`, `PACIENTE_COND_ESPE` (16.741 filas)— **no se replican**. La sección [5] del
+   informe propone candidatos por coincidencia de columnas, pero qué `T_` corresponde a qué `TABLA`
+   es una decisión **funcional**: la tiene que dar el soporte SIS/Centura, no se deduce de la BD.
+2. Si una tabla se salta por «exige NOT NULL sin origen», **no se fuerce**: significa que ese mapeo no
+   es 1:1 y la lógica original hacía transformaciones, no copia.
+3. `T_EVENTOS` se asume con las columnas `TABLA, ID, EVENTO, FECHA, STATUS, AMS`; verificar contra
+   la tabla real antes de la primera ejecución.
+4. El **costo**: sin índices en la cola, la primera pasada puede tardar. Correr primero el `informe` y
+   medir; si la cola llega a 1,3 M (post-encolado de natalidad), repetir el cálculo en el servidor.
+
+**Orden de ejecución (oficina/VPN):**
+
+```bash
+# 1) INFORME: cero escrituras, no pide autorización. Guardar la evidencia.
+./migracion/replicar_controlado_live.sh informe
+#    -> auditoria/replicar_controlado_informe_<AAAAMMDD_HHMMSS>.txt
+
+# 2) ESCRITURA: solo con las 3 condiciones + la frase exacta.
+#    Y con DBA: el usuario `respaldo` no tiene INSERT ANY TABLE (§17.5).
+USUARIO=oracle CLAVE=<la de oracle> \
+BACKUP_COLA_OK=SI BACKUP_TEMP_OK=SI CENTRAL_OK=SI \
+  ./migracion/replicar_controlado_live.sh ejecutar
+AUTORIZAR_PLAN_B_REPLICA_LARA
+```
+
+3. **Armar el sobre con la aplicación** (`RoutLar1` / `SistemaTransferencia.exe`): el script no envía
+   nada. Verificar los 5 archivos con `repllar1.log` presente.
+4. **Anular** si algo salió mal, sin tocar la cola, con la fecha `LOTE_INICIO` máxima que imprime la
+   salida: `DELETE FROM TEMP.T_<TABLA> WHERE ID IN (...)` + `DELETE FROM TEMP.T_EVENTOS WHERE
+   TABLA = '<TABLA>'` + `COMMIT`.
+
+**Cómo se validó** (espejo `sis_oracle_legacy`, Oracle XE 11.2, nunca contra producción): esquema
+sintético `SISMAI`/`TEMP` con `EVENTOS_SINC` de 13 eventos que cubren `INSERT`, `UPDATE`×2, `DELETE`
+final, `DELETE` seguido de `INSERT` y empate de `FECHA`. Comprobado que (a) el dry-run no escribe nada,
+(b) viajan los 3 IDs correctos y no el `DELETE` final, (c) la reejecución reemplaza y no duplica,
+(d) una fila previa fuera de la cola sobrevive, (e) el mapeo no 1:1 se salta, (f) una desalineación de
+esquema produce `ERROR` + `ROLLBACK` de esa tabla y el wrapper aborta, (g) la cola queda con las
+mismas 13 filas. Además se corrigieron tres incompatibilidades de PL/SQL que-compilan solo en
+versiones nuevas: el constructor de `record` en la colección (`PLS-00222`), `DBA_FREE_SPACE.USED_BYTES`
+(no existe; es solo `BYTES`) y `COMMIT` poniendo `SQL%ROWCOUNT` a 0 (el conteo del `INSERT` se
+captura antes).
+
+**Pendiente para cerrarlo:**
+- [ ] Correr el `informe` en `192.168.5.200` y revisar las secciones [3] y [5] con el DBA.
+- [ ] Confirmar con soporte SIS/Centura el mapeo de `REG_VACUNACION`, `PACIENTE_FICHA_EPI` y
+      `PACIENTE_COND_ESPE`.
+- [ ] Verificar la estructura real de `SISMAI.EVENTOS_SINC` y `TEMP.T_EVENTOS` (columna `AMS`).
+- [ ] Respaldar `TEMP.T_*` (no está en `respaldo_20260925/`, que son los ZIP y el CSV de la cola).
+- [ ] Solo con esas 4 cosas resueltas: pedir la autorización y ejecutar.
+
+---
+
 *Registro creado el 12/09/2026.*
