@@ -614,6 +614,60 @@ cuentas de aplicación, no administrativas. Agravantes:
   que sobrevivió al aborto del cliente: eliminada con `ALTER SYSTEM KILL SESSION` y
   `RESPALDO.TMP_ES` borrada. `EVENTOS_SINC` verificada intacta (16.741 filas).
 
+### 17.10 Quién genera `repllar1.log` (26/09/2026) y guion de reconocimiento
+
+**Qué es el archivo (analizado sobre `enviados/routlar1_482026_1526.ZIP`, el último sobre completo):**
+`repllar1.log` es el *spool* de `sqlplus` de la **fase de replicación**: 83 `CREATE TABLE` + 86
+`CREATE INDEX` (las `TEMP.T_*`) y, al final, los conteos por tabla que coinciden **exactamente** con
+las «filas exportadas» de `routlar1.log` (`T_CERTMORT` 398, `T_CAUMMEDI` 769, `T_CERTNACI` 422,
+`T_AUDITORIA` 9118). Es decir: **es el paso que arma `TEMP.T_*` desde `SISMAI.EVENTOS_SINC`**. El
+sobre solo *recoge* los logs que existen, por eso desde el 08/09 vienen 4 archivos y los datos
+viajan degradados (`T_CERTMORT` 398→159, `T_CAUMMEDI` 769→456 entre el 04/08 y el 08/09).
+
+**Quién lo corre — no es el servidor Linux:**
+- El cron de `srvsis` solo tiene el respaldo de las 13:00; `/home/salud/bin` está vacío y
+  `SincFich/*` / `RoutLar1/*` están sin ejecutar (mtime 2020-04-04) → el motor no está instalado
+  ni programado en el Linux.
+- La guía oficial (y el fallo del 21/09) apunta al **cliente Windows de la sede**:
+  `SistemaTransferencia.exe`, cuyo «menú → correr la sincronización» dispara los scripts
+  `SincFich` (`plcer1.sql`, `cr_repli_*.sql`) y luego `RoutLar1` (exp de `TEMP.T_*` + ZIP de los
+  5 archivos). Pistas de que el arranque es externo: `expbdsismai.bat` con `pscp -pw` y el share
+  Samba `Salud` → `/home/salud/Aplicaciones` (readonly, user `salud`).
+
+**¿Se puede correr a mano sin riesgo? No, no a ciegas:**
+1. **No tenemos el script**: vive en el cliente Windows / en el share `Salud`. Hay que leerlo
+   (`grep -nE "TRUNCATE|DELETE|DROP|spool"`) antes de tocar nada.
+2. **El ciclo trunca la cola** (§5.1: exporta → envía al central → trunca). Si el `TRUNCATE` está
+   dentro del paso `repl` y el central no ha confirmado el sobre del 21/09, se pierden las 16.741
+   filas. No está verificado en qué paso está.
+3. **El envío al central lo hace la app, no el script**: un `repl` manual llena `T_*` pero no
+   entrega nada; y si luego corre la app, podría mandar un sobre duplicado o incompleto.
+4. Rendimiento: con 429.500 filas de prueba ya hubo espera por *log buffer space*.
+
+**Ruta segura (oficina, con autorización expresa):** (a) copiar el script en solo lectura y revisarlo;
+(b) correr **solo los SELECT** de conteo; (c) si hay que producir `T_*`, con el truncate comentado y
+la cola ya respaldada (`respaldo_20260925/eventos_sinc_20260925.csv`, 10/10 SHA-256); (d) mejor que
+lo lance `SistemaTransferencia.exe`, que es lo que el central espera, y verificar que el ZIP traiga
+los **5** archivos.
+
+**Guion de reconocimiento listo (solo lectura, sin riesgo con el sistema en uso):**
+- `migracion/recon_repllar1.sh` → wrapper SSH (usa `sshpass`; sin él imprime las órdenes manuales).
+  Reporte en `auditoria/recon_repllar1_<AAAAMMDD>.txt` (ignorado por git: puede traer usuarios
+  legacy y rastros de comandos con credenciales).
+- `migracion/recon_repllar1_remoto.sh` → en `srvsis`: rutas del orquestador, cron/at/init, dónde y
+  de qué fecha están los 5 logs del sobre, procesos, `.bash_history`, Samba, disco.
+- `migracion/recon_repllar1.sql` → 9 secciones de solo lectura: huella de `repl` en `TEMP.T_*`
+  (`LAST_DDL_TIME` y conteos por día), conteo real de cada `T_*`, ventana de `T_EVENTOS`, si el
+  motor (objetos con `%SINC%`/`%REPLI%`/`%PLCER%`/`%TRANSF%`) existe y está `INVALID`, y quién
+  tiene privilegios sobre `TEMP`.
+- **Las tres respuestas a buscar:** (1) qué archivo menciona `repllar1` y quién lo lanza;
+  (2) si `TEMP.T_*` no se recrean desde el 08/09 → `repl` no corre → encolar natalidad el lunes no
+  serviría; (3) si el motor está inválido, nadie podrá correrlo ni queriendo.
+- Validado el `.sql` contra el espejo `sis_oracle_legacy` como DBA y como usuario sin privilegios
+  (corregidos 6 errores reales: `ALL_TABLES` no tiene `LAST_DDL_TIME`, `SYS_CONTEXT(...,'SERIAL')`
+  no existe en 10g, `ALL_JOBS.JOB_NAME` y `ALL_TAB_PRIVS.TABLE_OWNER` inválidos → `TABLE_SCHEMA`).
+  Espejo restaurado y contenedor detenido. **Pendiente de ejecutarlo en vivo en la oficina.**
+
 ---
 
 *Registro creado el 12/09/2026.*
