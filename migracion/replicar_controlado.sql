@@ -80,7 +80,9 @@
 --      otra cosa (transformaciones, no copia).
 -- ============================================================================
 
-SET SERVEROUTPUT ON SIZE 1000000
+-- SIZE UNLIMITED y no un numero grande: en 10.1 el tope de SIZE son 32.767
+-- bytes, y un numero mayor lo rechazo el SQL*Plus.
+SET SERVEROUTPUT ON SIZE UNLIMITED
 SET LINESIZE 200
 SET PAGESIZE 500
 SET FEEDBACK OFF
@@ -133,37 +135,54 @@ DECLARE
   -- (SISMAI.*), en el orden del destino. Es la unica fuente de verdad: el DDL
   -- de legancy/analisis/schema_routlar1.sql esta truncado y no sirve para
   -- reconstruir las tablas.
+  --
+  -- OJO, POR QUE UN LOOP Y NO UN LISTAGG: el servidor de Lara es Oracle
+  -- 10.1.0.3.0 y LISTAGG (WITHIN GROUP) no existe hasta 10.2. Con LISTAGG, el
+  -- WHEN OTHERS de abajo se traga el ORA-00904 y DEVUELVE NULL: en el servidor
+  -- real las 23 tablas saldrian SALTADA "sin columnas en comun" y el script no
+  -- escribiria nada, sin decir por que. Probado en 10.1 (ver PENDIENTES.md
+  -- 17.14) y revalidado en el espejo XE 11.2.
   FUNCTION COLS_COMUNES(p_origen VARCHAR2, p_destino VARCHAR2) RETURN VARCHAR2 IS
-    V_LIST VARCHAR2(4000);
+    V_LIST VARCHAR2(32767);
   BEGIN
-    SELECT LISTAGG(B.COLUMN_NAME, ',') WITHIN GROUP (ORDER BY B.COLUMN_ID)
-      INTO V_LIST
-      FROM ALL_TAB_COLUMNS A, ALL_TAB_COLUMNS B
-     WHERE A.OWNER = 'SISMAI' AND A.TABLE_NAME = p_origen
-       AND B.OWNER = 'TEMP'  AND B.TABLE_NAME = p_destino
-       AND A.COLUMN_NAME = B.COLUMN_NAME;
-    RETURN V_LIST;
+    FOR r IN (SELECT B.COLUMN_NAME
+                FROM ALL_TAB_COLUMNS A, ALL_TAB_COLUMNS B
+               WHERE A.OWNER = 'SISMAI' AND A.TABLE_NAME = p_origen
+                 AND B.OWNER = 'TEMP'  AND B.TABLE_NAME = p_destino
+                 AND A.COLUMN_NAME = B.COLUMN_NAME
+               ORDER BY B.COLUMN_ID) LOOP
+      V_LIST := V_LIST || CASE WHEN V_LIST IS NULL THEN '' ELSE ',' END
+                            || r.COLUMN_NAME;
+    END LOOP;
+    RETURN V_LIST;                      -- NULL si no hay ninguna en comun
   EXCEPTION
-    WHEN OTHERS THEN RETURN NULL;   -- incluye ORA-01489 (agregado > 4000)
+    WHEN OTHERS THEN RETURN NULL;
   END COLS_COMUNES;
 
   -- Columnas del destino NOT NULL que NO existen en el origen: si hay alguna,
   -- el mapeo no es 1:1 y el INSERT no es seguro.
+  --
+  -- CONTRATO: devuelve NULL cuando no falta ninguna (el llamador compara con
+  -- IS NOT NULL), la lista si falta alguna, y '?' si hubo error al consultar.
+  -- OJO: en Oracle la cadena vacia ES NULL, asi que "NVL(V_LIST, '')" no
+  -- arregla nada y devuelve NULL igual: hay que devolver V_LIST tal cual.
   FUNCTION FALTAN_NOT_NULL(p_origen VARCHAR2, p_destino VARCHAR2) RETURN VARCHAR2 IS
-    V_LIST VARCHAR2(1000);
+    V_LIST VARCHAR2(32767);
   BEGIN
-    SELECT LISTAGG(B.COLUMN_NAME, ',') WITHIN GROUP (ORDER BY B.COLUMN_ID)
-      INTO V_LIST
-      FROM ALL_TAB_COLUMNS B
-     WHERE B.OWNER = 'TEMP' AND B.TABLE_NAME = p_destino
-       AND B.NULLABLE = 'N'
-       AND NOT EXISTS (SELECT 1 FROM ALL_TAB_COLUMNS A
-                        WHERE A.OWNER = 'SISMAI' AND A.TABLE_NAME = p_origen
-                          AND A.COLUMN_NAME = B.COLUMN_NAME);
+    FOR r IN (SELECT B.COLUMN_NAME
+                FROM ALL_TAB_COLUMNS B
+               WHERE B.OWNER = 'TEMP' AND B.TABLE_NAME = p_destino
+                 AND B.NULLABLE = 'N'
+                 AND NOT EXISTS (SELECT 1 FROM ALL_TAB_COLUMNS A
+                                  WHERE A.OWNER = 'SISMAI' AND A.TABLE_NAME = p_origen
+                                    AND A.COLUMN_NAME = B.COLUMN_NAME)
+               ORDER BY B.COLUMN_ID) LOOP
+      V_LIST := V_LIST || CASE WHEN V_LIST IS NULL THEN '' ELSE ',' END
+                            || r.COLUMN_NAME;
+    END LOOP;
     RETURN V_LIST;
   EXCEPTION
-    WHEN NO_DATA_FOUND THEN RETURN NULL;
-    WHEN OTHERS        THEN RETURN '?';
+    WHEN OTHERS THEN RETURN '?';
   END FALTAN_NOT_NULL;
 
   FUNCTION NUM_COLS(p_lista VARCHAR2) RETURN PLS_INTEGER IS
@@ -231,7 +250,7 @@ DECLARE
     V_MAPREC     VARCHAR2(200);
     V_ORIGEN     VARCHAR2(30);
     V_DESTINO    VARCHAR2(30);
-    V_COLS       VARCHAR2(4000);
+    V_COLS       VARCHAR2(32767);   -- sin limite de LISTAGG: la lista se arma con un loop
     V_FALTAN     VARCHAR2(1000);
     V_LOTE_N     PLS_INTEGER := 0;
     V_FUENTE_N   PLS_INTEGER := 0;
@@ -262,11 +281,11 @@ DECLARE
     V_FALTAN := FALTAN_NOT_NULL(V_ORIGEN, V_DESTINO);
     IF V_COLS IS NULL THEN
       P('  SALTADA: sin columnas en comun entre SISMAI.' || V_ORIGEN
-        || ' y TEMP.' || V_DESTINO || ' (o lista > 4000 caracteres)');
+        || ' y TEMP.' || V_DESTINO);
       V_TABLAS_SALTADAS := V_TABLAS_SALTADAS + 1;
       RETURN;
     END IF;
-    IF V_FALTAN IS NOT NULL THEN
+    IF V_FALTAN IS NOT NULL THEN        -- NULL = no falta ninguna (ver FALTAN_NOT_NULL)
       P('  SALTADA: ' || V_DESTINO || ' exige NOT NULL sin origen: ' || V_FALTAN
         || ' -> el mapeo no es 1:1; no se fuerza. Requiere la logica del original.');
       V_TABLAS_SALTADAS := V_TABLAS_SALTADAS + 1;
@@ -358,7 +377,7 @@ DECLARE
     V_PREV PLS_INTEGER := 0;
     V_INS  PLS_INTEGER := 0;
     V_DEL  PLS_INTEGER := 0;
-    V_COLS VARCHAR2(4000);
+    V_COLS VARCHAR2(32767);
   BEGIN
     P(CHR(10) || '--- TEMP.T_EVENTOS (manifiesto) ---');
     EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM SISMAI.EVENTOS_SINC' INTO V_CNT;

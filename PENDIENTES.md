@@ -867,3 +867,96 @@ viajan a ninguna `T_` pero cuya historia necesita ver el central. Se quitó `V_R
 ---
 
 *Registro creado el 12/09/2026.*
+
+### 17.14 `generar_paquete_live.sh`: armar el sobre real (26/09/2026)
+
+**Qué resuelve.** §17.13 probó el sobre en el espejo, pero contra producción el `exp` del usuario
+`TEMP` sigue siendo un paso manual, y nada impedía armar un ZIP con 5 archivos y 2 de ellos falsos
+sin avisar. Este guion hace las dos cosas: **preflight de solo lectura** y **armado con
+confirmaciones**.
+
+```bash
+./migracion/generar_paquete_live.sh preflight        # solo lee, se puede con el sistema en uso
+./migracion/generar_paquete_live.sh armar            # exp + ZIP; se niega a inventar los 2 logs
+./migracion/generar_paquete_live.sh armar --con-stub  # incluye los 2 STUB, con doble confirmación
+```
+
+**El preflight BLOQUEA si:**
+
+1. el manifiesto `TEMP.T_EVENTOS` está vacío o no se puede leer (sin manifiesto el sobre no sirve);
+2. el usuario de `exp` no tiene `EXP_FULL_DATABASE` ni `SELECT ANY TABLE` (el `exp` de `owner=TEMP`
+   no puede funcionar; por defecto `respaldo` no lo puede → hay que ir con `USUARIO=oracle`);
+3. **hay filas en tablas `T_` que el plan B no controla** (~60). El `exp` se lleva *todo* `TEMP`, así
+   que en el paquete del 04/08 iban todas en 0 y ahora se colarían sin que nadie las haya revisado;
+   vaciarlas es operación del DBA con autorización, el plan B no las toca;
+4. hay menos de 256 MB libres en el directorio del servidor;
+5. no existe un log de `replicar_controlado_live.sh ejecutar` para usar de `repllar1.log` (avisa si
+   es de ayer).
+
+**Qué es real y qué no en el sobre armado:** `routlar1.dmp` y `routlar1.log` son el `exp` real de
+`TEMP`; `repllar1.log` es la salida de la corrida del día; `copyhistlar1.log` y `bloqlar1.log` son
+**STUB con marcador**. Falta el contenido de `T_AUDITORIA` (9.118 filas). El guion no envía nada,
+no trunca la cola y no escribe en la base (un `exp` solo lee); pone los SHA-256 **fuera** del ZIP
+(`SHA256SUMS.txt`) porque el sobre tiene que llevar exactamente 5 archivos, y verifica que sean 5
+antes de terminar.
+
+**Alcance de la validación:** `bash -n` y revisión del flujo; el `preflight` **no se ha ejecutado
+contra `192.168.5.200`** porque no hay autorización para tocar el servidor. La primera corrida real
+debe ser un `preflight`, que es inofensivo, y comparar sus conteos con los de la simulación.
+
+**Bug encontrado y corregido al agregar la contraprueba F (§17.15):** el guardado de columnas
+"que faltan" usaba `NVL(V_LIST, '')` esperando convertir el vacío en cadena, pero **en Oracle la
+cadena vacía ES NULL**, así que devolvía NULL igual y la tabla con `NOT NULL` sin origen se replicaba
+en lugar de saltarse. El contrato correcto es NULL = "no falta ninguna" y el comparador `IS NOT NULL`.
+Lo detectó la contraprueba F, no la simulación del caso normal (§17.13 no quitaba columnas).
+
+### 17.15 Contraprueba F: `NVL(lista,'')` no arregla nada (26/09/2026)
+
+La simulación del caso normal (§17.13) no detectaba el fallo porque nunca quita columnas al origen.
+La contraprueba F sí: borra del origen la columna `HESTABLECIMIENTO`, que en `TEMP.T_CERTMORT` es
+`NOT NULL` sin equivalente en `SISMAI.CERTIFICADO`. El `INSERT` entonces omite esa columna y
+`ORA-01400` — o sea, el lote se cae a mitad de la carga, no "salta la tabla".
+
+**El bug.** `FALTAN_NOT_NULL`.armaba la lista con un loop (sustituyendo el `LISTAGG`, que no existe
+en 10.1) y devolvía `NVL(V_LIST, '')`. En Oracle **la cadena vacía ES NULL**, así que
+`NVL(NULL, '')` devuelve NULL: la función devolvía NULL tanto cuando faltaba una columna como cuando
+no faltaba ninguna, y el `IF V_FALTAN IS NOT NULL AND V_FALTAN <> ''` del llamador nunca se cumplía.
+
+**Cómo se rastreó** (el bloque completo se negaba a saltar la tabla, y no hab*a* error visible): tres
+pasos con un `PL/SQL` de depuración sobre el mismo escenario — (1) la consulta directa de columnas
+faltantes devolvía 1; (2) la función aislada devolvía `HESTABLECIMIENTO` correctamente; (3) un
+`CASE WHEN V_FALTAN IS NULL` dentro de `PROCESAR` marco que para `CERTIFICADO` era NO y para
+`CERTNACIMIENTO` SI, cuando el loop no había encontrado nada. Imposible con `NVL(...,'')` en el
+código ⇒ el bug estaba en el "arreglo", no en el `IF`.
+
+**Contrato final:** la función devuelve NULL = "no falta ninguna", la lista si falta alguna, y `'?'`
+si hubo error al consultar el diccionario (esa tabla se salta y se reporta, que es lo seguro).
+Llamador: `IF V_FALTAN IS NOT NULL THEN`. Idempotencia no afectada.
+
+**Resultado de las contrapruebas: 14 correctas, 0 con falla** (`auditoria/pruebas_negativas.txt`),
+con `T_CERTMORT` en 0 filas, las otras 22 tablas copian normal y el escenario base restaurado al final.
+
+### 17.16 El central recibe todos los martes y no reclama (26/09/2026)
+
+Dato del usuario: el nivel superior **ha recibido la información procesada y enviada todos los
+martes y no se ha quejado**, y **no tiene soporte** — es una persona que a veces puede ayudar.
+
+**Qué cambia en la evaluación de riesgo:**
+
+- El riesgo de que el central rechace el sobre por los 2 logs STUB o el `T_AUDITORIA` vacío
+  (§17.14) es **bajo**: nadie audita el contenido del sobre semanalmente.
+- El riesgo real **no es el rechazo**, es el **silencio**: que el central acepte un sobre incompleto
+  y eso no se detecte nunca. La defensa no es técnica, es de proceso: una vez al mes, o cuando se
+  tenga una señal de falla, comparar contra el paquete de referencia y usar a esa persona del
+  central como confirmación informal de recepción.
+- Por lo tanto **el plan B + `generar_paquete_live.sh --con-stub` es viable como procedimiento
+  semanal**, y el `exp` de las 13:00 + el legacy se pueden ir retirando en la práctica aunque no
+  haya migración de la BD (§17.9) resuelta.
+- Queda **sin resolver** la falta de soporte: si el central algún día cambia de interlocutor o
+  empieza a validar, el sobre parcial deja de servir. Por eso el guion no envía nada y exige
+  confirmación explícita, y por eso los dos STUB están marcados como tales: si alguien los lee, se
+  sabe que no son los originales.
+
+**Rutina semanal que queda (a confirmar):** lunes `preflight` + `replicar_controlado_live.sh ejecutar`
+(sin el `exp` de las 13:00) → martes `generar_paquete_live.sh armar --con-stub` y entrega por el
+canal de siempre, con un mensaje al contacto del central confirmando el número de eventos enviados.

@@ -22,6 +22,9 @@
 #          listarla en la seccion [5]
 #    E  Se ejecuta dos veces seguidas
 #       -> el resultado no debe cambiar (idempotencia)
+#    F  Se quita del origen la columna que la T_ declara NOT NULL
+#       -> el mapeo deja de ser 1:1: la tabla se SALTA y se dice por que, sin
+#          forzar la carga; las otras 22 tablas se siguen replicando
 #
 #  Al terminar restaura el escenario base.
 #
@@ -222,6 +225,32 @@ dml_preparado; replicar
 chequear "T_CERTMORT" "$BASE_CERTMORT" "$(contar TEMP.T_CERTMORT)"
 chequear "T_CERTNACI" "422" "$(contar TEMP.T_CERTNACI)"
 chequear "T_EVENTOS" "$BASE_MANIF" "$(contar TEMP.T_EVENTOS)"
+
+# ---------------------------------------------------------------- F ----------
+# El camino "exige NOT NULL sin origen": si al origen le falta una columna que
+# la T_ declara NOT NULL, el mapeo no es 1:1 y la tabla se SALTA (no se fuerza).
+# Cubre el contrato de FALTAN_NOT_NULL, que devuelve '' cuando no falta nada
+# (no NULL): si esa distincion se pierde, todas las tablas salen SALTADA.
+echo
+echo "[F] se quita del origen la columna NOT NULL de la T_ -> la tabla se SALTA"
+COLS=$(sql "SET HEADING OFF
+SELECT 'COL:'||COLUMN_NAME FROM ALL_TAB_COLUMNS WHERE OWNER='SISMAI' AND TABLE_NAME='CERTIFICADO'
+ AND NULLABLE='N'" | tr -d ' \t' | sed -n 's/^COL:\([A-Z0-9_]*\)$/\1/p' | tr '\n' ' ' || true)
+echo "    columna NOT NULL del origen: $COLS"
+for c in $COLS; do
+  sql "ALTER TABLE SISMAI.CERTIFICADO DROP COLUMN $c" > /dev/null
+done
+dml_preparado; replicar
+chequear "T_CERTMORT (saltada: 0 filas)" "0" "$(contar TEMP.T_CERTMORT)"
+chequear "T_CERTNACI (las otras 22 siguen)" "422" "$(contar TEMP.T_CERTNACI)"
+if grep -q "exige NOT NULL sin origen: $COLS" "$AUD/prueba_replicacion.txt"; then
+  echo "    OK    el informe lo dice y no se fuerza la carga"
+else
+  echo "    FALLA el informe no reporta el salto"; FALLOS=$((FALLOS+1))
+  grep -E "T_CERTMORT" "$AUD/prueba_replicacion.txt" | head -3 | sed 's/^/      /'
+fi
+sql "@/tmp/01_preparar_escenario.sql" > /dev/null
+echo "        (origen reconstruido exacto desde la referencia)"
 
 # ---------------------------------------------------------------- restore -----
 echo
