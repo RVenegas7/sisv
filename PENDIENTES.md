@@ -668,6 +668,39 @@ los **5** archivos.
   no existe en 10g, `ALL_JOBS.JOB_NAME` y `ALL_TAB_PRIVS.TABLE_OWNER` inválidos → `TABLE_SCHEMA`).
   Espejo restaurado y contenedor detenido. **Pendiente de ejecutarlo en vivo en la oficina.**
 
+### 17.11 Orden del lunes 28/09: qué corrige qué
+
+**Los scripts por sí solos NO corrigen la situación: son diagnóstico (solo lectura).** Su valor es
+quitar la incógnita de §17.7 **antes** de tocar la cola, para no encolar 1,3 M de eventos que no
+van a viajar. La corrección en sí la hace el componente faltante (el `.exe` de Windows o el cron),
+no estos archivos.
+
+**Orden (regla: no pasar al paso 3 sin respuesta del paso 1):**
+
+1. **Reconocimiento** — `./migracion/recon_repllar1.sh` (no cambia nada, se puede con el sistema en
+   uso, incluso con usuarios capturando). Responde: ¿corre la fase `repl`?, ¿quién la lanza?,
+   ¿el motor está inválido?
+2. **Decidir según el resultado:**
+   - `TEMP.T_*` recreadas en la última corrida → `repl` funciona y el problema es el **arranque**:
+     restaurarlo (cron o `SistemaTransferencia.exe` del cliente Windows) → seguir al paso 3.
+   - No se recrean **y** el motor está `INVALID` → el DBA recompila; sin eso no hay sincronización.
+   - No se recrean **y** el script no está en el servidor → traerlo del share `Salud`, **leerlo**
+     (`grep -nE "TRUNCATE|DELETE|DROP|spool"`) y decidir: correrlo tal cual con la cola respaldada,
+     o escribir un equivalente controlado sin `TRUNCATE`.
+   - El archivo que menciona `repllar1` **no existe en el Linux** → el motor vive solo en el PC de
+     la sede: la sincronización se dispara **desde el cliente Windows**, no desde el servidor.
+3. **Encolar natalidad** (1.295.152 eventos) solo con el paso 2 resuelto y la cola respaldada
+   verificada (`respaldo_20260925/eventos_sinc_20260925.csv`, 10/10 SHA-256), en la tarde y fuera
+   de las horas de carga.
+4. **Verificar el sobre del 29/09:** 5 archivos, `repllar1.log` presente y `T_EVENTOS` con la
+   natalidad. Si el nivel central lo rechaza o no lo recibe, **escalar al soporte SIS/Centura**:
+   ningún componente local puede forzar la recepción del sobre.
+
+**Expectativas realistas:** con los pasos 1 y 2 el martes 29/09 debería volver a salir un sobre
+completo (5 archivos). Si el generador resulta ser el `.exe` de Windows y no está disponible en la
+sede, el plan B es escribir un script propio que arme `TEMP.T_*` desde la cola — se puede, pero
+**sin `TRUNCATE` y con revisión del DBA**; no antes.
+
 ---
 
 *Registro creado el 12/09/2026.*
