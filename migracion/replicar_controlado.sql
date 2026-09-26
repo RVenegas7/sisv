@@ -94,13 +94,6 @@ DECLARE
   -- ==========================================================================
   V_EJECUTAR                PLS_INTEGER := 0;
 
-  -- 0 = T_EVENTOS se refresca solo para las claves replicadas (modo seguro;
-  --     quedan filas de corridas previas, que volverian a viajar en el sobre)
-  -- 1 = T_EVENTOS se recarga completo con la cola mapeada (lo que hacia el
-  --     ciclo original al recrear la tabla). Descarta el manifiesto anterior:
-  --     usese solo si el nivel central ya confirmo el sobre previo.
-  V_RELLENAR_T_EVENTOS      PLS_INTEGER := 0;
-
   V_COLA_TOTAL              PLS_INTEGER := 0;
   V_LOTE_INICIO             DATE;
   V_TABLAS_MAPEADAS         PLS_INTEGER := 0;
@@ -213,6 +206,17 @@ DECLARE
   BEGIN
     RETURN 'DELETE FROM TEMP.' || p_destino || ' WHERE ID IN (' || SQL_LOTE(p_tabla) || ')';
   END SQL_BORRA;
+
+  -- Las TABLA del mapeo, como lista entre parentesis para el SQL dinamico.
+  -- Se usa la misma lista que la seccion [5], para que las dos no se separen.
+  FUNCTION LISTA_TABLAS_MAPEADAS RETURN VARCHAR2 IS
+    V_LIST VARCHAR2(4000) := '(';
+  BEGIN
+    FOR i IN 1 .. V_ORD.COUNT LOOP
+      V_LIST := V_LIST || '''' || V_ORD(i) || '''' || CASE WHEN i < V_ORD.COUNT THEN ',' END;
+    END LOOP;
+    RETURN V_LIST || ')';
+  END LISTA_TABLAS_MAPEADAS;
 
   PROCEDURE P(p_txt VARCHAR2) IS
   BEGIN DBMS_OUTPUT.PUT_LINE(p_txt); END P;
@@ -349,6 +353,7 @@ DECLARE
   -- [4] TEMP.T_EVENTOS, el manifiesto que viaja
   ----------------------------------------------------------------------------
   PROCEDURE MANIFIESTO IS
+    V_LISTA_TABLAS VARCHAR2(4000);
     V_CNT  PLS_INTEGER := 0;
     V_PREV PLS_INTEGER := 0;
     V_INS  PLS_INTEGER := 0;
@@ -374,36 +379,36 @@ DECLARE
       RETURN;
     END IF;
     P('  columnas del manifiesto: ' || V_COLS);
+    V_LISTA_TABLAS := LISTA_TABLAS_MAPEADAS;
 
     IF V_EJECUTAR = 0 THEN
       P('  eventos totales en la cola      : ' || N(V_CNT));
       P('  filas actuales en TEMP.T_EVENTOS: ' || N(V_PREV));
-      P('  DRY-RUN: no se escribe nada. Al ejecutar con V_RELLENAR_T_EVENTOS=0:');
-      P('    se borran y reinscriben solo las claves replicadas; las filas de');
-      P('    corridas previas SE QUEDAN y volverian a viajar en el sobre.');
-      P('  Con V_RELLENAR_T_EVENTOS=1: recarga completa del manifiesto (descarta');
-      P('    el anterior; solo si el central ya confirmo el sobre previo).');
+      P('  El manifiesto es una copia de TODA la cola de las 23 TABLA mapeadas,');
+      P('  incluidos los eventos de los IDs que no viajan por DELETE(3): el');
+      P('  nivel central necesita ver ese borrado. Verificado contra el');
+      P('  paquete del 04/08/2026 (60 eventos en 34 IDs).');
       RETURN;
     END IF;
 
-    IF V_RELLENAR_T_EVENTOS = 1 THEN
-      EXECUTE IMMEDIATE 'DELETE FROM TEMP.T_EVENTOS';
-      V_DEL := SQL%ROWCOUNT;
-      P('  filas antes de la carga: ' || N(V_PREV));
-      P('  DELETE total de T_EVENTOS: ' || N(V_DEL) || ' (manifiesto anterior descartado)');
-    END IF;
-    FOR i IN 1 .. V_ORD.COUNT LOOP
-      EXECUTE IMMEDIATE 'DELETE FROM TEMP.T_EVENTOS WHERE TABLA = :1 AND ID IN ('
-                        || SQL_LOTE(V_ORD(i)) || ')' USING V_ORD(i);
-      V_DEL := V_DEL + SQL%ROWCOUNT;
-      EXECUTE IMMEDIATE
-        'INSERT INTO TEMP.T_EVENTOS (' || V_COLS || ') '
-        || 'SELECT E.' || REPLACE(V_COLS, ',', ', E.') || ' FROM SISMAI.EVENTOS_SINC E '
-        || 'WHERE E.TABLA = :1 AND E.ID IN (' || SQL_LOTE(V_ORD(i)) || ')' USING V_ORD(i);
-      V_INS := V_INS + SQL%ROWCOUNT;
-    END LOOP;
+    -- El manifiesto es una COPIA DE TODA LA COLA de las TABLA mapeadas, no solo
+    -- del lote que viaja. Verificado contra el paquete del 04/08/2026: sus
+    -- 9.862 eventos incluyen los de los IDs cuyo ultimo evento es DELETE(3) --
+    -- 60 eventos en 34 IDs (57 de RENGLONTELE, 3 de DOCUMENTO) --, que no
+    -- viajan a la T_ pero cuya historia tiene que ver el nivel central.
+    -- La fase original recreaba la tabla en cada corrida, de ahi que quedara
+    -- siempre espejo de la cola.
+    EXECUTE IMMEDIATE 'DELETE FROM TEMP.T_EVENTOS WHERE TABLA IN '
+                      || V_LISTA_TABLAS;
+    V_DEL := SQL%ROWCOUNT;
+    EXECUTE IMMEDIATE
+      'INSERT INTO TEMP.T_EVENTOS (' || V_COLS || ') '
+      || 'SELECT E.' || REPLACE(V_COLS, ',', ', E.') || ' FROM SISMAI.EVENTOS_SINC E '
+      || 'WHERE E.TABLA IN ' || V_LISTA_TABLAS;
+    V_INS := SQL%ROWCOUNT;
     COMMIT;
-    P('  T_EVENTOS: borradas ' || N(V_DEL) || ', insertadas ' || N(V_INS) || ', commit OK');
+    P('  T_EVENTOS: filas antes ' || N(V_PREV) || ', borradas ' || N(V_DEL)
+      || ', insertadas ' || N(V_INS) || ', commit OK');
   EXCEPTION WHEN OTHERS THEN
     ROLLBACK;
     P('  ERROR en T_EVENTOS: ' || SQLERRM || '  -> ROLLBACK de esta seccion');
@@ -443,7 +448,7 @@ BEGIN
   P('  replicar_controlado.sql  (PLAN B: requiere autorizacion expresa)');
   P('  ' || TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS')
     || '  usuario=' || SYS_CONTEXT('USERENV', 'SESSION_USER'));
-  P('  V_EJECUTAR=' || V_EJECUTAR || '   V_RELLENAR_T_EVENTOS=' || V_RELLENAR_T_EVENTOS);
+  P('  V_EJECUTAR=' || V_EJECUTAR);
   IF V_EJECUTAR = 0 THEN
     P('  MODO SEGURO: cero escrituras. Esto es un informe.');
   ELSE

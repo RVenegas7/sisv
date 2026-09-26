@@ -739,9 +739,14 @@ una recuperación parcial, y así hay que decirlo al reportar.
   `ROLLBACK` de esa tabla y sigue; el wrapper aborta si la salida trae `ERROR`.
 - Modo seguro por defecto (`V_EJECUTAR := 0` = solo informe). El archivo del repositorio **siempre**
   queda en 0; la copia temporal es la única que va a 1.
-- `V_RELLENAR_T_EVENTOS` en 0 (modo seguro): el manifiesto se refresca solo para las claves replicadas
-  y las filas de corridas previas se quedan —que volverían a viajar en el sobre—; ponerlo en 1
-  recarga el manifiesto completo, pero descarta el anterior.
+- **El manifiesto `T_EVENTOS` es una copia de TODA la cola** de las 23 `TABLA` del mapeo (borra esas
+  filas y reinserta todas), no solo de las claves que viajan. No es una decisión de diseño: es lo que
+  hacía la fase original, que recreaba la tabla en cada corrida. Verificado contra el sobre del
+  04/08/2026: sus 9.862 eventos incluyen los de los **34 IDs cuyo último evento es `DELETE(3)`**
+  (57 de `RENGLONTELE`, 3 de `DOCUMENTO`) — 60 eventos que no viajan a ninguna `T_` pero cuya
+  historia tiene que ver el nivel central. Por eso se quitó el parámetro `V_RELLENAR_T_EVENTOS`
+  (antes en 0 = refresco parcial, que dejaba filas de corridas anteriores que volverían a viajar en
+  el sobre; en 1 = recarga completa): hacer siempre lo segundo era lo correcto.
 
 **Por qué una sola pasada analítica y no `NOT EXISTS`:** `EVENTOS_SINC` no tiene ningún índice
 (§17.2), así que un `NOT EXISTS` correlacionado sobre `(TABLA, ID)` es cuadrático sobre 1,3 M de
@@ -755,8 +760,10 @@ eventos (mismo aviso que en `encolar_natalidad_legacy.sql`). El lote se resuelve
    es una decisión **funcional**: la tiene que dar el soporte SIS/Centura, no se deduce de la BD.
 2. Si una tabla se salta por «exige NOT NULL sin origen», **no se fuerce**: significa que ese mapeo no
    es 1:1 y la lógica original hacía transformaciones, no copia.
-3. `T_EVENTOS` se asume con las columnas `TABLA, ID, EVENTO, FECHA, STATUS, AMS`; verificar contra
-   la tabla real antes de la primera ejecución.
+3. `T_EVENTOS` se asume con las columnas `TABLA, ID, EVENTO, FECHA, STATUS, AMS`. **Verificado el
+   26/09 contra la tabla real** (el dump del 04/08, en `IMPORT29` del espejo): son exactamente esas
+   6, en el orden `TABLA, EVENTO, FECHA, ID, STATUS, AMS`, con `AMS VARCHAR2(12)` nullable. Queda por
+   confirmar solo la estructura de `SISMAI.EVENTOS_SINC` en el servidor, que en el espejo es sintética.
 4. El **costo**: sin índices en la cola, la primera pasada puede tardar. Correr primero el `informe` y
    medir; si la cola llega a 1,3 M (post-encolado de natalidad), repetir el cálculo en el servidor.
 
@@ -790,7 +797,8 @@ esquema produce `ERROR` + `ROLLBACK` de esa tabla y el wrapper aborta, (g) la co
 mismas 13 filas. Además se corrigieron tres incompatibilidades de PL/SQL que-compilan solo en
 versiones nuevas: el constructor de `record` en la colección (`PLS-00222`), `DBA_FREE_SPACE.USED_BYTES`
 (no existe; es solo `BYTES`) y `COMMIT` poniendo `SQL%ROWCOUNT` a 0 (el conteo del `INSERT` se
-captura antes).
+captura antes). A partir de aquí la validación pasó de 13 eventos sintéticos al **paquete real
+completo**: ver §17.13.
 
 **Pendiente para cerrarlo:**
 - [ ] Correr el `informe` en `192.168.5.200` y revisar las secciones [3] y [5] con el DBA.
@@ -799,6 +807,62 @@ captura antes).
 - [ ] Verificar la estructura real de `SISMAI.EVENTOS_SINC` y `TEMP.T_EVENTOS` (columna `AMS`).
 - [ ] Respaldar `TEMP.T_*` (no está en `respaldo_20260925/`, que son los ZIP y el CSV de la cola).
 - [ ] Solo con esas 4 cosas resueltas: pedir la autorización y ejecutar.
+
+---
+
+### 17.13 Simulación del paquete en el espejo: el plan B reproduce el envío del 04/08 (26/09/2026)
+
+**Qué resuelve.** §17.12 validaba el plan B con 13 eventos sintéticos: demostraba que la lógica del
+lote funciona, no que el sobre que arma sea el mismo que envió el legacy. Esta simulación lo corre
+contra la **referencia real**: el paquete `enviados/routlar1_482026_1526.ZIP` (04/08/2026, 5 archivos)
+que sí llegó a enviarse, cuyo `exp` está íntegro en el esquema `IMPORT29` del espejo
+`legancy/BDSISMAI.DMP`. Se reconstruye el escenario y se compara **fila por fila** con `MINUS` en
+ambos sentidos.
+
+**Cómo correrla** (nunca toca `192.168.5.200`; todo en el espejo local):
+
+```bash
+./migracion/simulacion/ejecutar_simulacion.sh              # las 6 etapas
+./migracion/simulacion/04_pruebas_negativas.sh             # solo las contrapruebas
+```
+
+| Archivo | Qué hace |
+|---|---|
+| `00_ddl_temp_04082026.sql` | El DDL real de la fase: 83 `CREATE TABLE` + 86 `CREATE INDEX` de `TEMP.T_*`, extraído del paquete. |
+| `01_preparar_escenario.sql` | `SISMAI.EVENTOS_SINC ← IMPORT29.T_EVENTOS` (9.862 eventos) y las 23 fuentes `SISMAI.*` como proyección de su `T_*`. |
+| `02_comparar.sql` | `MINUS` en ambos sentidos por tabla + veredicto `SIMULACION CORRECTA`. |
+| `03_generar_paquete.sh` | `exp` real del usuario `TEMP` + los 5 archivos del ZIP, y comparación de conteos con el paquete real. |
+| `04_pruebas_negativas.sh` | Contrapruebas A–E (ver abajo). |
+| `ejecutar_simulacion.sh` | Orquestador: escenario → DDL → replicar → comparar → ZIP → idempotencia. |
+
+**Resultado (26/09/2026, evidencia en `auditoria/simulacion_completa.txt`):**
+
+- **23 de 23 tablas del mapeo idénticas** a la referencia: 9.531 filas, cero diferencias.
+- **Manifiesto `T_EVENTOS` idéntico**: 9.862 eventos, 0 sobrantes, 0 faltantes.
+- **Idempotente**: la segunda corrida borra 9.531 e inserta 9.531 y deja el mismo resultado.
+- **Contrapruebas 12/12** (`auditoria/pruebas_negativas.txt`): A, un `DELETE(3)` al final del
+  historial saca la fila de la `T_` y **se queda en el manifiesto**; B, un `INSERT(1)` de un ID que no
+ Viajaba aparece en el manifiesto; C, quitar 2 columnas del origen deja la `T_` igual (copia menos,
+  no más); D, una `TABLA` sin mapeo no entra y se reporta en `[5]`; E, dos corridas seguidas no cambian
+  nada.
+
+**Lo que la simulación cambió del script.** El manifiesto dejó de refrescarse solo para las claves
+replicadas: ahora es **copia de toda la cola** de las 23 `TABLA` del mapeo. Lo decidió el paquete
+real — sus 9.862 eventos incluyen 60 eventos de 34 IDs cuyo último evento es `DELETE(3)`, que no
+viajan a ninguna `T_` pero cuya historia necesita ver el central. Se quitó `V_RELLENAR_T_EVENTOS`
+(ver §17.12).
+
+**Lo que la simulación NO demuestra** (say it when reporting):
+1. `T_AUDITORIA` (9.118 filas en el real) y las otras ~60 `T_*` no se replican: es el alcance
+   conocido del plan B, no un defecto de la simulación.
+2. Los orígenes `SISMAI.*` del espejo son **proyecciones** de las `T_*`, no las tablas fuente reales:
+   la proyección copia valores tal cual, así que la **transformación** real origen → `T_` no se
+   prueba. Solo la lógica de lote, columnas, idempotencia y manifiesto.
+3. `copyhistlar1.log` y `bloqlar1.log` del ZIP simulado son **STUB**: esas dos fases no están
+   reconstruidas. El ZIP sirve para medir tamaño y estructura (260 K contra 273 K del `dmp` real),
+   no para simular su contenido.
+4. Corre contra Oracle XE 11.2, no contra 10.1.0.3.0. Es la misma versión mayor del PL/SQL soportado,
+   pero el volumen es 9.862 eventos, no 1,3 M: el costo real está sin medir (ver salvedad 4 de §17.12).
 
 ---
 
