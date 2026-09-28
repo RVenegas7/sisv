@@ -38,6 +38,7 @@ auditoria/
 
 # Respaldos de las bases del proyecto (para la oficina/producción, no versionar)
 dumps/
+*.dump
 
 # Exportaciones de análisis con datos personales (cedulas/nombres del personal legacy)
 candidatos_usuarios_desactivados.csv

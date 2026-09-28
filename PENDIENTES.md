@@ -960,3 +960,248 @@ martes y no se ha quejado**, y **no tiene soporte** — es una persona que a vec
 **Rutina semanal que queda (a confirmar):** lunes `preflight` + `replicar_controlado_live.sh ejecutar`
 (sin el `exp` de las 13:00) → martes `generar_paquete_live.sh armar --con-stub` y entrega por el
 canal de siempre, con un mensaje al contacto del central confirmando el número de eventos enviados.
+
+### 17.17 Ventana del martes 29/09 después de las 13:00: extraer el Oracle a PostgreSQL
+
+Contexto: el **martes 29/09 se envía la semana 38** y **después de las 13:00 nadie trabaja en el
+sistema** (fin de jornada de captura). Esa ventana libre es la oportunidad para traer la base del
+servidor en vivo y trabajar en casa sobre un entorno controlado. El usuario tiene la cuenta SO
+**`oracle`** (grupo `dba`, `sqlplus / as sysdba`) — la única con DBA del servidor (§17).
+
+**Objetivo de la mañana (no negociable, va antes que todo lo demás):** confirmar que el sobre de la
+semana 38 salió con **5 archivos**. Si sale con 4, se aplica el plan B (§17.11, §17.14) y el resto
+del día se dedica a eso. La extracción solo empieza con el sobre verificado.
+
+#### Orden dentro de la ventana
+
+| # | Fase | Tiempo | Peso en el servidor |
+|---|---|---|---|
+| 0 | Verificar que el respaldo de las 13:00 terminó bien | 5 min | nulo |
+| 1 | **Subconjunto crítico** → PostgreSQL → verificar MM/MN | 20–30 min | bajo |
+| 2 | Extracción total por esquemas (CSV) | 2–4 h | **alto** |
+| 3 | Carga en PostgreSQL (`COPY`) + verificación | 30–45 min | nulo (es local) |
+
+La fase 1 va primero a propósito: son 20 minutos y ya deja resoluble la pregunta de MM/MN. Si la
+fase 2 se corta o falla, no se pierde el resultado que importa.
+
+#### Fase 1 — el subconjunto que responde la pregunta de MM/MN (~1,2 M filas, no 6,4 M)
+
+| Tabla | Filas aprox. | Para qué |
+|---|---|---|
+| `SISMAI.CERTIFICADO` (semanas 32–37) | ~1.200 | el hueco de MM/MN que falta en PostgreSQL |
+| `SISMAI.RENGLON_CASOSMM` | 749 | **registro caso por caso de muerte materna** |
+| `SISMAI.RENGLON_CASOSMI` | 9.993 | registro de mortalidad neonatal |
+| `SISMAI.CAUSA_M` + `CAUSA_MMEDICO` | 543.595 | reclasificar MM/MN por causa |
+| `SISMAI.ORGANIZACION`, `PERSONALSALUD`, `ORG_GEOGRAFICA` | ~166.000 | resolver establecimiento y profesional |
+
+Se deja fuera a propósito **`RENGLONTELE` (2.663.432 filas, el 41% del volumen)** y las ~423 tablas
+pequeñas. Saltar `RENGLONTELE` baja la carga de 6,4 M a ~1,2 M filas: **la cuarta parte del tiempo y
+la décima parte del riesgo** sobre producción.
+
+#### Reglas de la ventana (no negociables)
+
+- **Solo lectura.** Todo `SELECT`/`SPOOL`. Ni un `INSERT`, ni un `TRUNCATE`, ni un `DROP`.
+- **No tocar `SISMAI.EVENTOS_SINC`** (§17: ya fue dropeada y recreada el 21/09; se perdieron 3,37 M de
+  eventos). Ninguna consulta que la bloquee, ninguna sesión que la modifique.
+- **No ejecutar la fase `repl` ni `replicar_controlado_live.sh`.** Mañana se envía el sobre; no se
+  cambia el estado de la cola el mismo día del envío.
+- **Todo por `NOHUP`/`screen` y con bitácora de salida**, para poder recuperar el trabajo: si se
+  corta la sesión, el
+  proceso sigue y se puede recuperar sin relanzar desde cero.
+- **Volcado de control primero**: antes de la fase 2, un `SELECT COUNT(*)` por tabla a CSV. Son
+  430 consultas de un segundo y dan el contraste de filas para validar la carga después.
+- **Si algo falla, se detiene y se anota.** No se reintenta a ciegas ni se "acomoda" con `UPDATE`.
+- **SHA-256 de cada CSV** al terminar, para comparar contra el original si hay dudas.
+- Las credenciales van por `legancy_conf/*.env` (ya en `.gitignore`, línea 16), **nunca** en el
+  repositorio ni en la línea de comandos compartida.
+
+#### Orden técnico de la extracción
+
+`exp` **no sirve aquí**: un `.dmp` es binario de Oracle y **PostgreSQL no lo puede leer** (§17.8). La
+ruta es **CSV por `sqlplus` + `COPY`**, que es la que ya existe en `migracion/extraer_datos_csv.sh`.
+Los `.dmp` solo sirven como respaldo del DBA, no para el entorno de casa.
+
+Por tabla: `ALTER SESSION` de NLS, `SPOOL` con `COL ... SEPARATOR ','` y el `SELECT`. Ojo con el
+`encoding`: el origen es `WE8MSWIN1252` según AGENTS.md y los CSV deben salir en `AL32UTF8` o
+`WE8MSWIN1252` para que `COPY` no los rechace en PostgreSQL (que es UTF-8).
+
+#### Lo que sale de esta ventana
+
+- Un `sis_salud_db_<fecha>.dump` nuevo, que **reemplaza** al del 24/09 (183 MB) y sirve de entorno
+  de trabajo en casa.
+- La respuesta definitiva de MM/MN 2026 y la corrección del **bug de mapeo de `RENGLON_CASOSMM`**
+  (§17.18), cuyas columnas están desfasadas en el espejo actual.
+
+#### Fase 2 en segundo plano, opcional
+
+Si sobra tiempo después de la fase 3, se puede dejar la extracción de las 423 tablas pequeñas
+corriendo con `NOHUP` para otro día. **No vale la pena meterlas mañana**: no aportan a MM/MN y
+compiten con el mismo servidor.
+
+### 17.18 MM/MN 2026: el registro de MM existe y estaba desencontrado (28/09/2026)
+
+La responsable de MM/MN de la Dirección de Epidemiología Lara reporta para 2026, semanas 1 a 37:
+**MM 17 + 1 violenta = 18** y **MN 228**. Contra eso, PostgreSQL da **7 MM** y **213 MN**. El
+respaldo del §17.17 (traer el vivo) no es la causa: el dato del registro de MM **ya estaba en
+PostgreSQL**, solo que en la tabla equivocada.
+
+**El error de búsqueda:** la primera comprobación fue sobre `legacy."T_RCASOSMM"` y
+`legacy."T_RCASOSMI"`, que están **vacías (0 y 6 filas)** — de ahí la conclusión equivocada de que
+"el registro oficial de casos MMI está vacío y no hay fuente". La tabla buena es
+**`sismai."RENGLON_CASOSMM"`, con 749 filas**, un registro **caso por caso** (no agregado por semana).
+
+| Fuente | MM 2026 |
+|---|---|
+| Certificados de defunción (`HPRESENCIAEMBARAZO=1`) | 7 |
+| **`sismai."RENGLON_CASOSMM"` (registro de investigación)** | **21** |
+| Reportado por la responsable | 17 + 1 violenta = 18 |
+
+Los 21 casos van de 2026-02-03 a 2026-08-14, en las semanas 1 a 33. Los 18 reportados son de este
+registro, no de los certificados: la campo `HPRESENCIAEMBARAZO` solo lo marca 7 veces en todo 2026.
+
+**Bug de mapeo (hay que corregirlo):** en el espejo actual las columnas de `RENGLON_CASOSMM` están
+**desfasadas**. `HCASOSMMI` contiene un identificador (997186319) y no un conteo, y por eso
+`SUM(HCASOSMMI)` da **658.439.440.845** sobre 749 filas. `PERIODOOCURRENCIA` además viene `NULL` en
+las 749. Los valores que sí son legibles son establecimiento, CIE de causa, edad gestacional, forma
+de parto y `FECHAOPERACION`. Causa probable: el mapeo de `mapear_legacy` desalineó los offsets al
+replicar la tabla. **Al extraer el vivo hay que comparar el orden real de columnas** (`ALL_TAB_COLUMNS`
+con `COLUMN_ID`) contra el que asumió el modelo, y corregir `models_legacy.py` antes de volver a
+importar; si no, el error se reproduce en el entorno de casa.
+
+**El hueco de las semanas 32–37 sí es real y sí viene del origen.** Las defunciones en PostgreSQL
+se desploman desde el 1 de agosto de 2026:
+
+| Semanas | Defunciones/semana |
+|---|---|
+| 1–30 | ~205 (estable) |
+| 31 | 127 |
+| 32 | 8 |
+| 33 | 8 |
+| 34 | 2 |
+| 35 | 3 |
+| 36–37 | 0 |
+
+Son ~780 defunciones de menos frente a la tendencia, y el ritmo de MN (6,2/semana) × 2 semanas ≈ 12
+explica la diferencia de MN (213 → 228, que es lo que reporta la responsable). **Como el servidor en
+vivo sí tiene hasta la semana 37, el faltante es de nuestro extracto y no de la captura** — por eso
+el §17.17 lo resuelve.
+
+**El retardo de 4 semanas no está en la elaboración del certificado.** Medido con
+`FECHA_M − FECHAELABORACION` sobre las 6.246 de 2026: 81,6% el mismo día, 15,7% al día siguiente,
+7,4% con más de un día (máximo 120). El retardo real es que **las muertes desde el 1 de agosto no se
+están capturando**, no que los certificados lleguen tarde. La distribución de la Elaboración sirve,
+entonces, para fecha de diagnóstico, no para modelar el retardo de llegada.
+
+**No se puede reclasificar MM/MN por causa.** Solo **54 de 6.247** defunciones 2026 están codificadas
+en PostgreSQL (0,9%), y en el origen el **97,5% de los certificados de 2026 tiene `HCAUSABASICA` NULL**.
+Cualquier cifra de MM/MN que se intente sacar del CIE sale incompleta mientras no se codifique.
+
+**Segundo bug, independiente del anterior y ya corregible en casa:** `ReporteComparativoView`
+(`registros/views.py:621`) filtra por **año civil** (`fecha_evento__year=anio`) pero agrupa por
+**semana ISO**. En la frontera de año eso descarta los certificados que llegan con retardo: **92
+defunciones ocurridas en diciembre 2025 pertenecen a la semana 1 de 2026** y hoy no aparecen en el
+reporte de 2026. La semana 1 de 2026 debe mostrar **241**, no 149. Es exactamente el caso que
+describe la responsable ("llegan certificados de semanas anteriores hasta con 4 semanas de retardo y
+deben agregarse a las semanas respectivas"), y el resto de semanas sí está bien porque el sistema
+agrupa por la fecha del evento y no por la de ingreso.
+
+### 17.19 ⚠ La semana epidemiológica no es ISO: 2025 tiene 53 y 2026 tiene 52 (28/09/2026)
+
+Dato de la oficina: **2025 tuvo 53 semanas epidemiológica y 2026 tendrá 52**, y **la semana 53 de
+2025 va del 28-12-2025 al 03-01-2026**. Es el dato que faltaba para cerrar el §17.18, y resulta que
+**el código usa la convención equivocada**.
+
+#### Por qué 2025 tiene 53 semanas y esa semana se mete a enero
+
+- La semana epidemiológica venezolana es de **domingo a sábado** (7 días justos).
+- El **1 de enero de 2025 fue miércoles**. La semana 1 es la que *contiene* el 1 de enero, así que
+  empezó el **domingo 29-12-2024**.
+- Desde el 29-12-2024, contar 52 semanas lleva al **domingo 28-12-2025**: esa es la **semana 53**.
+  Como 2025 no es año bisiesto y arrancó en miércoles, ese año tiene 53 domingos de arranque.
+- Esa semana **no puede terminar antes del sábado 03-01-2026**: son 7 días. Empieza el domingo
+  28-12-2025 y termina el sábado 03-01-2026.
+- **La semana conserva la etiqueta del año en que empezó.** Por eso el 1, 2 y 3 de enero de 2026
+  pertenecen a la **semana 53 de 2025**, no a la semana 1 de 2026.
+- De ahí que **la semana 1 de 2026 empiece el domingo 04-01-2026** y 2026 cierre con 52 semanas
+  (la 52 sería del 20 al 26-12-2026).
+
+Lo que hace estranho a la "semana 53 de 2025" es simplemente que **una semana siempre dura 7 días y no
+se parte al cambiar de año**. No es un error del calendario, es la definición.
+
+#### El problema: el código usa ISO 8601, que da exactamente lo contrario
+
+`vigilancia/services.py:6 semana_epidemiologica()` usa `fecha.isocalendar()`, y PostgreSQL
+`EXTRACT(WEEK ...)` también es ISO. La ISO corre de **lunes a domingo**:
+
+| Año | ISO (lo que hace el código) | Epidemiológico venezolano (lo que pide la oficina) |
+|---|---|---|
+| 2024 | 52 | — |
+| 2025 | **52** | **53** |
+| 2026 | **53** | **52** |
+| 2027 | 52 | — |
+
+**Están invertidos.** Verificado en PostgreSQL 18: `COUNT(DISTINCT EXTRACT(WEEK ...))` da 52 para
+2025 y **53 para 2026**.
+
+Además, ISO ubica las fechas de la frontera de otra manera:
+
+| Fecha | ISO | Epidemiológico venezolano |
+|---|---|---|
+| 28-12-2025 (domingo) | semana **52** de 2025 | semana **53** de 2025 |
+| 01-01-2026 (jueves) | semana **1** de 2026 | semana **53** de 2025 |
+| 03-01-2026 (sábado) | semana **1** de 2026 | semana **53** de 2025 |
+| 04-01-2026 (domingo) | semana **1** de 2026 | semana **1** de 2026 |
+
+#### Impacto medido
+
+Con la convención correcta, de las 6.247 defunciones de 2026:
+
+- **85 registros** que el código cuenta como "semana 1 de 2026" son en realidad **semana 53 de 2025**.
+- **64** sí son semana 1 de 2026. La semana 1 real tiene **149**, no 241.
+- Prácticamente **todos los días cambian de semana**: solo coinciden los que caen en domingo, y son
+  64 de cada ~210. El corrimiento es de un día, pero afecta a la cola de cada semana.
+
+Serie 2026 con la convención correcta (semana 53 = 28-12-2025 a 03-01-2026):
+
+| Semana | Defunciones | MM | MN |
+|---|---|---|---|
+| 53 (2025) | 208 | 0 | 15 |
+| 1 | 211 | 0 | 0 |
+| 2 | 214 | 0 | 9 |
+| … | … | … | … |
+| 29 | 181 | 0 | 8 |
+| 30 | **6** | 0 | 3 |
+| 31 | **11** | 1 | 7 |
+| 32 | 3 | 0 | 2 |
+| 33 | 3 | 0 | 2 |
+
+Con esta convención el desplome de la captura se ve **desde la semana 30**, no desde la 32 como
+parecía con ISO. La semana 53 de 2025 tiene 208 defunciones y 15 MN: es una semana completa, lo que
+confirma que la convención está bien aplicada y que la caída es de captura, no de calendario.
+
+#### Qué hay que hacer
+
+1. **Cambiar `semana_epidemiologica()`** a domingo→sábado, con la semana 1 = la que contiene el 1 de
+   enero, y **etiquetando la semana por el año en que empieza**. Esto arregla de paso el bug del año
+   civil del §17.18: al rotular por el año de inicio, la semana 53 de 2025 absorbe el 1-3 de enero y
+   ya no hace falta el truco del filtro.
+2. **No usar `EXTRACT(WEEK ...)` ni `EXTRACT(ISOYEAR ...)`** en los reportes y consolidados: son ISO.
+   Como el consolidado semanal (`vigilancia`) es lo que se envía al central, **esto también afecta la
+   numeración de las semanas que se reportan** — hay que confirmarlo contra el sobre del 29/09 antes
+   de cambiar nada, porque si el central ya espera numeración ISO, cambiarla rompe el formato.
+3. **Confirmar con la oficina** si el central (nivel superior) numera las semanas como ISO o como
+   venezuelano, porque de eso depende si el cambio es una corrección o una incompatibilidad.
+
+#### ⏸ Se deja para mañana (martes 29/09), NO se toca hoy
+
+**Ninguno de los tres cambios de arriba se aplica el lunes 28/09.** Queda anotado, con el diagnóstico
+verificado y las cifras de impacto medidas, para hacerlo mañana. Dos razones para no correrlo hoy:
+
+- Es un **cambio de convención que afecta el número que ve el central**, y el paso 3 (confirmar con
+  la oficina) no está resuelto. Cambiarlo a ciegas puede romper el formato del sobre.
+- Mañana es el día de la **ventana de extracción** (§17.17). El cambio de `semana_epidemiologica()` y
+  la relectura del `dump` de casa se mezclan mal: si se cambia la convención y después se reimporta,
+  no se sabe si un número raro viene del dato o de la convención.
+
+**Al cerrar el día:** este bloque y el §17.17 son lo único pendiente. El orden de mañana es sobre el
+mismo servidor, así que conviene decidir el orden antes de arrancar.
