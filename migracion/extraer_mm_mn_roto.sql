@@ -27,23 +27,29 @@
 SET PAGESIZE 0
 SET FEEDBACK ON
 SET ECHO OFF
+-- Si una consulta falla a la mitad, SQL*Plus por defecto sigue y deja un CSV
+-- truncado que el conteo del manifiesto daria por bueno. Con esto se aborta y el
+-- driver borra los CSV parciales en vez de dar por buena una extraction incompleta.
+WHENEVER SQLERROR EXIT SQL.SQLCODE
+
 SET TRIMSPOOL ON
 SET HEADING OFF
 SET TERMOUT OFF
 SET COLSEP ';'
 SET LINESIZE 32767
-SET NLS_LANG=SPANISH_SPAIN.AL32UTF8
+-- NLS_LANG NO va aqui: es variable de entorno del cliente, no un comando SET de
+-- SQL*Plus. La exporta el driver. Se pone AL32UTF8 a proposito para que el SPOOL
+-- escriba UTF-8 aunque la base sea WE8MSWIN1252: asi el CSV entra directo en
+-- PostgreSQL sin transcribir acentos.
 
--- &1 = directorio de salida (lo pasa el shell). &DESDE con comillas simples: en
 -- Oracle las dobles comillas harian identificador y TO_DATE reventaria.
-DEFINE OUT  = '&1'
 DEFINE DESDE = '01/08/2026'
 
 -- OJO: NO filtrar por "STATUS IS NULL". En este esquema STATUS es 1/0 y nunca es NULL
 -- (173.533/173.533 con valor), asi que ese filtro devuelve CERO filas. Se baja el
 -- periodo completo y se decide el filtro de anulamiento en la carga, donde si se
 -- puede comparar con el criterio que usa el importador.
-SPOOL &OUT/muerte.csv
+SPOOL __SALIDA__/muerte.csv
 SELECT  c."ID",
         TO_CHAR(c."FECHA_M",'YYYY-MM-DD HH24:MI:SS'),
         c."HESTABLECIMIENTO",
@@ -70,7 +76,7 @@ SPOOL OFF
 -- corresponden a nascimientos de junio y julio (registro tardio): si se filtra por el
 -- certificado, el CSV trae datos que ya tenemos y se pierde la verdad del periodo.
 -- El importador usa la misma regla (FECHANACIMIENTO y, si falta, FECHACERTIFICADO).
-SPOOL &OUT/nacimiento.csv
+SPOOL __SALIDA__/nacimiento.csv
 SELECT  n."ID",
         TO_CHAR(n."FECHACERTIFICADO",'YYYY-MM-DD HH24:MI:SS'),
         n."HESTABLECIMIENTO",
@@ -89,7 +95,7 @@ SPOOL OFF
 
 -- Y al reves: los certificados del periodo que son de nacimientos anteriores. Van en
 -- su propio archivo para poder conciliarlos sin mezclarlos con el hueco.
-SPOOL &OUT/nacimiento_tardio.csv
+SPOOL __SALIDA__/nacimiento_tardio.csv
 SELECT  n."ID",
         TO_CHAR(n."FECHACERTIFICADO",'YYYY-MM-DD HH24:MI:SS'),
         n."HESTABLECIMIENTO",
@@ -105,7 +111,7 @@ SPOOL OFF
 -- Madre y recien nacido, arrastrados por su certificado para no traer las 439.220
 -- filas historicas. VIVO_MUERTO es lo que permite identificar al recien nacido
 -- que fallece (el insumo del indicador MN).
-SPOOL &OUT/nac_madre.csv
+SPOOL __SALIDA__/nac_madre.csv
 SELECT  m."ID",
         m."HCERTIFICADO",
         m."CEDULA",
@@ -126,7 +132,7 @@ WHERE EXISTS (SELECT 1
                 AND r."FECHANACIMIENTO" >= TO_DATE(&DESDE,'DD/MM/YYYY'));
 SPOOL OFF
 
-SPOOL &OUT/nac_rnacido.csv
+SPOOL __SALIDA__/nac_rnacido.csv
 SELECT  r."ID",
         r."HCERTIFICADO",
         r."NOMBRES",
@@ -145,7 +151,7 @@ SPOOL OFF
 
 -- Muerte materna: cabecera e historico. §17.22 aclaro que RENGLON_CASOSMM.HCASOSMMI
 -- es FK a CASOS_MMI, no un id corrido, asi que se bajan las dos mitades.
-SPOOL &OUT/casosmmi.csv
+SPOOL __SALIDA__/casosmmi.csv
 SELECT  m."ID",
         m."HDOCUMENTO",
         m."NOMBRE",
@@ -160,7 +166,7 @@ FROM SISMAI."CASOS_MMI" m
 WHERE m."FECHAOCURRENCIA" >= TO_DATE(&DESDE,'DD/MM/YYYY');
 SPOOL OFF
 
-SPOOL &OUT/renglon_casosmm.csv
+SPOOL __SALIDA__/renglon_casosmm.csv
 SELECT  r."ID",
         r."HCASOSMMI",
         TO_CHAR(r."FECHAOPERACION",'YYYY-MM-DD HH24:MI:SS'),
@@ -184,7 +190,7 @@ SPOOL OFF
 -- cuelga de CASOS_MMI (10.004 de 10.005 con match), asi que la cabecera se baja una
 -- sola vez, en casosmmi.csv, y aca solo va el renglon.
 
-SPOOL &OUT/renglon_casosmi.csv
+SPOOL __SALIDA__/renglon_casosmi.csv
 SELECT  r."ID",
         r."HCASOSMMI",
         TO_CHAR(r."FECHAOPERACION",'YYYY-MM-DD HH24:MI:SS'),
@@ -204,7 +210,7 @@ SPOOL OFF
 
 -- Resolucion de establecimiento (todo el catalogo, son pocas filas).
 -- La PK es "ID" (no IDESTABLECIMIENTO: esa no existe en ESTABLECIMIENTO).
-SPOOL &OUT/establecimiento.csv
+SPOOL __SALIDA__/establecimiento.csv
 SELECT e."ID", e."CODIGO", e."DESCRIPCION", e."HTIPO", e."HLOCALIDAD", e."STATUS"
 FROM SISMAI."ESTABLECIMIENTO" e;
 SPOOL OFF
