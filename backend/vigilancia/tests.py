@@ -1,10 +1,84 @@
 """Pruebas del Consolidado Semanal de ENO (vigilancia)."""
 
+from datetime import date
+
 from django.core.exceptions import ValidationError
+from django.test import SimpleTestCase
 from tests_sisv import SISVBase
 
 from .legacy_mapeo import GRUPO_EDAD_LEGACY, LEGACY_ENFERMEDAD_EVENTO, por_evento_id
 from .models import ConsolidadoEpi15, ConsolidadoSemanal, EventoENO, FilaConsolidado, FilaEpi15
+from .services import (
+    fin_anio_epidemiologico,
+    inicio_anio_epidemiologico,
+    rango_anio_epidemiologico,
+    semana_epidemiologica,
+    semanas_en_anio,
+)
+
+
+class SemanaEpidemiologicaTests(SimpleTestCase):
+    """La semana venezolana va de domingo a sábado y NO es la ISO 8601.
+
+    Cifras de la oficina y verificadas contra `sismai."DOCUMENTO"` (ANNO/PERIODO):
+    2025 tiene 53 semanas, 2026 tiene 52; la semana 53 de 2025 va del 28-12-2025 al
+    03-01-2026 y la semana 1 de 2026 arranca el 04-01-2026.
+    """
+
+    def test_anios_con_53_y_52_semanas(self):
+        self.assertEqual(semanas_en_anio(2025), 53)
+        self.assertEqual(semanas_en_anio(2026), 52)
+        self.assertEqual(semanas_en_anio(2027), 52)
+
+    def test_2025_tiene_53_y_2026_52_invertido_contra_iso(self):
+        for anio, iso in ((2025, 52), (2026, 53)):
+            with self.subTest(anio=anio):
+                self.assertNotEqual(semanas_en_anio(anio), iso)
+
+    def test_la_semana_53_de_2025_se_mete_a_enero(self):
+        self.assertEqual(semana_epidemiologica(date(2025, 12, 28)), (2025, 53))
+        for dia in (1, 2, 3):
+            with self.subTest(dia=dia):
+                self.assertEqual(semana_epidemiologica(date(2026, 1, dia)), (2025, 53))
+
+    def test_la_semana_1_de_2026_arranca_el_4_de_enero(self):
+        self.assertEqual(semana_epidemiologica(date(2026, 1, 4)), (2026, 1))
+        self.assertEqual(semana_epidemiologica(date(2026, 1, 10)), (2026, 1))
+        self.assertEqual(semana_epidemiologica(date(2026, 1, 11)), (2026, 2))
+
+    def test_2025_empieza_con_la_semana_que_contiene_el_1_de_enero(self):
+        self.assertEqual(inicio_anio_epidemiologico(2025), date(2024, 12, 29))
+        self.assertEqual(semana_epidemiologica(date(2025, 1, 1)), (2025, 1))
+
+    def test_ultima_semana_cierra_en_sabado(self):
+        for anio in (2025, 2026):
+            with self.subTest(anio=anio):
+                self.assertEqual(fin_anio_epidemiologico(anio).weekday(), 6)  # sábado
+                self.assertEqual(inicio_anio_epidemiologico(anio).weekday(), 6)
+
+    def test_la_semana_37_de_2026_es_la_que_cerro_el_19_de_septiembre(self):
+        # Es la que el legacy consolidó el 21-22/09 y la que la oficina tenía reportada.
+        self.assertEqual(semana_epidemiologica(date(2026, 9, 19)), (2026, 37))
+        self.assertEqual(semana_epidemiologica(date(2026, 9, 13)), (2026, 37))
+        self.assertEqual(semana_epidemiologica(date(2026, 9, 20)), (2026, 38))
+        # La ISO de 2026 le daría 38: por eso el código anterior se equivocaba.
+        self.assertEqual(date(2026, 9, 19).isocalendar()[1], 38)
+
+    def test_rango_del_anio_para_filtrar(self):
+        self.assertEqual(rango_anio_epidemiologico(2026), (date(2026, 1, 4), date(2027, 1, 2)))
+        self.assertEqual(rango_anio_epidemiologico(2025), (date(2024, 12, 29), date(2026, 1, 3)))
+
+    def test_todas_las_fechas_de_un_anio_dan_ese_anio(self):
+        for anio in (2025, 2026):
+            with self.subTest(anio=anio):
+                inicio, hasta = rango_anio_epidemiologico(anio)
+                dia = inicio
+                while dia <= hasta:
+                    self.assertEqual(semana_epidemiologica(dia)[0], anio)
+                    dia += date.resolution
+                # y ninguna fecha de la semana 53 se cuela en el año siguiente
+                for dia in (date(2026, 1, 1), date(2026, 1, 2), date(2026, 1, 3)):
+                    self.assertEqual(semana_epidemiologica(dia)[0], 2025)
 
 
 class EventosENOTests(SISVBase):

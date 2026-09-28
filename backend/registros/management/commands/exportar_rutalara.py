@@ -10,19 +10,27 @@ import psycopg
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
+from vigilancia.services import rango_anio_epidemiologico, semanas_en_anio
+
 SPEC_JSON = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "rutarala_spec.json")
 
 EXPORT_TABLE_RE = re.compile(r"exporting table\s+([A-Za-z0-9_\.]+)")
 EXPORTED_ROWS_RE = re.compile(r"(\d+)\s+rows? exported")
 
 
-def _semana_iso(iso: str) -> tuple[dt.date, dt.date]:
-    try:
-        anio, semana = (int(x) for x in iso.split("-")[1:])
-    except (ValueError, IndexError):
-        raise CommandError("Formato de --semana inválido: use AAAA-WNN (ej. 2026-W32).")
-    inicio = dt.date.fromisocalendar(anio, semana, 1)
-    return inicio, inicio + dt.timedelta(days=6)
+def _rango_semana(anio: int, semana: int) -> tuple[dt.date, dt.date]:
+    """(inicio, fin+1) de la semana epidemiológica venezolana `semana` de `anio` (domingo→sábado).
+
+    No es ISO: la semana 53 de 2025 es la del 28-12-2025 al 03-01-2026 y la 1 de 2026 arranca
+    el 04-01-2026. La semana 53 solo existe en los años que tienen 53.
+    """
+    desde, hasta = rango_anio_epidemiologico(anio)
+    if 1 <= semana <= semanas_en_anio(anio):
+        return desde + dt.timedelta(days=7 * (semana - 1)), desde + dt.timedelta(days=7 * semana)
+    raise CommandError(
+        f"La semana {semana} no existe en {anio} (ese año tiene "
+        f"{semanas_en_anio(anio)} semanas epidemiológicas)."
+    )
 
 
 def _extraer_conteos_referencia(ruta_zip: str) -> dict[str, int]:
@@ -58,11 +66,11 @@ class Command(BaseCommand):
         "EVENTOS_SINC dentro de la ventana es INSERT(1) o UPDATE(2). Las filas con último evento "
         "DELETE(3) no viajan. Fuente de eventos: sismai.EVENTOS (espejo). "
         "Salida: ZIP con CSV por tabla T_*, T_EVENTOS.csv y resumen de conteos estilo repllar1.log. "
-        "Referencia del contrato: enviados/routlar1_482026_1526.ZIP (SE-32, 04/08/2026) y legancy/analisis/schema_routlar1.sql."
+        "Referencia del contrato: enviados/routlar1_482026_1526.ZIP (04/08/2026 = SE-31, la semana del 02 al 08/08) y legancy/analisis/schema_routlar1.sql."
     )
 
     def add_arguments(self, parser):
-        parser.add_argument("--semana", help="Semana ISO AAAA-WNN (ej. 2026-W32).")
+        parser.add_argument("--semana", help="Semana epidemiológica AAAA-N (ej. 2026-31; domingo→sábado, no ISO).")
         parser.add_argument("--desde", help="Inicio ventana YYYY-MM-DD (inclusive).")
         parser.add_argument("--hasta", help="Fin ventana YYYY-MM-DD (exclusivo).")
         parser.add_argument("--eventos", default="sismai.EVENTOS", help="Tabla origen de eventos (sismai.EVENTOS).")
@@ -77,9 +85,13 @@ class Command(BaseCommand):
         if (opts["desde"] or opts["hasta"]) and opts["semana"]:
             raise CommandError("Indique --semana O --desde/--hasta, no ambos.")
         if opts["semana"]:
-            desde, hasta = _semana_iso(opts["semana"])
-            hasta = hasta + dt.timedelta(days=1)
-            etiqueta = opts["semana"]
+            try:
+                anio, semana = (int(x) for x in opts["semana"].split("-"))
+            except (ValueError, TypeError):
+                raise CommandError("Formato de --semana inválido: use AAAA-N (ej. 2026-31).")
+            desde, hasta = _rango_semana(anio, semana)
+            # Sin "/" ni separadores: la etiqueta termina en el nombre del archivo.
+            etiqueta = f"{anio}SE{semana}"
         elif opts["desde"] and opts["hasta"]:
             desde = dt.date.fromisoformat(opts["desde"])
             hasta = dt.date.fromisoformat(opts["hasta"])
@@ -144,7 +156,7 @@ class Command(BaseCommand):
             por_tabla[t] = sorted(set(lista))
 
         os.makedirs(opts["salida"], exist_ok=True)
-        nombre_zip = f"generado_{dt.date.today():%Y%m%d}_{etiqueta.replace('-', '')}.zip"
+        nombre_zip = f"generado_{dt.date.today():%Y%m%d}_{etiqueta}.zip"
         ruta_zip = os.path.join(opts["salida"], nombre_zip)
         conteos = {}
         with zipfile.ZipFile(ruta_zip, "w", zipfile.ZIP_DEFLATED) as z:

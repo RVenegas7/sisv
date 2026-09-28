@@ -310,8 +310,8 @@ export default function Reportes() {
         <h2>Comparativo anual por semana epidemiológica</h2>
         <p className="ayuda">
 Compara dos años para ver la tendencia semanal de nacimientos, defunciones, muertes maternas
-            codificadas (MM), muertes neonatales (MN, 0-27 días de vida) y vigilancia materno-infantil
-            (MMI, lotes LEGACY-MMI/LEGACY-VIOLENTA).
+            (MM, embarazo o puerperio), muertes neonatales (MN, 0-27 días de vida) y vigilancia
+            materno-infantil (MMI, lotes LEGACY-MMI/LEGACY-VIOLENTA).
         </p>
         <form
           className="filtros"

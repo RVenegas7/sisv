@@ -1,14 +1,69 @@
-from datetime import date
+from datetime import date, timedelta
 
 from .models import CAMPOS_COLUMNA, EventoENO, columna
 
 
+def domingo_de(fecha):
+    """El domingo que abre la semana epidemiológica que contiene a `fecha`."""
+    return fecha - timedelta(days=(fecha.weekday() + 1) % 7)
+
+
+def inicio_anio_epidemiologico(anio):
+    """Primer día (domingo) de la semana 1 del año epidemiológico `anio`.
+
+    El ancla es el **4 de enero** (no el 1): la semana 1 es la que contiene el 4 de enero, de
+    modo que el año siempre arranca en domingo. Anclar en el 1 de enero daría otro número de
+    semanas, porque el 1 cae a mitad de semana.
+    """
+    return domingo_de(date(anio, 1, 4))
+
+
+def fin_anio_epidemiologico(anio):
+    """Domingo de la última semana del año epidemiológico `anio` (53 en 2025, 52 en 2026)."""
+    return inicio_anio_epidemiologico(anio + 1) - timedelta(days=7)
+
+
+def semanas_en_anio(anio):
+    """Cuántas semanas tiene el año epidemiológico `anio` (52 o 53)."""
+    return (inicio_anio_epidemiologico(anio + 1) - inicio_anio_epidemiologico(anio)).days // 7
+
+
+def rango_anio_epidemiologico(anio):
+    """(desde, hasta) inclusive de todas las fechas del año epidemiológico `anio`.
+
+    Contiguo y sin huecos: el rango de `anio` termina el sábado justo antes del domingo
+    con que arranca `anio + 1`. Así una fecha pertenece a un único año epidemiológico y el
+    filtro por año no deja registros fuera ni los duplica.
+    """
+    return inicio_anio_epidemiologico(anio), inicio_anio_epidemiologico(anio + 1) - timedelta(days=1)
+
+
 def semana_epidemiologica(fecha):
-    """Semana epidemiológica ISO-8601 (criterio OMS): (año ISO, semana 1..53)."""
+    """(año, semana 1..53) de la semana epidemiológica venezolana.
+
+    ⚠ **NO es ISO 8601.** La semana va de **domingo a sábado** y la semana **no se parte al
+    cambiar de año**: pertenece al año ``Y`` si empieza en el rango de ``Y`` (desde
+    ``inicio_anio_epidemiologico(Y)`` hasta antes del de ``Y+1``). Por eso **2025 tiene 53
+    semanas y 2026 tiene 52** (las invertidas de la ISO): la semana del 29-12-2024 es la
+    **1 de 2025**, la del 28-12-2025 es la **53 de 2025** (y el 1, 2 y 3 de enero de 2026
+    pertenecen a ella), y la semana 1 de 2026 arranca el 04-01-2026.
+
+    Verificado contra el propio legacy, que es la fuente de la verdad: `sismai."DOCUMENTO"`
+    guarda `ANNO`/`PERIODO` y para 2026 llega a 37 periodos, consolidando el 37 el 21-22/09
+    (la semana que cerró el sábado 19/09, que es la 37 y no la 38 ISO). La oficina reporta
+    2026 "semanas 1 a 37" y envía los martes la semana ya cargada, que es exactamente esto.
+    """
     if isinstance(fecha, str):
         fecha = date.fromisoformat(fecha)
-    iso = fecha.isocalendar()
-    return iso[0], iso[1]
+    elif hasattr(fecha, "date"):
+        fecha = fecha.date()
+    domingo = domingo_de(fecha)
+    anio = fecha.year
+    while domingo < inicio_anio_epidemiologico(anio):
+        anio -= 1
+    while domingo >= inicio_anio_epidemiologico(anio + 1):
+        anio += 1
+    return anio, (domingo - inicio_anio_epidemiologico(anio)).days // 7 + 1
 
 
 def organizaciones_descendientes(org, incluir_org=True):

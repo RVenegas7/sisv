@@ -21,6 +21,11 @@ ESTADO_CIVIL = {
     1: "SOLTERA", 2: "CASADA", 3: "DIVORCIADA", 4: "UNION_LIBRE",
     5: "DIVORCIADA", 6: "SOLTERA", 7: "VIUDA", 8: "SOLTERA",
 }
+# Muerte materna según el catálogo 'sismai.PRESENCIAEMBARAZO':
+#   01 = AL MOMENTO DE LA MUERTE   02 = EN LOS ULTIMOS 12 MESES (puerperio)
+#   03 = NO   04 = IGNORADO   05 = SIN INFORMACION
+# Ambos 1 y 2 son defunción materna; antes solo se tomaba el 1 y se perdía el puerperio.
+CODIGOS_MM = {1, 2}
 GEO_RE = re.compile(r"Estado\s+([^,]+),\s*Municipio\s+([^,]+),\s*Parroquia\s+([^,]+)", re.I)
 
 
@@ -321,7 +326,7 @@ class Command(BaseCommand):
                     establecimiento=self.estable.get(float(est_ocur) if est_ocur is not None else -1, ""),
                     estado=est, municipio=mun, parroquia=parr,
                     causa_directa=(texto or "")[:300],
-                    embarazo_o_puerperio=como_entero(embarazo) == 1,
+                    embarazo_o_puerperio=como_entero(embarazo) in CODIGOS_MM,
                     autopsia=como_entero(autopsia) == 1,
                     certificador_nombres=(otro_med or "").strip()[:150],
                     cie10_id=c10_id,

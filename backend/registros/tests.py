@@ -1,6 +1,10 @@
 """Pruebas de registros: CRUD, alcance multicentro, permisos, CIE por fecha, dashboard."""
 
+from datetime import date
+
 from tests_sisv import SISVBase, FECHA_CORTE
+
+from registros.models import Defuncion
 
 
 class NacimientoCRUDTests(SISVBase):
@@ -247,6 +251,97 @@ class ReportesYConfigTests(SISVBase):
         self.assertEqual(len(data["semanas"]), 53)
         serie_nac = data["series"][0]["anio1"]
         self.assertEqual(sum(serie_nac.values()), 1)
+
+
+class AnioEpidemiologicoTests(SISVBase):
+    """El filtro por año es **epidemiológico**, no civil.
+
+    Regresión del bug: la semana 53 de 2025 va del 28-12-2025 al 03-01-2026, así que
+    los certificados del 1, 2 y 3 de enero de 2026 son de 2025, y la semana 1 de 2026
+    arranca el domingo 04-01-2026. Con `fecha_evento__year` esos registros se contaban en
+    2026 y desaparecían del reporte de 2025.
+    """
+
+    def _defuncion(self, uid, fecha):
+        return Defuncion.objects.create(
+            registro_numero=uid,
+            fecha_evento=fecha,
+            organizacion=self.org_hcb,
+            fallecido_nombres="Test",
+            sexo="F",
+        )
+
+    def test_enero_2026_pertenece_a_la_semana_53_de_2025(self):
+        self._defuncion("D-30-DIC", date(2025, 12, 30))
+        self._defuncion("D-01-ENE", date(2026, 1, 1))
+        self._defuncion("D-03-ENE", date(2026, 1, 3))
+        self._defuncion("D-04-ENE", date(2026, 1, 4))
+        self.login(self.u_admin)
+        d2025 = self.client.get("/api/registros/dashboard/?anio=2025").json()["data"]
+        d2026 = self.client.get("/api/registros/dashboard/?anio=2026").json()["data"]
+        self.assertEqual(d2025["totales"]["defunciones"], 3)
+        self.assertEqual(d2026["totales"]["defunciones"], 1)
+        # y en el comparativo, con la misma convención
+        comp = self.client.get(
+            "/api/registros/reportes/comparativo/?anio1=2025&anio2=2026"
+        ).json()["data"]
+        self.assertEqual(comp["totales"]["muertes"]["2025"], 3)
+        self.assertEqual(comp["totales"]["muertes"]["2026"], 1)
+
+    def test_la_semana_53_aparece_como_53_y_no_como_1(self):
+        self._defuncion("D-53", date(2025, 12, 28))
+        self.login(self.u_admin)
+        por_semana = self.client.get("/api/registros/dashboard/?anio=2025").json()["data"]["por_semana"]
+        # por_semana = {"<semana>": {"<módulo>": n}}
+        self.assertEqual(por_semana.get("53", {}).get("defunciones"), 1)
+        self.assertNotIn("1", por_semana)
+
+    def test_lista_filtra_por_anio_epidemiologico(self):
+        self._defuncion("D-LISTA-2025", date(2025, 12, 30))
+        self._defuncion("D-LISTA-2026", date(2026, 1, 4))
+        self.login(self.u_admin)
+        r = self.client.get("/api/registros/defunciones/?anio=2025").json()
+        self.assertEqual(r["count"], 1)
+        self.assertEqual(r["data"][0]["registro_numero"], "D-LISTA-2025")
+
+
+class MuerteMaternaTests(SISVBase):
+    """La muerte materna se cuenta aunque la causa no esté codificada.
+
+    El catálogo legacy 'sismai.PRESENCIAEMBARAZO' marca 1=embarazo y 2=puerperio;
+    ambas son muerte materna, y que falte la CIE no deja de serlo.
+    """
+
+    def _defuncion(self, uid, mm, pendiente):
+        return Defuncion.objects.create(
+            registro_numero=uid,
+            fecha_evento=date(2023, 6, 1),
+            organizacion=self.org_hcb,
+            fallecido_nombres="Test",
+            sexo="F",
+            embarazo_o_puerperio=mm,
+            codificacion_pendiente=pendiente,
+        )
+
+    def test_dashboard_cuenta_mm_sin_cie(self):
+        self._defuncion("MM-01", True, True)
+        self._defuncion("MM-02", True, False)
+        self._defuncion("NO-MM", False, False)
+        self.login(self.u_admin)
+        data = self.client.get("/api/registros/dashboard/?anio=2023").json()["data"]
+        mmi = data["mortalidad_materno_infantil"]
+        self.assertEqual(mmi["mm"], 2)
+        self.assertEqual(mmi["mm_codificadas"], 1)
+        self.assertEqual(mmi["mm_pendientes"], 1)
+        self.assertEqual(mmi["mm_codificadas"] + mmi["mm_pendientes"], mmi["mm"])
+
+    def test_comparativo_cuenta_mm_sin_cie(self):
+        self._defuncion("MM-03", True, True)
+        self.login(self.u_admin)
+        data = self.client.get(
+            "/api/registros/reportes/comparativo/?anio1=2023&anio2=2022"
+        ).json()["data"]
+        self.assertEqual(data["totales"]["muertes_maternas"]["2023"], 1)
 
 
 class DefuncionYFichaTests(SISVBase):

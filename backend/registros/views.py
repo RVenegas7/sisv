@@ -4,7 +4,7 @@ from collections import Counter
 from datetime import date
 
 from django.db.models import Q, Count
-from django.db.models.functions import TruncMonth, ExtractWeek, ExtractYear
+from django.db.models.functions import TruncMonth, ExtractYear
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse, StreamingHttpResponse
 from rest_framework.views import APIView
@@ -15,6 +15,7 @@ from .models import ConfiguracionGeneral, Defuncion, FichaVigilancia, Nacimiento
 from .serializers import DefuncionSerializer, FichaVigilanciaSerializer, NacimientoSerializer
 from catalogos.models import MapeoCIE
 from vigilancia.models import ConsolidadoSemanal
+from vigilancia.services import rango_anio_epidemiologico, semana_epidemiologica
 from seguridad.services import (
     alcance_registros,
     organizacion_por_defecto,
@@ -142,26 +143,41 @@ def _residentes_otros_estados(qs, estado_evento):
     }
 
 
+def _filtro_anio(anio):
+    """Filtro por **año epidemiológico**, no civil.
+
+    El año epidemiológico no coincide con el calendario: la semana 1 de 2026 empieza el
+    domingo 04-01-2026 y la 53 de 2025 (28-12-2025 a 03-01-2026) se lleva el 1, 2 y 3 de
+    enero. Filtrar por ``fecha_evento__year`` metía en 2025 las ocurridas en la semana 1 de
+    2026 y dejaba fuera las de 2026 que pertenecen a la 53 de 2025.
+    """
+    desde, hasta = rango_anio_epidemiologico(anio)
+    return {"fecha_evento__gte": desde, "fecha_evento__lte": hasta}
+
+
 def _por_semana(qs):
-    """Conteo por semana epidemiológica (SQL EXTRACT WEEK, norma ISO) {SE: cantidad}."""
-    return {
-        int(se): n
-        for se, n in qs.annotate(se=ExtractWeek("fecha_evento"))
-        .values("se")
-        .annotate(n=Count("id"))
-        .values_list("se", "n")
-        if se
-    }
+    """Conteo por semana epidemiológica venezolana {SE: cantidad}.
+
+    Se agrupa por fecha en SQL y la fecha se convierte a semana en Python: la convención
+    (``vigilancia.services.semana_epidemiologica``) no es ISO y no se puede expresar con
+    ``ExtractWeek``, que es ISO.
+    """
+    por_fecha = qs.values("fecha_evento").annotate(n=Count("id")).values_list("fecha_evento", "n")
+    contador = Counter()
+    for fecha_evento, n in por_fecha:
+        if fecha_evento:
+            contador[semana_epidemiologica(fecha_evento)[1]] += n
+    return {int(se): n for se, n in contador.items()}
 
 
 def _neonatales_por_semana(qs):
-    """Muertes neonatales (0-27 días de vida) por semana epidemiológica ISO."""
+    """Muertes neonatales (0-27 días de vida) por semana epidemiológica venezolana."""
     contador = Counter()
     for fecha_evento, fecha_nacimiento in (
         qs.filter(fecha_nacimiento__isnull=False).values_list("fecha_evento", "fecha_nacimiento")
     ):
         if fecha_evento and fecha_nacimiento and 0 <= (fecha_evento - fecha_nacimiento).days <= 27:
-            contador[fecha_evento.isocalendar()[1]] += 1
+            contador[semana_epidemiologica(fecha_evento)[1]] += 1
     return {int(se): n for se, n in contador.items()}
 
 
@@ -284,7 +300,7 @@ class _RegistroAPI(APIView):
         anio = request.query_params.get("anio", "").strip()
         if anio and anio.lower() != "todos":
             try:
-                qs = qs.filter(fecha_evento__year=int(anio))
+                qs = qs.filter(**_filtro_anio(int(anio)))
             except ValueError:
                 pass
         qs = qs.order_by("-fecha_evento", "-creado_en")
@@ -398,7 +414,7 @@ class CodificacionView(APIView):
         anio = request.query_params.get("anio", "").strip()
         if anio and anio.lower() != "todos":
             try:
-                qs = qs.filter(fecha_evento__year=int(anio))
+                qs = qs.filter(**_filtro_anio(int(anio)))
             except ValueError:
                 pass
         qs = qs.order_by("-fecha_evento", "-creado_en")
@@ -455,11 +471,11 @@ class DashboardView(APIView):
         if anio_raw and not todos:
             try:
                 anio_activo = int(anio_raw)
-                filtro = {"fecha_evento__year": anio_activo}
             except ValueError:
-                filtro = {"fecha_evento__year": hoy.year}
+                anio_activo = hoy.year
+            filtro = _filtro_anio(anio_activo)
         elif not todos:
-            filtro = {"fecha_evento__year": hoy.year}
+            filtro = _filtro_anio(hoy.year)
 
         def _qs(modelo):
             qs = _por_alcance(modelo.objects.all(), request)
@@ -532,7 +548,12 @@ class DashboardView(APIView):
                     "nacimientos_defunciones": 0,
                 },
                 "mortalidad_materno_infantil": {
-                    "mm": qs_def.filter(embarazo_o_puerperio=True, codificacion_pendiente=False).count(),
+                    # La muerte materna no depende de que la causa esté codificada: se cuentan
+                    # todas y se informa aparte cuántas siguen sin CIE (15 de 17 en 2026).
+                    "mm": qs_def.filter(embarazo_o_puerperio=True).count(),
+                    "mm_codificadas": qs_def.filter(
+                        embarazo_o_puerperio=True, codificacion_pendiente=False
+                    ).count(),
                     "mm_pendientes": qs_def.filter(embarazo_o_puerperio=True, codificacion_pendiente=True).count(),
                     "mn": contar_neonatales(qs_def),
                 },
@@ -606,7 +627,7 @@ class ReporteComparativoView(APIView):
     SERIES = [
         ("nacimientos", "Nacimientos"),
         ("muertes", "Muertes"),
-        ("muertes_maternas", "Muertes maternas codificadas (MM)"),
+        ("muertes_maternas", "Muertes maternas (MM)"),
         ("muertes_neonatales", "Muertes neonatales (MN)"),
         ("mmi", "Vigilancia materno-infantil (MMI)"),
     ]
@@ -618,15 +639,18 @@ class ReporteComparativoView(APIView):
 
         def _serie(anio):
             def contar(modelo, **extra):
-                qs = _por_alcance(modelo.objects.filter(fecha_evento__year=anio, **extra), request)
+                # Filtra por año epidemiológico, no civil: así la
+                # semana 53 de 2025 (28-12-2025 a 03-01-2026) se queda en 2025 con el 1-3 de
+                # enero adentro, y la semana 1 de 2026 arranca el 04-01.
+                qs = _por_alcance(modelo.objects.filter(**_filtro_anio(anio), **extra), request)
                 return _por_semana(qs)
 
             return {
                 "nacimientos": contar(Nacimiento),
                 "muertes": contar(Defuncion),
-                "muertes_maternas": contar(Defuncion, embarazo_o_puerperio=True, codificacion_pendiente=False),
+                "muertes_maternas": contar(Defuncion, embarazo_o_puerperio=True),
                 "muertes_neonatales": _neonatales_por_semana(
-                    _por_alcance(Defuncion.objects.filter(fecha_evento__year=anio), request)
+                    _por_alcance(Defuncion.objects.filter(**_filtro_anio(anio)), request)
                 ),
                 "mmi": contar(FichaVigilancia, lote_id__in=self.LOTES_MMI),
             }

@@ -1056,8 +1056,13 @@ PostgreSQL**, solo que en la tabla equivocada.
 | **`sismai."RENGLON_CASOSMM"` (registro de investigación)** | **21** |
 | Reportado por la responsable | 17 + 1 violenta = 18 |
 
+> ⚠ **La primera fila estaba mal y la segunda es una vía distinta.** `HPRESENCIAEMBARAZO=1` no es
+> "la muerte materna en 2026" sino solo el embarazo; el puerperio es el código 2. Con los dos,
+> los certificados dan **16**, que es el dato correcto. Ver §17.20.
+
 Los 21 casos van de 2026-02-03 a 2026-08-14, en las semanas 1 a 33. Los 18 reportados son de este
 registro, no de los certificados: la campo `HPRESENCIAEMBARAZO` solo lo marca 7 veces en todo 2026.
+( ALSO CORREGIDO en §17.20: el campo marca 17 veces en 2026, 16 de las cuales son muerte materna.)
 
 **Bug de mapeo (hay que corregirlo):** en el espejo actual las columnas de `RENGLON_CASOSMM` están
 **desfasadas**. `HCASOSMMI` contiene un identificador (997186319) y no un conteo, y por eso
@@ -1114,19 +1119,24 @@ Dato de la oficina: **2025 tuvo 53 semanas epidemiológica y 2026 tendrá 52**, 
 #### Por qué 2025 tiene 53 semanas y esa semana se mete a enero
 
 - La semana epidemiológica venezolana es de **domingo a sábado** (7 días justos).
-- El **1 de enero de 2025 fue miércoles**. La semana 1 es la que *contiene* el 1 de enero, así que
-  empezó el **domingo 29-12-2024**.
-- Desde el 29-12-2024, contar 52 semanas lleva al **domingo 28-12-2025**: esa es la **semana 53**.
-  Como 2025 no es año bisiesto y arrancó en miércoles, ese año tiene 53 domingos de arranque.
-- Esa semana **no puede terminar antes del sábado 03-01-2026**: son 7 días. Empieza el domingo
-  28-12-2025 y termina el sábado 03-01-2026.
-- **La semana conserva la etiqueta del año en que empezó.** Por eso el 1, 2 y 3 de enero de 2026
-  pertenecen a la **semana 53 de 2025**, no a la semana 1 de 2026.
-- De ahí que **la semana 1 de 2026 empiece el domingo 04-01-2026** y 2026 cierre con 52 semanas
-  (la 52 sería del 20 al 26-12-2026).
+- El **año `Y` empieza en el domingo de la semana que contiene el 4 de enero de `Y`**, y acaba
+  el sábado justo antes de ese domingo del año siguiente. El ancla es el **4 de enero, no el 1**:
+  el 1 de enero cae a mitad de semana, y anclar en él daría un número de semanas equivocado.
+- **2025:** el 4 de enero de 2025 fue sábado → la semana 1 arranca el **domingo 29-12-2024**.
+  El año siguiente arranca el domingo 04-01-2026. Entre ambos hay 371 días = **53 semanas**.
+- **2026:** el 4 de enero de 2026 fue domingo → la semana 1 arranca el **domingo 04-01-2026** y
+  el 31-12-2026 cierra con **52 semanas** (la 52 es del 27-12-2026 al 02-01-2027).
+- Por eso el **1, 2 y 3 de enero de 2026** (la semana que abre el 04) son la **semana 53 de 2025**:
+  la semana no se parte al cambiar de año.
 
-Lo que hace estranho a la "semana 53 de 2025" es simplemente que **una semana siempre dura 7 días y no
+Lo que hace extraño a la "semana 53 de 2025" es simplemente que **una semana siempre dura 7 días y no
 se parte al cambiar de año**. No es un error del calendario, es la definición.
+
+> Nota: la regla se implementó como una cadena contigua — `inicio(Y) = domingo_de(4 de enero de Y)`
+> y `fin(Y) = inicio(Y+1) − 7 días` — porque calcular el fin de cada año por separado
+> (`domingo_de(31 de diciembre)`) **solapaba 2024 y 2025 en la semana del 29-12-2024** y esa fecha
+> se etiquetaba dos veces (2024/53 y 2025/1). Con la cadena cada fecha pertenece a un único año
+> (verificado sin solapes de 2023 a 2028).
 
 #### El problema: el código usa ISO 8601, que da exactamente lo contrario
 
@@ -1152,56 +1162,353 @@ Además, ISO ubica las fechas de la frontera de otra manera:
 | 03-01-2026 (sábado) | semana **1** de 2026 | semana **53** de 2025 |
 | 04-01-2026 (domingo) | semana **1** de 2026 | semana **1** de 2026 |
 
-#### Impacto medido
+#### Impacto medido (con el código ya corregido)
 
-Con la convención correcta, de las 6.247 defunciones de 2026:
+Lo que cambia de verdad no es el número de la semana, sino **qué año se le asigna a cada fecha**.
+Con el filtro civil (`fecha_evento__year`) estos registros se contaban en el año equivocado:
 
-- **85 registros** que el código cuenta como "semana 1 de 2026" son en realidad **semana 53 de 2025**.
-- **64** sí son semana 1 de 2026. La semana 1 real tiene **149**, no 241.
-- Prácticamente **todos los días cambian de semana**: solo coinciden los que caen en domingo, y son
-  64 de cada ~210. El corrimiento es de un día, pero afecta a la cola de cada semana.
-
-Serie 2026 con la convención correcta (semana 53 = 28-12-2025 a 03-01-2026):
-
-| Semana | Defunciones | MM | MN |
+| Frontera | Registros | Van a | Antes contaban en |
 |---|---|---|---|
-| 53 (2025) | 208 | 0 | 15 |
-| 1 | 211 | 0 | 0 |
-| 2 | 214 | 0 | 9 |
-| … | … | … | … |
-| 29 | 181 | 0 | 8 |
-| 30 | **6** | 0 | 3 |
-| 31 | **11** | 1 | 7 |
-| 32 | 3 | 0 | 2 |
-| 33 | 3 | 0 | 2 |
+| 29-12-2024 a 31-12-2024 | 76 defunciones / 120 nacimientos | 2025 (semana 1) | 2024 |
+| 01-01-2026 a 03-01-2026 | 116 defunciones / 116 nacimientos | 2025 (semana 53) | 2026 |
 
-Con esta convención el desplome de la captura se ve **desde la semana 30**, no desde la 32 como
-parecía con ISO. La semana 53 de 2025 tiene 208 defunciones y 15 MN: es una semana completa, lo que
-confirma que la convención está bien aplicada y que la caída es de captura, no de calendario.
+Son **192 defunciones y 236 nacimientos** que el filtro civil colocaba en un año que no les
+correspondía. Por eso el §17.18 medía 92 registros de diciembre 2025 "perdidos": no se perdían,
+estaban mal clasificados.
 
-#### Qué hay que hacer
+Totales por año después del cambio (año epidemiológico, no civil):
 
-1. **Cambiar `semana_epidemiologica()`** a domingo→sábado, con la semana 1 = la que contiene el 1 de
-   enero, y **etiquetando la semana por el año en que empieza**. Esto arregla de paso el bug del año
-   civil del §17.18: al rotular por el año de inicio, la semana 53 de 2025 absorbe el 1-3 de enero y
-   ya no hace falta el truco del filtro.
-2. **No usar `EXTRACT(WEEK ...)` ni `EXTRACT(ISOYEAR ...)`** en los reportes y consolidados: son ISO.
-   Como el consolidado semanal (`vigilancia`) es lo que se envía al central, **esto también afecta la
-   numeración de las semanas que se reportan** — hay que confirmarlo contra el sobre del 29/09 antes
-   de cambiar nada, porque si el central ya espera numeración ISO, cambiarla rompe el formato.
-3. **Confirmar con la oficina** si el central (nivel superior) numera las semanas como ISO o como
-   venezuelano, porque de eso depende si el cambio es una corrección o una incompatibilidad.
+| Año | Defunciones | Nacimientos | Semanas |
+|---|---|---|---|
+| 2025 | **11.084** | 17.128 | 53 |
+| 2026 | **6.272** | 9.296 | 52 (datos solo hasta la semana 35) |
 
-#### ⏸ Se deja para mañana (martes 29/09), NO se toca hoy
+Serie 2026 de defunciones, semana a semana, con la convención venezolana:
 
-**Ninguno de los tres cambios de arriba se aplica el lunes 28/09.** Queda anotado, con el diagnóstico
-verificado y las cifras de impacto medidas, para hacerlo mañana. Dos razones para no correrlo hoy:
+| Semana | Rango | Defunciones | MN |
+|---|---|---|---|
+| 1 | 04-01 a 10-01 | 216 | 14 |
+| 2 | 11-01 a 17-01 | 198 | 1 |
+| … | … | ~180-250 | 3-14 |
+| 29 | 20-07 a 26-07 | 198 | 6 |
+| 30 | 27-07 a 01-08 | 167 | 8 |
+| 31 | 02-08 a 08-08 | **37** | 3 |
+| 32 | 09-08 a 15-08 | **39** | 7 |
+| 33 | 16-08 a 22-08 | **42** | 8 |
+| 34 | 23-08 a 29-08 | **25** | 3 |
+| 35 | 30-08 a 05-09 | **2** | 0 |
 
-- Es un **cambio de convención que afecta el número que ve el central**, y el paso 3 (confirmar con
-  la oficina) no está resuelto. Cambiarlo a ciegas puede romper el formato del sobre.
-- Mañana es el día de la **ventana de extracción** (§17.17). El cambio de `semana_epidemiologica()` y
-  la relectura del `dump` de casa se mezclan mal: si se cambia la convención y después se reimporta,
-  no se sabe si un número raro viene del dato o de la convención.
+**El desplome de la captura empieza en la semana 31 (del 2 al 8 de agosto)**, que es justo la semana
+siguiente a la que cerró el sábado 01-08 y se envió el martes 04-08. Hasta la 30 el ritmo es normal
+(~200/semana) y la MM más reciente es de junio; desde la 31 solo llega residuo. Detalle del análisis
+en §17.21.
 
-**Al cerrar el día:** este bloque y el §17.17 son lo único pendiente. El orden de mañana es sobre el
-mismo servidor, así que conviene decidir el orden antes de arrancar.
+#### Qué se aplicó (28/09, en casa)
+
+1. **`vigilancia/services.py`** — `semana_epidemiologica()`, `inicio/fin/rango_anio_epidemiologico()`
+   y `semanas_en_anio()` reescritas con la cadena contigua del 4 de enero. Ya no se usa
+   `isocalendar()` en ninguna parte.
+2. **`registros/views.py`** — `_filtro_anio()` para tablero, comparativo y listados, en vez de
+   `fecha_evento__year`; `_por_semana()` y `_neonatales_por_semana()` agrupan por fecha y etiquetan
+   en Python (SQL no puede expresar domingo→sábado). Se eliminó `ExtractWeek` (era ISO).
+3. **`exportar_rutalara.py`** — `--semana` pasó de ISO `AAAA-WNN` a **`AAAA-N`**
+   (ej. `2026-31`) y valida que la semana exista en ese año (2026 no tiene 53).
+4. **Pruebas** — 9 de `SemanaEpidemiologicaTests` (53/52, fronteras, no-solape, casos del legacy) y
+   3 de `AnioEpidemiologicoTests` (regresión del bug de año civil). Suite: **91 pruebas OK**.
+
+#### ✅ Confirmado con la oficina (28/09): el central usa la convención venezolana
+
+**El nivel superior numera las semanas epidemiológicas, no ISO** (§17.24). Entonces este cambio es
+una **corrección**, no una incompatibilidad: se puede enviar con la numeración venezolana. El plan
+B de "no tocar hasta confirmar" queda sin objeto.
+
+El `ConsolidadoSemanal` **no se reetiquetó**: los 70.975 registros importados toman `ANNO`/`PERIODO`
+del propio legacy (`sismai."DOCUMENTO"`), que ya usa la convención venezolana (2025 = 1..53,
+2026 = 1..37). Confirmado contra el legacy: el periodo 37 se consolidó el 21-22/09, sobre la semana
+que cerró el sábado 19-09, que es la 37 y no la 38 ISO. **No hay nada que migrar**; si se hiciera,
+se rompería el histórico.
+
+Nada queda abierto de cara al central: la numeración es la venezolana, que es la que ya usan el
+legacy y la oficina.
+
+### 17.20 ✅ Corregida la muerte materna: el ETL solo leía un código de dos (28/09/2026, en casa)
+
+Cerrada la diferencia "oficina 17+1 / PostgreSQL 7" del §17.18 sin tocar el Oracle. **La causa era
+nuestro ETL, no el dato.**
+
+#### El origen: el campo tiene cinco códigos y el ETL leía uno
+
+`sismai.PRESENCIAEMBARAZO` es el catálogo del campo, y está en el espejo:
+
+| Código | Significado | ¿MM? |
+|---|---|---|
+| 01 | AL MOMENTO DE LA MUERTE | **sí** |
+| 02 | EN LOS ULTIMOS 12 MESES (puerperio) | **sí** |
+| 03 | NO | no |
+| 04 | IGNORADO | no |
+| 05 | SIN INFORMACION | no |
+
+`importar_legacy_registros.py` mapeaba `embarazo_o_puerperio = (embarazo == 1)`: **descartaba el
+puerperio**. Con 1+2, los certificados de 2026 dan **16** y no 7. Que el número fuera 7 y no otra
+cosa es lo que hizo pasar el bug desapercibido: 7 es un valor plausible para un año.
+
+#### Segundo error, en el conteo: la MM no depende de la CIE
+
+`views.py` contaba `embarazo_o_puerperio=True, codificacion_pendiente=False`, es decir **solo las
+muertes maternas ya codificadas**. Como el **97,5% de los certificados de 2026 tiene `HCAUSABASICA`
+NULL**, esa regla borraba casi todas: en 2024 el tablero mostraba **0** MM siendo que hay 21, y de las
+16 de 2026 solo 2 tenían CIE. Que la causa esté o no codificada no cambia que la muerte fue materna;
+lo que indica es si la muerta está en la lista de las que hay que codificar. **Regla aplicada: `mm`
+cuenta todas, y el desglose con/sin CIE se informa aparte** (`mm_codificadas`, `mm_pendientes`).
+
+#### Qué se cambió
+
+- `importar_legacy_registros.py`: constante `CODIGOS_MM = {1, 2}` con el catálogo citado, y el mapeo
+  usa `in CODIGOS_MM`.
+- `registros/views.py`: el tablero y el comparativo cuentan la MM entera; se agrega `mm_codificadas`
+  al tablero y se corrigen los rótulos ("Muertes maternas codificadas (MM)" → "Muertes maternas (MM)").
+- `auditoria/exportar_auditoria_mm_mn.py`: el resumen imprime el total de MM, no solo las codificadas.
+- `Tablero.jsx` / `Reportes.jsx`: rótulos.
+- **Nuevo** `manage.py corregir_mm_legacy` (dry-run por defecto, `--ejecutar` aplica): el ETL es
+  idempotente por `legacy_id` y no volvía a tocar las filas existentes, así que corregir el comando de
+  importación **no reparaba lo ya cargado**; este comando sí, enlazando por `legacy_id` ↔
+  `sismai."CERTIFICADO"."ID"`, y además **desmarca** las que el legacy tiene en 3/4/5 o NULL.
+- Pruebas: `registros/tests.py::MuerteMaternaTests` (2 casos) — que el tablero y el comparativo
+  cuenten la MM sin CIE. **79 pruebas backend** (antes 77), 13 frontend, `npm run build` OK.
+
+#### Resultado y cuadre con la oficina
+
+Ejecutado sobre las 173.533 defunciones del lote `LEGACY-CERTIFICADO`: **102 marcadas, 0
+desmarcadas** (no había falsos positivos que limpiar), **191 MM** en todo el histórico. Idempotente.
+
+| Año | Antes (tablero) | Ahora | Espejo directo | Oficina |
+|---|---|---|---|---|
+| 2024 | 0 | **21** | 21 | — |
+| 2025 | 23 | **41** | 41 | — |
+| 2026 | 7 | **16** | 16 | 17 + 1 violenta |
+
+Los tres años cuadran exactamente con `sismai."CERTIFICADO"`, o sea que **nuestra cifra ya no tiene
+bug de mapeo**: la de la oficina es 17 (+1 violenta) y la nuestra 16. Queda un residuo de 1, que es
+justamente lo que hay que explicarle:
+
+- **MN 2026:** la app da **221**, el espejo por `TIPOEDAD`/`EDAD` da **222** y la oficina **228**. La
+  diferencia con 228 sigue siendo la del colapso de captura del 1 de agosto (~6,2 MN/semana × 2
+  semanas ≈ 12), no un bug: los dos métodos locales coinciden entre sí.
+- **El "+1 violenta" no es derivable de los certificados:** 15 de las 17 filled no tienen
+  `HCAUSABASICA`, así que la causa externa (V00–Y99) no está. Sale de cruzar el registro de
+  investigación `RENGLON_CASOSMM` (21 casos en 2026, el último el 14/08) contra los certificados, y
+  ese cruce está **bloqueado por el bug de `HCASOSMMI`/`ID−2`**: en las 749 filas
+  `HCASOSMMI = ID − 2` exactamente, o sea que es una **FK desalineada por el mapeo**, no un conteo
+  (confirma lo del §17.18). El conteo correcto de esa tabla es `COUNT(*)`, y `HCASOSMMI` sirve para
+  encontrar el certificado, cuando se corrija el mapeo.
+- **La última MM capturada es del 11/08/2026** (y el último caso de investigación, del 14/08): la
+  oficina tampoco tiene Mortality Materna de agosto en adelante en su propio sistema.
+
+### 17.21 ✅ La captura se cortó el 01/08/2026: la semana 31 quedó a medias (28/09/2026)
+
+Con la convención venezolana ya aplicada (§17.19), el desplome de natalidad y mortalidad tiene una
+**fecha exacta de corte**. Antes, con la numeración ISO, parecía empezar en la semana 32.
+
+#### La serie
+
+| Semana | Rango (domingo→sábado) | Defunciones | Nacimientos |
+|---|---|---|---|
+| 28 | 13-07 a 19-07 | 197 | 241 |
+| 29 | 20-07 a 26-07 | 198 | 288 |
+| **30** | **27-07 a 01-08** | **167** | **165** |
+| 31 | 02-08 a 08-08 | **37** | **18** |
+| 32 | 09-08 a 15-08 | 39 | **0** |
+| 33 | 16-08 a 22-08 | 42 | **0** |
+| 34 | 23-08 a 29-08 | 25 | **0** |
+| 35 | 30-08 a 05-09 | **2** | **0** |
+| 36+ | — | 0 | 0 |
+
+**El último día con captura completa es el sábado 01/08/2026** (135 defunciones y 143 nacimientos
+en esa semana, con el pico del viernes 31/07). A partir del **domingo 02/08** la natalidad se cae a
+18 y de la semana 32 en adelante **no llega ningún nacimiento**. La mortalidad no llega a cero porque
+hay rezago: los últimos registros son del 31/08 (semana 35) y son pocos.
+
+#### No es un centro: se quedaron callados todos a la vez
+
+| Establecimiento | Def. antes 02/08 | Def. desde 02/08 | Nac. antes | Nac. desde |
+|---|---|---|---|---|
+| Hosp. Central Univ. Dr. Antonio María | 1.300 | 12 | 3.353 | 0 |
+| Hosp. Dr. Pastor Orozco | 1.028 | 2 | 2.612 | 0 |
+| Hosp. Dr. Luis Gómez López | 153 | 0 | — | — |
+| Hosp. Dr. Baudilio Lara | 83 | 0 | 176 | 0 |
+| Hosp. Esp. Ped. Agustín Zubillaga | 73 | 5 | — | — |
+| Hosp. La Caruciña | — | — | 627 | 10 |
+| Los 20+ establecimientos restantes | | 0 | | 0 |
+
+**Ningún centro explains el corte**: los dos grandes (Central y Pastor Orozco, ~85% del volumen) y
+todos los demás panduan simultaneous. Eso descarta un problema de una sala o de un hospital y
+apunta a algo **central**: el proceso de sincronización o el envío del sobre.
+
+#### La cola de eventos confirma la fecha
+
+`sismai."EVENTOS"` (la cola del legacy) tiene eventos de `CERTIFICADO` y `CERTNACIMIENTO` solo hasta
+el **04/08/2026**:
+
+| Día | Eventos de certificado/nacimiento |
+|---|---|
+| 29/07 | 198 |
+| 30/07 | 195 |
+| 31/07 | 192 |
+| **01/08** | (día del envío) |
+| 03/08 | 207 |
+| **04/08** | 134 |
+
+Los últimos eventos son del **04/08**, que es el sobre de la semana 30 (cerrada el sábado 01/08):
+la oficina **sí envió** esa semana. Lo que no hay es ningún evento posterior, ni una fila de
+diagnóstico. La última MM capturada es del 11/08 y el último caso de investigación del 14/08
+(§17.20), así que tampoco es que los centros dejaran de emitir: **dejaron de llegar al espejo**.
+
+#### Conclusión
+
+El corte es del **domingo 02/08/2026**, en la semana 31, después del envío correcto de la semana 30
+del martes 04/08. Como afecta a todos los establecimientos a la vez y la cola no registra ni un
+evento de diagnóstico posterior, la hipótesis más probable es una **interrupción del proceso de
+sincronización** (o del envío) el 02/08, no un problema de captura en los centros.
+
+**Confirmado por la oficina el 28/09:** los sobres **se emiten y se envían todos los martes**. Es
+decir, los centros **sí siguieron capturando**: los datos de las semanas 31+ existen en el sistema y
+no nos llegaron. **El hueco es recuperable** extrayéndolos del Oracle vivo (§17.24 y la fase 1 del
+§17.17), y las cifras de agosto-septiembre que muestra el tablero son del extracto parcial, no las
+de la oficina.
+
+### 17.22 ❌ `HCASOSMMI` NO estaba desalineado: es una FK válida a `CASOS_MMI` (28/09/2026)
+
+Corrige la hipótesis del §17.20. `HCASOSMMI` es **exactamente `ID − 2` en las 749 filas**, lo que
+hacía pensar en un mapeo corrido. **No es así:** la desalineación es con la secuencia de la propia
+tabla, y el campo es una llave foránea correcta.
+
+| Prueba | Resultado |
+|---|---|
+| `RENGLON_CASOSMM.HCASOSMMI` → `sismai."CERTIFICADO"."ID"` | **0 de 749** |
+| `RENGLON_CASOSMM.HCASOSMMI` → `sismai."CASOS_MMI"."ID"` | **748 de 749** |
+| Renglones por caso (`HCASOSMMI` repetido) | ninguno: **1 renglón por caso**, 749 casos |
+| El único huérfano | `ID_RENGLON 2912174605`, de **03/08/2018** (fuera de alcance) |
+
+Es decir: `CASOS_MMI` es la **cabecera de la investigación** (nombre, sexo, edad, fecha de
+ocurrencia) y `RENGLON_CASOSMM` es su **detalle obstétrico** (forma de parto, edad gestacional, control
+prenatal, hijos). La relación es 1 a 1 y está bien. **El modelo `legacy/models_legacy.py` no necesita
+corrección**; lo que hay que corregir es la conclusión del §17.20: el conteo de la tabla es
+`COUNT(*)` (749) y `HCASOSMMI` sirve para encontrar la investigación, no el certificado.
+
+#### Las 18 investigaciones de 2026 contra las 16 MM certificadas
+
+Las 18 investigación de 2026 (por `FECHAOCURRENCIA`) contra los 16 certificados con
+`HPRESENCIAEMBARAZO` IN (1,2):
+
+| | Casos |
+|---|---|
+| MM certificadas (`HPRESENCIAEMBARAZO` 1 o 2) | **16** |
+| Investigaciones de muerte materna en 2026 | **18** |
+| MM **sin** investigación | 1 (27/01/2026) |
+| Investigación **sin** MM certificada | **4** |
+
+Sobre esas 4: son las fechas 07/04, 01/06, 04/06 y 07/07. En esas fechas **sí hay certificados de
+fallecimiento de mujer** (10, 19, 19 y 8 respectivamente), pero **ninguno tiene el campo
+`HPRESENCIAEMBARAZO` lleno**: están como `NULL`. O sea, las 4 muertes maternas que epidemiology sí
+investigó **no se pueden ver en el tablero**, porque el certificado se emitió sin marcar
+embarazo/puerperio. Es el mismo hueco de calidad de dato del §17.20, no un bug de conteo.
+
+⚠ Nota sobre el sexo: los códigos **no son los mismos entre tablas**. En `CERTIFICADO`, `SEXO = 1` es
+femenino; en `CASOS_MMI`, `HSEXO = 2` es femenino. Al cruzar por `SEXO` equivocadamente no aparece
+ningún match, lo que reinforces la confusión. El cruce correcto de investigations con certificados
+es por **fecha** (y `SEXO = 1` en el certificado), no por `HSEXO`.
+
+**Conclusión de F:** no hay bug de mapeo que arreglar. La diferencia entre las 16 MM del tablero y
+las 18 investigaciones (más la +1 violenta de la oficina) es **calidad del dato en origen**:
+certificados maternos emitidos sin `HPRESENCIAEMBARAZO`. La acción correcta es pedir a la oficina
+que complete ese campo (acción 4 del acta de conciliación), no tocar el código de mapeo.
+
+### 17.23 La cola del sobre es una ventana móvil, no una semana (28/09/2026)
+
+Al documentar el corte de captura (§17.21) se aclara una cosa del contrato de la cola que cambia
+cómo se interpreta `T_EVENTOS`: **no es "la semana"**, es "todo lo que se movió desde el último envío".
+
+#### Lo que muestra el sobre del 22/09
+
+El `routlar1_2292026_1238.ZIP` (22/09/2026 12:38) trae `T_EVENTOS` con **9.496 filas**, de FECHA entre
+el **16/09 13:01** y el **22/09 12:33**. Repartidas:
+
+| Día | Eventos | Tablas distintas |
+|---|---|---|
+| 16/09 | 13 | 3 |
+| 17/09 | 1.262 | 12 |
+| 18/09 | 1.088 | 11 |
+| 19/09 | 8 | 2 |
+| 20/09 | 8 | 2 |
+| 21/09 | 3.314 | 10 |
+| 22/09 | 3.803 | 13 |
+
+La cola **cruza dos martes** (15/09 y 22/09) y arranca el 16/09, que es el día siguiente al envío
+anterior (`routlar1_1692026_1245.ZIP`, 16/09 12:45). O sea, arranca **16 minutos después del
+sobre anterior**, no un lunes. Por tabla, lo que más viaja es `RENGLONTELE` (5.520),
+`RENGLON_EPI15` (1.472), `DOCUMENTO` (501), `CAUSA_MMEDICO` (469) y los tres de natalidad
+(`CERTNACIMIENTO`/`NAC_RNACIDO`/`NAC_MADRE`, 360 c/u) — más `CERTIFICADO` con 154.
+
+#### Qué implica
+
+1. **No se puede pedir "la semana 37" como ventana de reenvío.** Hay que pedir "desde el último
+   envío", porque el sobre del 22/09 ya se llevó lo del 16-21/09 aunque la semana 37 Closing el
+   19/09. Cualquier plan que pida "reenviar semanas 31 a 37" va a duplicar lo que ya se envió el
+   17 y el 22, y `EVENTOS_SINC` no tiene clave única (§17.4) para que la deduplicación sea gratis.
+2. **La etiqueta `SE-NN` del exportador es una conveniencia local**, no un campo del protocolo: el
+   sobre real no nombra la semana, solo manda filas. El `PERIODO` viaja dentro de `DOCUMENTO`.
+3. **Por eso el corte del 02/08 (§17.21) no se nota como "semana faltante" en la cola**: la cola
+   seguiría enviando lo que haya, aunque sean pocos eventos. El 04/08 hay 134 eventos de
+   certificado/nacimiento, y del 05/08 en adelante, ninguno. Los sobres del 15/09 y del 22/09
+   existen, pero llegan vacíos de lo que importa.
+4. **Al reintentar la sincronización (martes 29/09) hay que decidir la ventana antes de exportar**:
+   `desde = último FECHA realmente enviado` (el 22/09 12:33 si se confirma ese sobre), no "lunes".
+
+**Respuesta de la oficina (28/09): nadie conoce el criterio del TRUNCATE**, lo hace el sistema de
+envío del legacy sin documentación. Por eso la ventana **no se puede calcular a priori**: se deriva
+de lo observado (el corte es el último `FECHA` enviado, con ~16 min de margen) y se usa
+`desde = último envío`. Ver §17.24.
+
+### 17.24 ✅ Respuestas de la oficina (28/09/2026): el central usa semana epidemiológica
+
+Las 4 preguntas abiertas quedan respondidas. Las dos primeras **desbloquean la extracción** y
+corrigen el plan del §17.17.
+
+**1. El central (nivel superior) numera las semanas epidemiológicas, no ISO.** Por lo tanto el cambio de §17.19 **no es una incompatibilidad de formato: es una corrección**, y el plan B de "no cambiar hasta confirmar" queda sin objeto. Se puede enviar con la numeración venezolana sin riesgo. Sigue siendo legítimo reenviar el histórico con la convención corregida, porque el legacy (`sismai."DOCUMENTO"."PERIODO"`) ya venía así y el central ya lo venía recibiendo.
+
+**2. El corte del 02/08 es del envío semanal, no de la captura en los centros.** La oficina confirma que **los sobres se emiten y se envían todos los martes**. Eso cambia la interpretación del §17.21 en lo importante: **los datos de las semanas 31+ existen en el sistema del centro**, se emiten, y lo que falló es que no nos llegaran. Por lo tanto:
+
+- El hueco **es recuperable**: la fase 1 del §17.17 los baja del Oracle vivo, en vez de resignarse a trabajar con el espejo truncado.
+- No hace falta "pasar a nivel superior" a buscar los datos: están en el mismo servidor, en `SISMAI."CERTIFICADO"` y `SISMAI."NAC_RNACIDO"`.
+- Las cifras de agosto-septiembre que hoy muestra el tablero no son definitivas: son las del extracto parcial, no las de la oficina.
+
+**3. El desfase de 10 MN (218 vs 228) son faltantes.** Queda registrado como faltante del nivel Lara, **se revisa después y se escala a nivel superior** (acción 5 del acta). No bloquea nada más.
+
+**4. Nadie conoce el criterio del TRUNCATE** de la cola: lo hace el sistema de envío del legacy, sin documentación. Por lo tanto **no se puede calcular la ventana a priori** y hay que derivarla de lo observado (§17.23): el corte observado es el del último envío (22/09 12:33), con 16 minutos de margen respecto al sobre anterior. Para la ventana del 29/09 se usa `desde = último FECHA realmente enviado` y se deja un margen de seguridad, aceptando que se repitan algunos eventos (que el central deduplica por `TABLA`/`ID`).
+
+#### Script de la fase 1 (listo para el 29/09)
+
+`migracion/extraer_mm_mn_roto.sh` (driver) + `migracion/extraer_mm_mn_roto.sql` (consultas).
+Solo lectura: `SELECT` + `SPOOL`, nunca toca `EVENTOS_SINC`. Trae el periodo `>= 01/08/2026`
+(semana 31, el día del solape sirve de control) de defunciones, nacimientos, los casos de muerte
+materna y neonatal, y el catálogo de establecimientos. Genera un `manifiesto.txt` con el conteo de
+filas por archivo y una bitácora. Ajustable con `DESDE=`, `SALIDA=`, `HOST=`.
+
+Todo validado contra el espejo PostgreSQL: las 9 consultas ejecutan y las 89 columnas existen.
+Dos errores se detectaron **antes** de tocar el servidor y se corrigieron:
+
+- `CERTIFICADO."STATUS"` **no es NULL nunca** (es 1/0, 173.533/173.533), así que el filtro
+  `STATUS IS NULL` devolvía **cero defunciones**: se eliminó.
+- El filtro de nacimientos va por **`NAC_RNACIDO."FECHANACIMIENTO"`**, no por
+  `CERTNACIMIENTO."FECHACERTIFICADO"`. En el espejo hay **1.522 certificados emitidos desde el
+  01/08 que corresponden a nascimientos de junio y julio** (registro tardío): filtrar por el
+  certificado traía datos que ya teníamos y perdía el periodo real. El importador usa la misma
+  regla (`FECHANACIMIENTO` y, si falta, `FECHACERTIFICADO`). Los tardíos salen aparte en
+  `nacimiento_tardio.csv` solo para conciliarlos.
+- Los renglones de MM/MN se filtran por **`CASOS_MMI."FECHAOCURRENCIA"`** (la fecha de la muerte),
+  no por `FECHAOPERACION` del renglón, que es la fecha en que se cargó la fila.
+
+Sobre el espejo, la fase 1 rinde: 152 defunciones, 23 nacimientos de agosto, 1.499 registros
+tardíos, 56 casos de investigación, 85 renglones de MN y 1 de MM. También se detectó que de los
+29 recién nacidos de agosto **6 no tienen certificado** todavía, lo cual es normal (son recientes) y
+queda anotado para el control de calidad de la carga.
