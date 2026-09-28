@@ -49,26 +49,57 @@ DEFINE DESDE = '01/08/2026'
 -- (173.533/173.533 con valor), asi que ese filtro devuelve CERO filas. Se baja el
 -- periodo completo y se decide el filtro de anulamiento en la carga, donde si se
 -- puede comparar con el criterio que usa el importador.
+--
+-- Van los datos IDENTIFICATORIOS del fallecido (NOMBRE/APELLIDO/CEDULA): sin ellos la
+-- defuncion cargada queda sin nombre y no sirve para nada. Tambien HORAMUERTE,
+-- AUTOPSIA y OTROMEDFIRMANTE, que el modelo tiene. Ojo con HESTABLECIMIENTO_OCUR (el
+-- establecimiento donde ocurrio la muerte) que es el que usa el importador, distinto
+-- del HESTABLECIMIENTO del certificado.
 SPOOL __SALIDA__/muerte.csv
+SELECT 'ID;FECHA_M;NOMBRE;APELLIDO;CEDULA;SEXO;EDAD;TIPOEDAD;FECHA_N;HORAMUERTE;HESTADOCIVIL;HSITIO_M;HESTABLECIMIENTO;HESTABLECIMIENTO_OCUR;HLOCARESIDENCIA;HPRESENCIAEMBARAZO;HCAUSABASICA;AUTOPSIA;HMEDICOFIRMANTE;OTROMEDFIRMANTE;MFETAL;STATUS;FECHAOPERACION' FROM DUAL;
 SELECT  c."ID",
-        TO_CHAR(c."FECHA_M",'YYYY-MM-DD HH24:MI:SS'),
-        c."HESTABLECIMIENTO",
+        TO_CHAR(c."FECHA_M",'YYYY-MM-DD HH24:MI:SS') AS FECHA_M,
+        c."NOMBRE",
+        c."APELLIDO",
+        c."CEDULA",
         c."SEXO",
         c."EDAD",
         c."TIPOEDAD",
-        TO_CHAR(c."FECHA_N",'YYYY-MM-DD'),
+        TO_CHAR(c."FECHA_N",'YYYY-MM-DD') AS FECHA_N,
+        TO_CHAR(c."HORAMUERTE",'YYYY-MM-DD HH24:MI:SS') AS HORAMUERTE,
         c."HESTADOCIVIL",
         c."HSITIO_M",
+        c."HESTABLECIMIENTO",
+        c."HESTABLECIMIENTO_OCUR",
         c."HLOCARESIDENCIA",
         c."HPRESENCIAEMBARAZO",
         c."HCAUSABASICA",
+        c."AUTOPSIA",
         c."HMEDICOFIRMANTE",
+        c."OTROMEDFIRMANTE",
         c."MFETAL",
         c."STATUS",
-        TO_CHAR(c."FECHAOPERACION",'YYYY-MM-DD HH24:MI:SS')
+        TO_CHAR(c."FECHAOPERACION",'YYYY-MM-DD HH24:MI:SS') AS FECHAOPERACION
 FROM SISMAI."CERTIFICADO" c
 WHERE c."FECHA_M" >= TO_DATE(&DESDE,'DD/MM/YYYY')
 ORDER BY c."FECHA_M", c."ID";
+SPOOL OFF
+
+-- CAUSAS por certificado (hasta 4 renglones por defuncion, ordenados por ORDENLISTA).
+-- Sin esto la defuncion llega sin causa: HCAUSABASICA es solo la CLAVE foránea al
+-- catalogo CIE10, y el texto de la causa vive aqui.
+SPOOL __SALIDA__/causa_m.csv
+SELECT 'HCERTIFICADO;HCIE10;ORDENLISTA;DESENFERMEDAD' FROM DUAL;
+SELECT  cm."HCERTIFICADO",
+        cm."HCIE10",
+        cm."ORDENLISTA",
+        cm."DESENFERMEDAD"
+FROM SISMAI."CAUSA_M" cm
+WHERE EXISTS (SELECT 1
+              FROM SISMAI."CERTIFICADO" c
+              WHERE c."ID" = cm."HCERTIFICADO"
+                AND c."FECHA_M" >= TO_DATE(&DESDE,'DD/MM/YYYY'))
+ORDER BY cm."HCERTIFICADO", cm."ORDENLISTA";
 SPOOL OFF
 
 -- NACIMIENTOS: el filtro va por FECHANACIMIENTO (fecha real del nacimiento), NO por
@@ -77,14 +108,15 @@ SPOOL OFF
 -- certificado, el CSV trae datos que ya tenemos y se pierde la verdad del periodo.
 -- El importador usa la misma regla (FECHANACIMIENTO y, si falta, FECHACERTIFICADO).
 SPOOL __SALIDA__/nacimiento.csv
+SELECT 'ID;FECHACERTIFICADO;HESTABLECIMIENTO;CEDULA;NOMBRES;NROPLANILLA;STATUS;FECHAOPERACION' FROM DUAL;
 SELECT  n."ID",
-        TO_CHAR(n."FECHACERTIFICADO",'YYYY-MM-DD HH24:MI:SS'),
+        TO_CHAR(n."FECHACERTIFICADO",'YYYY-MM-DD HH24:MI:SS') AS FECHACERTIFICADO,
         n."HESTABLECIMIENTO",
         n."CEDULA",
         n."NOMBRES",
         n."NROPLANILLA",
         n."STATUS",
-        TO_CHAR(n."FECHAOPERACION",'YYYY-MM-DD HH24:MI:SS')
+        TO_CHAR(n."FECHAOPERACION",'YYYY-MM-DD HH24:MI:SS') AS FECHAOPERACION
 FROM SISMAI."CERTNACIMIENTO" n
 WHERE EXISTS (SELECT 1
               FROM SISMAI."NAC_RNACIDO" r
@@ -96,10 +128,11 @@ SPOOL OFF
 -- Y al reves: los certificados del periodo que son de nacimientos anteriores. Van en
 -- su propio archivo para poder conciliarlos sin mezclarlos con el hueco.
 SPOOL __SALIDA__/nacimiento_tardio.csv
+SELECT 'ID;FECHACERTIFICADO;HESTABLECIMIENTO;FECHANACIMIENTO;STATUS' FROM DUAL;
 SELECT  n."ID",
-        TO_CHAR(n."FECHACERTIFICADO",'YYYY-MM-DD HH24:MI:SS'),
+        TO_CHAR(n."FECHACERTIFICADO",'YYYY-MM-DD HH24:MI:SS') AS FECHACERTIFICADO,
         n."HESTABLECIMIENTO",
-        TO_CHAR(r."FECHANACIMIENTO",'YYYY-MM-DD') AS fecha_real_nacimiento,
+        TO_CHAR(r."FECHANACIMIENTO",'YYYY-MM-DD') AS FECHANACIMIENTO,
         n."STATUS"
 FROM SISMAI."CERTNACIMIENTO" n
 JOIN SISMAI."NAC_RNACIDO" r ON r."HCERTIFICADO" = n."ID"
@@ -112,6 +145,7 @@ SPOOL OFF
 -- filas historicas. VIVO_MUERTO es lo que permite identificar al recien nacido
 -- que fallece (el insumo del indicador MN).
 SPOOL __SALIDA__/nac_madre.csv
+SELECT 'ID;HCERTIFICADO;CEDULA;NOMBRES;APELLIDOS;EDADM;EDADP;ESTADOCIVIL;FECHANACIMIENTO_MADRE;HRESIDENCIA;NACVIVOS;MUERTESFETALES;HULTIMOGRADO;CONTROLPRENATAL' FROM DUAL;
 SELECT  m."ID",
         m."HCERTIFICADO",
         m."CEDULA",
@@ -119,7 +153,8 @@ SELECT  m."ID",
         m."APELLIDOS",
         m."EDADM",
         m."EDADP",
-        TO_CHAR(m."FECHANACIMIENTO",'YYYY-MM-DD'),
+        m."ESTADOCIVIL",
+        TO_CHAR(m."FECHANACIMIENTO",'YYYY-MM-DD') AS FECHANACIMIENTO_MADRE,
         m."HRESIDENCIA",
         m."NACVIVOS",
         m."MUERTESFETALES",
@@ -133,11 +168,12 @@ WHERE EXISTS (SELECT 1
 SPOOL OFF
 
 SPOOL __SALIDA__/nac_rnacido.csv
+SELECT 'ID;HCERTIFICADO;NOMBRES;HSEXO;NACIMIENTO;PESO;TALLA;HTIPOPARTO;HFORMAPARTO;VIVO_MUERTO;SEMANAGESTACION' FROM DUAL;
 SELECT  r."ID",
         r."HCERTIFICADO",
         r."NOMBRES",
         r."HSEXO",
-        TO_CHAR(r."FECHANACIMIENTO",'YYYY-MM-DD') || ' ' || r."HORA",
+        TO_CHAR(r."FECHANACIMIENTO",'YYYY-MM-DD') || ' ' || r."HORA" AS NACIMIENTO,
         r."PESO",
         r."TALLA",
         r."HTIPOPARTO",
@@ -152,6 +188,7 @@ SPOOL OFF
 -- Muerte materna: cabecera e historico. §17.22 aclaro que RENGLON_CASOSMM.HCASOSMMI
 -- es FK a CASOS_MMI, no un id corrido, asi que se bajan las dos mitades.
 SPOOL __SALIDA__/casosmmi.csv
+SELECT 'ID;HDOCUMENTO;NOMBRE;APELLIDO;EDAD;UNIDAD_EDAD;HSEXO;FECHAOCURRENCIA;HRESIDENCIA;FECHAOPERACION' FROM DUAL;
 SELECT  m."ID",
         m."HDOCUMENTO",
         m."NOMBRE",
@@ -159,17 +196,18 @@ SELECT  m."ID",
         m."EDAD",
         m."UNIDAD_EDAD",
         m."HSEXO",
-        TO_CHAR(m."FECHAOCURRENCIA",'YYYY-MM-DD'),
+        TO_CHAR(m."FECHAOCURRENCIA",'YYYY-MM-DD') AS FECHAOCURRENCIA,
         m."HRESIDENCIA",
-        TO_CHAR(m."FECHAOPERACION",'YYYY-MM-DD HH24:MI:SS')
+        TO_CHAR(m."FECHAOPERACION",'YYYY-MM-DD HH24:MI:SS') AS FECHAOPERACION
 FROM SISMAI."CASOS_MMI" m
 WHERE m."FECHAOCURRENCIA" >= TO_DATE(&DESDE,'DD/MM/YYYY');
 SPOOL OFF
 
 SPOOL __SALIDA__/renglon_casosmm.csv
+SELECT 'ID;HCASOSMMI;FECHAOPERACION;HESTABLECIMIENTO;HCAUSA_CIE10;HCAUSABAS_CIE10;EDAD_GESTACIONAL;CONTROL_PRENATAL;HFORMAPARTO;PERIODOOCURRENCIA;NUM_PARTOS;HIJOS_NACVIVOS;HIJOS_NACMUERTOS' FROM DUAL;
 SELECT  r."ID",
         r."HCASOSMMI",
-        TO_CHAR(r."FECHAOPERACION",'YYYY-MM-DD HH24:MI:SS'),
+        TO_CHAR(r."FECHAOPERACION",'YYYY-MM-DD HH24:MI:SS') AS FECHAOPERACION,
         r."HESTABLECIMIENTO",
         r."HCAUSA_CIE10",
         r."HCAUSABAS_CIE10",
@@ -191,9 +229,10 @@ SPOOL OFF
 -- sola vez, en casosmmi.csv, y aca solo va el renglon.
 
 SPOOL __SALIDA__/renglon_casosmi.csv
+SELECT 'ID;HCASOSMMI;FECHAOPERACION;HESTABLECIMIENTO;HCAUSA_CIE10;HCAUSABAS_CIE10;EDAD_GESTACIONAL;CONTROL_PRENATAL;PESO;HNUTRICION;ESTANCIAHOSP' FROM DUAL;
 SELECT  r."ID",
         r."HCASOSMMI",
-        TO_CHAR(r."FECHAOPERACION",'YYYY-MM-DD HH24:MI:SS'),
+        TO_CHAR(r."FECHAOPERACION",'YYYY-MM-DD HH24:MI:SS') AS FECHAOPERACION,
         r."HESTABLECIMIENTO",
         r."HCAUSA_CIE10",
         r."HCAUSABAS_CIE10",
@@ -211,8 +250,28 @@ SPOOL OFF
 -- Resolucion de establecimiento (todo el catalogo, son pocas filas).
 -- La PK es "ID" (no IDESTABLECIMIENTO: esa no existe en ESTABLECIMIENTO).
 SPOOL __SALIDA__/establecimiento.csv
-SELECT e."ID", e."CODIGO", e."DESCRIPCION", e."HTIPO", e."HLOCALIDAD", e."STATUS"
+SELECT 'ID;CODIGO;NOMBRE;PADRE;DESCRIPCION;HTIPO;HLOCALIDAD;STATUS' FROM DUAL;
+SELECT e."ID", e."CODIGO", e."NOMBRE", e."PADRE", e."DESCRIPCION", e."HTIPO", e."HLOCALIDAD", e."STATUS"
 FROM SISMAI."ESTABLECIMIENTO" e;
+SPOOL OFF
+
+-- Catalogo CIE-10 del legacy. HCAUSABASICA y HCIE10 son CLAVES FORANEAS a
+-- SEQ_ID_ACTUAL, no codigos: sin esta tabla la carga no puede traducirlas a un
+-- codigo CIE real ni resolver el cross-walk a CIE-11. Trae la descripcion, que
+-- es el texto de causa de reserva cuando el certificado no tiene renglon en CAUSA_M.
+SPOOL __SALIDA__/cie10_legacy.csv
+SELECT 'SEQ_ID_ACTUAL;COD_CLASIFICACION;DES_CLASIFICACIO1;DES_CLASIFICACIO2' FROM DUAL;
+SELECT c."SEQ_ID_ACTUAL", c."COD_CLASIFICACION", c."DES_CLASIFICACIO1", c."DES_CLASIFICACIO2"
+FROM SISMAI."CIE10" c;
+SPOOL OFF
+
+-- ORG_GEOGRAFICA: HLOCARESIDENCIA y HRESIDENCIA apuntan aqui, y el texto trae
+-- "Estado X, Municipio Y, Parroquia Z" en un solo campo. Sin esto no se puede
+-- sacar el terno estado/municipio/parroquia que usan los filtros del tablero.
+SPOOL __SALIDA__/org_geografica.csv
+SELECT 'NUM_REGION;NOMBRELARGO' FROM DUAL;
+SELECT o."NUM_REGION", o."NOMBRELARGO"
+FROM SISMAI."ORG_GEOGRAFICA" o;
 SPOOL OFF
 
 EXIT;

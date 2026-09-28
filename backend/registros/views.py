@@ -3,8 +3,8 @@ import io
 from collections import Counter
 from datetime import date
 
-from django.db.models import Q, Count
-from django.db.models.functions import TruncMonth, ExtractYear
+from django.db.models import Q, Count, Max
+from django.db.models.functions import TruncMonth, ExtractYear, ExtractMonth
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse, StreamingHttpResponse
 from rest_framework.views import APIView
@@ -15,6 +15,11 @@ from .models import ConfiguracionGeneral, Defuncion, FichaVigilancia, Nacimiento
 from .serializers import DefuncionSerializer, FichaVigilanciaSerializer, NacimientoSerializer
 from catalogos.models import MapeoCIE
 from vigilancia.models import ConsolidadoSemanal
+
+MESES_ES = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+]
 from vigilancia.services import rango_anio_epidemiologico, semana_epidemiologica
 from seguridad.services import (
     alcance_registros,
@@ -462,6 +467,65 @@ class FichaVigilanciaView(_RegistroAPI):
 
 
 class DashboardView(APIView):
+    @staticmethod
+    def _cobertura(request, series):
+        """Dice hasta donde llegan los datos y si falta algun mes.
+
+        El tablero se lee como si la informacion fuera completa. Durante la
+        recuperacion de la ventana de septiembre NO lo es: hay meses sin una sola
+        fila en medio de la serie. Un grafico asi no avisa de nada, asi que se
+        calcula el hueco y se devuelve para que el frontend lo muestre.
+
+        Un mes "vacio" no siempre es un error: antes de que arrancara la captura no
+        habia nada, y el mes en curso va atrasado por definicion. Por eso solo se
+        marcan los meses YA TERMINADOS que quedan entre el primero y el ultimo mes
+        con datos, que es donde un hueco significa de verdad que faltaron registros.
+        """
+        hoy = date.today()
+        etiquetas = {"nacimientos": "Nacimientos", "defunciones": "Defunciones", "fichas": "Vigilancia"}
+        por_modulo = {}
+        # Un solo conjunto de meses para los tres modulos: un hueco en los tres a la
+        # vez es un corte de captura, no que falte un tipo de registro.
+        meses_con_datos = set()
+
+        for clave, qs in series:
+            ultima = qs.aggregate(m=Max("fecha_evento"))["m"]
+            por_modulo[clave] = {
+                "etiqueta": etiquetas[clave],
+                "ultima_fecha": ultima.isoformat() if ultima else None,
+                "atraso_dias": (hoy - ultima).days if ultima else None,
+                "total": qs.count(),
+            }
+            for anio_m, mes_m in (
+                qs.annotate(a=ExtractYear("fecha_evento"), m=ExtractMonth("fecha_evento"))
+                  .values_list("a", "m").distinct()
+            ):
+                if anio_m and mes_m:
+                    meses_con_datos.add((anio_m, mes_m))
+
+        huecos = []
+        if len(meses_con_datos) > 1:
+            primero, ultimo = min(meses_con_datos), max(meses_con_datos)
+            anio, m = primero
+            while (anio, m) <= ultimo:
+                # El mes en curso no se marca: a mitad de mes siempre esta a medias.
+                if (anio, m) < (hoy.year, hoy.month) and (anio, m) not in meses_con_datos:
+                    etiqueta_mes = MESES_ES[m - 1] if 1 <= m <= 12 else str(m)
+                    huecos.append(f"{etiqueta_mes} de {anio}")
+                m += 1
+                if m > 12:
+                    m = 1
+                    anio += 1
+
+        atrasos = {v["atraso_dias"] for v in por_modulo.values() if v["atraso_dias"] is not None}
+        peor = max(atrasos) if atrasos else 0
+        return {
+            "por_modulo": por_modulo,
+            "meses_sin_datos": huecos,
+            "atraso_dias": peor,
+            "completo": not huecos and peor <= 45,
+        }
+
     def get(self, request):
         anio_raw = (request.query_params.get("anio") or "").strip()
         hoy = date.today()
@@ -530,11 +594,14 @@ class DashboardView(APIView):
                 a for a in qs_ref.annotate(y=ExtractYear("fecha_evento")).values_list("y", flat=True).distinct() if a
             )
 
+        cobertura = self._cobertura(request, (("nacimientos", qs_nac), ("defunciones", qs_def), ("fichas", qs_fic)))
+
         return ok(
             {
                 "anio": anio_activo,
                 "todos_anios": todos,
                 "anios_disponibles": sorted(anios, reverse=True),
+                "cobertura": cobertura,
                 "totales": totales,
                 "por_estado": por_estado,
                 "por_version": por_version,

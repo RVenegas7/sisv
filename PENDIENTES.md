@@ -1512,3 +1512,62 @@ Sobre el espejo, la fase 1 rinde: 152 defunciones, 23 nacimientos de agosto, 1.4
 tardíos, 56 casos de investigación, 85 renglones de MN y 1 de MM. También se detectó que de los
 29 recién nacidos de agosto **6 no tienen certificado** todavía, lo cual es normal (son recientes) y
 queda anotado para el control de calidad de la carga.
+
+### 17.25 ⚠ MN de las semanas 36 y 37, y el `repllar1.log` que falta (28/09/2026)
+
+Dos datos de hoy que cambian el plan de la ventana del 29/09.
+
+#### 1. La oficina cargó MN de las semanas 36 y 37 (28/09/2026)
+
+Avisaron que **el lunes 28/09 cargaron muertes neonatales de las semanas 36 y 37** y que **mañana
+(29/09) confirman la cantidad**. Qué se sabe y qué no:
+
+- **No se conoce la cifra todavía.** No se escribe ningún número en el acta: hasta que la oficina
+  lo confirme, poner uno sería inventarlo.
+- **Cambia la base de comparación del desfase de 10 MN** (acción 3 del acta, 218 vs 228). Ese
+  desfase se había medido contra un espejo congelado. Con MN de las semanas 36–37 recién cargados
+  en el centro, **el número de control hay que rehacerlo**: la diferencia anterior puede ser
+  completamente distinta. El 218/228 queda como registro histórico, no como conclusión vigente.
+- **El rango de la extracción ya cubre esas semanas**: `DESDE=01/08/2026` (inicio del hueco) cubre
+  la 31 en adelante, y las semanas 36 y 37 caen de sobra. No hay que ampliar nada por este motivo.
+- **Ojo con las definiciones:** el MN del tablero y del acta sale de `Defuncion` (0–27 días entre
+  `FECHA_M` y `FECHA_N`), no de `RENGLON_CASOSMI`. Si la cifra de la oficina viene de los renglones
+  MMI, **no es comparable** con la nuestra y habría que pedir el criterio. Queda como pregunta para
+  el 29/09 junto con la cantidad.
+
+#### 2. El sobre semanal ya no trae 5 archivos desde el 08/09 (regresión)
+
+`migracion/preflight_ventana.sh` compara el `routlar1_*.ZIP` más reciente con los 5 archivos que
+debería traer. Resultado sobre `enviados/`:
+
+| Sobre | Fecha | Archivos | Falta |
+| --- | --- | --- | --- |
+| `routlar1_242026_1552.ZIP` | 24/08/2026 | 5 | — |
+| `routlar1_1732026_1532.ZIP` | 17/08/2026 | 5 | — |
+| `routlar1_2652026_1648.ZIP` | 26/08/2026 | 5 | — |
+| `routlar1_3062026_1551.ZIP` | 30/08/2026 | 5 | — |
+| `routlar1_892026_1357.ZIP` | 08/09/2026 | **4** | `repllar1.log` |
+| `routlar1_1692026_1245.ZIP` | 16/09/2026 | **4** | `repllar1.log` |
+
+**`repllar1.log` desapareció del paquete a partir del 08/09/2026.** Es el log de replicación, no un
+dato: `routlar1.dmp` sigue viniendo con contenido, así que **los sobres siguen llevando los
+registros**. Lo que se perdió es la traza de replicación, que es justo lo que serviría para saber
+qué se procesó y qué no.
+
+Esto confirma el pendiente que ya estaba anotado en §17 («revisar la generación de los 5 archivos del
+ZIP del martes»): el proceso que los produce (`RoutLar1`/scripts de `/home/salud/bin`) dejó de
+escribir ese log. **A revisar en el servidor el 29/09**, junto con lo demás. No bloquea la
+recuperación de MM/MN (que lee de `CERTIFICADO`/`NAC_RNACIDO`, no del sobre), pero sí debilita la
+auditoría de los envíos semanales.
+
+#### 3. Estado del código al 28/09
+
+- `manage.py cargar_mm_mn_roto` listo y probado (20 pruebas): idempotente, no pisa trabajo humano,
+  resuelve organización por nombre dentro del árbol Lara, y **aborta** si el catálogo de
+  establecimientos no trae las raíces Lara en vez de adivinar.
+- `migracion/preflight_ventana.sh` listo; sobre el estado actual da **FALLO** (correcto: hoy no hay
+  respaldo ni es día de envío). Calcula `DESDE` desde lo último cargado (última defunción
+  31/08/2026, último nacimiento 08/08/2026).
+- El tablero ya avisa cuando la serie está incompleta (`cobertura` en `/api/registros/dashboard/`):
+  hoy reporta **nacimientos 51 días atrasado** y **defunciones 28 días**, que son los números que
+  justifican no publicar totales de agosto-septiembre como definitivos.

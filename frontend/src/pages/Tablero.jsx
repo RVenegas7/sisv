@@ -7,6 +7,40 @@ const MESES = [
   "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
 ]
 
+// Avisa cuando la informacion del tablero esta incompleta. Sin esto, un grafico
+// con un corte de captura en medio se lee igual que uno completo y alguien se
+// lleva una conclusion equivocada. Los numeros del aviso salen de `cobertura`, que
+// el backend calcula sobre la base real: no es texto fijo.
+function AvisoCobertura({ cobertura }) {
+  if (!cobertura || cobertura.completo) return null
+  const { por_modulo = {}, meses_sin_datos = [], atraso_dias = 0 } = cobertura
+  const atrasados = Object.values(por_modulo)
+    .filter((m) => m.atraso_dias != null && m.atraso_dias > 45)
+    .sort((a, b) => b.atraso_dias - a.atraso_dias)
+
+  return (
+    <div className="aviso aviso-cobertura" role="status">
+      <strong>Los totales de este tablero no están completos: hay un corte de captura en la serie.</strong>
+      <ul>
+        {atrasados.map((m) => (
+          <li key={m.etiqueta}>
+            {m.etiqueta}: sin datos desde el <b>{m.ultima_fecha}</b> ({m.atraso_dias} días de atraso).
+          </li>
+        ))}
+        {meses_sin_datos.length > 0 && (
+          <li>Sin ningún registro en: {meses_sin_datos.join(", ")}.</li>
+        )}
+        {atraso_dias > 45 && (
+          <li>
+            Los totales de {atraso_dias} días no se pueden usar todavía: la carga de la
+            recuperación del 29/09 sigue en curso.
+          </li>
+        )}
+      </ul>
+    </div>
+  )
+}
+
 const MODULOS = ["nacimientos", "defunciones", "fichas"]
 const MODULO_LABEL = { nacimientos: "Nacimientos", defunciones: "Defunciones", fichas: "Vigilancia" }
 const COLORES = { nacimientos: "#0b7a4b", defunciones: "#b91c1c", fichas: "#0f5aa0" }
@@ -62,6 +96,8 @@ export default function Tablero() {
           </select>
         </div>
       </header>
+
+      <AvisoCobertura cobertura={datos.cobertura} />
 
       <section className="tarjetas">
         {[

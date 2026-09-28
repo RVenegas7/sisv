@@ -311,6 +311,21 @@ main.contenido {
   border: 1px solid #c2d7ee;
 }
 
+.aviso-cobertura {
+  background: #fff7e6;
+  color: #7a4d00;
+  border: 1px solid #f0d19a;
+}
+
+.aviso-cobertura ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.aviso-cobertura li {
+  margin: 0.15rem 0;
+}
+
 .aviso-editando {
   display: flex;
   align-items: center;

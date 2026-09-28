@@ -140,6 +140,13 @@ Idioma de trabajo: **responder siempre en español**.
   Consolidados 0**. Bandeja de codificación: endpoint de defunciones acepta `?pendientes=1`
   (`codificacion_pendiente=True`); el checkbox «Solo pendientes de codificación» en `/defunciones`
   (CargaDefunciones.jsx) lista las **49.162** defunciones que esperan CIE.
+- **Muerte materna (28/09/2026):** el indicador MM sale de `Defuncion.embarazo_o_puerperio`, que el
+  importador legacy rellena con `CODIGOS_MM = {1, 2}` de `CERTIFICADO.HPRESENCIAEMBARAZO` (1 = al
+  momento de la muerte, 2 = últimos 12 meses). **No** es un rango de fechas ni un código de causa, y
+  **no** depende de que la causa esté codificada: el tablero cuenta todas las MM e informa aparte
+  cuántas siguen sin CIE (de 17 en 2026, 16 quedaban codificadas). `manage.py corregir_mm_legacy`
+  recalcula el indicador sobre datos ya importados (corrigió 102 registros). MN = defunción de 0 a
+  27 días de vida, con fecha de nacimiento conocida.
 - `legacy`: **mapa de modelos del legado SISMAI** (no altera el flujo). App con `models_legacy.py`
   **generado** (modelos `managed=False`, solo lectura) para las **430 tablas/vistas** de
   `sismai`/`inbdlar1`/`legacy`/`historico`, y el inventario priorizado
@@ -183,6 +190,74 @@ Idioma de trabajo: **responder siempre en español**.
   mapeo NUMBER→INT/DECIMAL, VARCHAR2→VARCHAR, DATE→DATETIME), PK/FK y secuencias.
 - `extraer_datos_csv.sh`: exporta cada tabla a CSV (separador `;`). Validar encoding
   (WE8MSWIN1252 vs AL32UTF8) antes de importar a PostgreSQL.
+
+### Recuperación del hueco MM/MN (ventana del martes 29/09/2026)
+
+La captura se cortó el 02/08/2026; el centro siguió generando los sobres semanales, así que los
+datos **existen en el sistema del centro** y no llegaron a PostgreSQL. Recuperarlos es un proceso
+de tres pasos, y el orden importa: no se carga antes de extraer, ni se concilia antes de cargar.
+
+| Paso | Qué | Cómo |
+| --- | --- | --- |
+| 0 | Pre-vuelo | `migracion/preflight_ventana.sh` |
+| 1 | Bajar del Oracle 10g | `migracion/extraer_mm_mn_roto.sh` + `.sql` |
+| 2 | Cargar en PostgreSQL | `manage.py cargar_mm_mn_roto` |
+| 3 | Conciliar | `/reportes` + acta en `auditoria/` (ignorada por git) |
+
+- **`migracion/preflight_ventana.sh`** — corre en la máquina de trabajo, sin red: comprueba que no
+  haya un `exp`/`expdp` corriendo (leer la base a medio respaldar es el error clásico), que exista
+  un dump de hoy posterior a las 13:00, que el `routlar1_*.ZIP` más reciente traiga sus 5 archivos,
+  y calcula el `DESDE` recomendado desde lo último cargado. Sale con código 1 si hay fallos.
+  Variables: `DIR_RESPALDO`, `DIR_SOBRES`, `HORA_RESPALDO`, `SOLAPES`, `DESDE`, `RESPALDO=0`.
+- **`migracion/extraer_mm_mn_roto.sh`** — **solo lectura** (`SELECT` + `SPOOL`); no toca
+  `SISMAI.EVENTOS_SINC` ni la cola. Escribe 12 CSV con `;` en `salida_mm_mn_<fecha>/`:
+  `muerte`, `causa_m`, `nacimiento`, `nacimiento_tardio`, `nac_madre`, `nac_rnacido`, `casosmmi`,
+  `renglon_casosmm`, `renglon_casosmi`, `establecimiento`, `cie10_legacy`, `org_geografica`.
+  - El encabezado de cada CSV lo pone el propio SQL (`SELECT 'ID;FECHA_M;...' FROM DUAL`), así que
+    el orden de columnas no está escrito a mano en el cargador: se lee por nombre y, si falta una
+    columna, aborta diciendo cuál.
+  - Modo local (en el servidor, `/ as sysdba`) o remoto (`HOST=192.168.5.200`, sube el SQL, ejecuta
+    allá y trae los CSV por `tar`; necesita `sshpass` o `expect`). `DESDE=01/08/2026` por defecto
+    (inicio del hueco), `SIMULAR=1` para ver qué haría sin ejecutar.
+  - `WHENEVER SQLERROR EXIT`: si una consulta falla, el script borra los CSV parciales en vez de
+    dejar un archivo truncado que el manifiesto daría por bueno.
+  - **El manifiesto cuenta líneas físicas, así que cada total incluye su fila de encabezado.**
+- **`manage.py cargar_mm_mn_roto --directorio <dir> [--ejecutar] [--limite N]`** — mete los CSV en
+  `registros`. Sin `--ejecutar` solo informa (dry-run).
+  - **Idempotente** por `registro_numero` (`LEG-CERT-{id}` / `LEG-RN-{id}`): se puede correr las
+    veces que haga falta, no duplica.
+  - **No pisa trabajo humano:** el CIE-10/CIE-11 revisado y `codificacion_pendiente=False` se
+    conservan, y **un valor vacío nunca borra uno que ya había** (si `CAUSA_M` viene vacío, no
+    borra la causa que alguien ya cargó a mano).
+  - La organización se resuelve **por nombre de establecimiento** dentro del árbol Lara
+    (raíces 67754 / 3441583108), igual que `asignar_organizacion_legacy`. Si el catálogo no trae
+    las raíces **aborta**: adivinar crearía organizaciones de todo el país bajo Lara.
+    Las que falten se crean con código `LEGCSV-nnnn` (para no chocar con la serie `LEG-CENTRO-001`
+    que siembra `asignar_organizacion_legacy`).
+  - `--limite` aplica a los **datos**, nunca a los catálogos: truncar el catálogo de establecimientos
+    daría una resolución de organizaciones falsa.
+  - **No se cargan** `nacimiento_tardio`, `casosmmi`, `renglon_casosmm` ni `renglon_casosmi`: no
+    hay modelo en `registros`, quedan como evidencia para el acta.
+  - El **MN del tablero y del acta sale de `Defuncion`** (0–27 días entre `FECHA_M` y `FECHA_N`),
+    **no** de `renglon_casosmi`. Las cifras de la oficina pueden no ser comparables.
+
+**Definiciones que hay que respetar al conciliar:**
+
+- **MM**: `CERTIFICADO.HPRESENCIAEMBARAZO IN (1, 2)`. El 1 = al momento de la muerte, el 2 = últimos
+  12 meses. **No** es un rango de fechas ni un código de causa.
+- **MN**: defunción de 0 a 27 días de vida (inclusive). A los 28 días ya no es neonatal.
+- `CERTIFICADO.STATUS` es **0/1, nunca `NULL`**: filtrar por `STATUS IS NULL` no devuelve nada.
+- El filtro de nacimientos es por `NAC_RNACIDO.FECHANACIMIENTO`, **no** por
+  `CERTNACIMIENTO.FECHACERTIFICADO` (los certificados tardíos van aparte y aboundan: 1.499 desde
+  agosto frente a 23 con nacimiento en el periodo).
+- **Año epidemiológico** domingo–sábado: 2025 tiene **53** semanas y 2026 **52**; el filtro por año
+  es un rango de fechas, no `fecha_evento__year` (`registros/views.py::_filtro_anio`).
+  `exportar_rutalara --semana` acepta `AAAA-N`.
+- El central usa sus propias semanas epidemiológicas; el número de semana **no coincide** con el ISO.
+
+**Aviso de datos incompletos:** el tablero muestra un banner cuando la serie tiene un hueco
+(`registros/views.py::DashboardView._cobertura` → `cobertura.meses_sin_datos` y `cobertura.atraso_dias`).
+El mes en curso nunca se marca: a mitad de mes siempre está a medias y avisar sería mentir.
 
 ## Migración Oracle 10g → PostgreSQL (crítico)
 
@@ -243,7 +318,7 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
 - **Pruebas automatizadas (24/09/2026):** backend con `DJANGO_DB_ENGINE=sqlite manage.py test`
-  (77 pruebas; base en `backend/tests_sisv.py`; requiere `__init__.py` en las apps — registros,
+  (115 pruebas a 28/09/2026; base en `backend/tests_sisv.py`; requiere `__init__.py` en las apps — registros,
   seguridad, territorio y catalogos eran namespace packages y por eso el descubrimiento fallaba);
   frontend con `npm test` (Vitest, 13 pruebas en `src/utils/cie.test.js` y `src/api/sisv.test.js`).
   Verificación manual: `manage.py check` y `npm run build`.
