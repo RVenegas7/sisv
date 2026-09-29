@@ -1680,9 +1680,19 @@ sitio y no en el otro. Es la misma lógica del hueco MM/MN de agosto-septiembre 
 años antes, y nadie lo había detectado.
 
 Por qué el tablero no lo avisa: `_cobertura` marca meses **vacíos**, no meses **degradados**.
-Cada mes de la caída tiene algunas decenas de filas, así que la serie se dibuja como si
-fuera una caída real. Detectar una caída exige umbrales, y un umbral mal puesto inventa huecos
-falsos; por eso **no se cambió nada sin decidir**.
+Comprobado: entre 2009-01 y 2026-08 **no hay ni un solo mes con cero filas** en nacimientos,
+defunciones ni fichas, así que `meses_sin_datos` no se dispara nunca y el banner solo funciona
+por `atraso_dias` (días sin registrar). Es un control de "voy al día", no de "este período está
+completo". Detectar una caída exige umbrales, y un umbral mal puesto inventa huecos falsos; por
+eso **no se cambió nada sin decidir**.
+
+Para responder si esos certificados existen en el Oracle de origen (que es lo que decide si la
+pérdida es recuperable o definitiva) está `migracion/diagnostico_hueco_2019_2021.sh`: solo
+lectura, conteo mensual de `CERTIFICADO.FECHA_M` y `NAC_RNACIDO.FECHANACIMIENTO` en 2018-2022,
+local o por ssh (`HOST=192.168.5.200`, `SIMULAR=1` para ver qué haría sin correr). **No se ha
+podido ejecutar**: `192.168.5.200` no responde desde la red de trabajo actual. En el espejo los
+números del colapso son los mismos en `sismai."CERTIFICADO"` que en `registros_defuncion`
+(51/36/83/34...), o sea que el importador es fiel: si falta, falta en el origen.
 
 **MM sigue bloqueado por una definición, no por un bug:** `CASOS_MMI` no distingue la muerte
 materna de la infantil. En el grupo de edad «años» hay 708 personas de 12-50 años con

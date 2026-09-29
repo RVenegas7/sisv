@@ -316,6 +316,13 @@ de tres pasos, y el orden importa: no se carga antes de extraer, ni se concilia 
 **Aviso de datos incompletos:** el tablero muestra un banner cuando la serie tiene un hueco
 (`registros/views.py::DashboardView._cobertura` → `cobertura.meses_sin_datos` y `cobertura.atraso_dias`).
 El mes en curso nunca se marca: a mitad de mes siempre está a medias y avisar sería mentir.
+⚠ **`meses_sin_datos` es código muerto en la práctica**: entre 2009-01 y 2026-08 no hay ni un mes
+con cero filas en nacimientos, defunciones ni fichas, así que solo se dispara por el otro lado. El
+banner funciona **únicamente** por `atraso_dias` (días sin registrar): es un control de "voy al día",
+**no** de "este período está completo". Por eso no detectó el colapso de 2019-06→2021-07 (§20), donde
+cada mes tiene decenas de registros. Marcarlo exigiría un umbral, y un umbral mal puesto inventa
+huecos falsos: **no se cambió sin decidir**. Para saber si esos certificados existen en el origen
+Oracle está `migracion/diagnostico_hueco_2019_2021.sh` (solo lectura, conteo mensual 2018-2022).
 
 ## Migración Oracle 10g → PostgreSQL (crítico)
 
