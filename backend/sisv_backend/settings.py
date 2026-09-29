@@ -76,6 +76,7 @@ INSTALLED_APPS = [
     "seguridad",
     "territorio",
     "vigilancia",
+    "conciliacion",
     "legacy",
 ]
 

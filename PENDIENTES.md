@@ -1571,3 +1571,40 @@ auditoría de los envíos semanales.
 - El tablero ya avisa cuando la serie está incompleta (`cobertura` en `/api/registros/dashboard/`):
   hoy reporta **nacimientos 51 días atrasado** y **defunciones 28 días**, que son los números que
   justifican no publicar totales de agosto-septiembre como definitivos.
+
+---
+
+## 18. [COMPLETADO] Conciliación SIS-04/EPI-12 crudo vs SISV, 2009–2026 (28/09/2026)
+
+App `conciliacion` (propia; no toca `vigilancia`) + `manage.py conciliar_eno`. Compara, por
+**año + semana + organización + evento**, la transcripción legacy (`DOCUMENTO` → `RENGLONTELE` →
+`CODIFICADOR`, filtrando árbol Lara y `TIPO=1`) contra lo que realmente guardó SISV.
+
+**Resultado: `diferencia = 0` en los 18 años.** 530.827 celdas, 615.135 detalles por centro,
+8.740.569 casos de enfermedad, todos cuadrados. **El ETL es fiel: no hay datos que recuperar.**
+
+Lo que queda fuera está explicado y es por diseño, no pérdida:
+
+| Qué | Filas | Casos | Por qué |
+| --- | --- | --- | --- |
+| Cuadra contra SISV | 482.635 | 8.740.569 | — |
+| Pseudo-TOTAL excluido | 31.534 | 33.375.675 | no son enfermedades (78,9% del volumen) |
+| 34 enfermedades sin equivalente ENO | 16.658 | 603.625 | no existe evento ENO que las reciba |
+| **Cifra correcta, centro perdido** (fallback `LEGACY-LARA`) | 16.748 | 1.824.303 | 263 establecimientos legacy sin organización propia |
+
+Avisos que evitan conclusiones equivocadas:
+
+- **Pseudo-TOTAL no es enfermedad.** `1126717818` «TOTAL DE PACIENTES ATENDIDOS» (802.539 casos solo
+  en 2026) se excluye; `1126717832` «TOTAL DE PACIENTES HOSPITALIZADOS» **sí** tiene equivalente ENO
+  y se conserva. Tratarlos igual produce cifras absurdas.
+- **Lo no conciliado de 2026 son 25.634 casos, el 98% código 041 «SÍNDROME VIRAL (B34)»**, no un
+  fallo de carga. El histórico de esas 34 enfermedades son 375.913 casos de código 225
+  (infecciones respiratorias, que la oficina dejó de llenar) y 220.273 de código 041.
+- **Atribución de quién transcribió: parcial y no es una cuenta de persona.** `HISTDOC.INSTANCIA` es
+  la **estación de trabajo** (`USUARIO` está vacío en las 58.596 filas), solo registra
+  `EVENTO='Creado'` —no cada edición— y arranca el **05/08/2019**. Completa desde 2020, parcial en
+  2019, ninguna antes; antes de esa fecha el campo queda vacío a propósito.
+
+Decisión de diseño que conviene no deshacer: cuando varios establecimientos legacy caen en la misma
+organización, el detalle deja `sisv_h/sisv_m` en `NULL` y marca `colision`, porque SISV guarda la
+**suma** y repartirla entre centros sería inventar.

@@ -147,6 +147,31 @@ Idioma de trabajo: **responder siempre en español**.
   cuántas siguen sin CIE (de 17 en 2026, 16 quedaban codificadas). `manage.py corregir_mm_legacy`
   recalcula el indicador sobre datos ya importados (corrigió 102 registros). MN = defunción de 0 a
   27 días de vida, con fecha de nacimiento conocida.
+- `conciliacion`: **auditoría SIS-04/EPI-12 crudo legacy vs SISV** (28/09/2026). App propia, no
+  altera `vigilancia`. Modelos `ConciliacionENO` (año, semana, tipo, organización, enfermedad legacy,
+  crudo/SISV/diferencia, `estado`, `resolucion`) y `ConciliacionENOCentro` (detalle por establecimiento
+  legacy + `legado_documento` + `transcrito_por`). Comando `manage.py conciliar_eno --desde 2009
+  [--anio N] [--ejecutar] [--csv ruta] [--todo-pais] [--limite N]`.
+  - **Resultado del histórico completo 2009–2026: `diferencia = 0` en los 18 años.** 530.827 filas,
+    615.135 detalles, 8.740.569 casos de enfermedad en 270 organizaciones, todos cuadrados contra el
+    crudo. El ETL **`importar_legacy_vigilancia` es fiel**: no hay pérdida de datos que corregir.
+  - Lo que sí queda fuera, y **por diseño** (no son pérdidas): 31.534 filas **pseudo-TOTAL**
+    (33.375.675 casos) que el ETL nunca exportó; y 16.658 filas de **34 enfermedades sin
+    equivalente ENO** (603.625 casos, legacy 1126717818 «TOTAL DE PACIENTES ATENDIDOS» y
+    1126717832 «TOTAL DE PACIENTES HOSPITALIZADOS»). En 2026 el 98% de lo no conciliado es
+    código 041 «SÍNDROME VIRAL (B34)».
+  - **Pseudo-TOTAL ≠ enfermedad.** `es_pseudo_total()` detecta nombres que empiezan por TOTAL;
+    `1126717832` SÍ tiene equivalente (`ENO_total_pacientes_hospitalizados_por_todas`) y se
+    conserva, `1126717818` no y se excluye. Confundir ambos explica cifras absurdas.
+  - 16.748 filas / 1.824.303 casos cuadran contra el fallback `LEGACY-LARA` («Legacy regional
+    (histórico)»): 263 establecimientos legacy sin organización propia. **Cifra correcta, centro
+    perdido**; el detalle por centro los conserva con `colision=si`.
+  - **Atribución de transcripción:** `HISTDOC.INSTANCIA` es la **estación de trabajo**, no una
+    cuenta verificada (`USUARIO` está vacío en las 58.596 filas). Solo registra `EVENTO='Creado'`
+    y arranca el **05/08/2019**: hay atribución completa desde 2020, parcial en 2019 y **ninguna
+    antes**. Antes de 2019-08 el campo queda vacío a propósito, no inventado.
+  - El `--csv` respeta `--anio`/`--desde` y escribe además `<ruta>_centros.csv` con el detalle y la
+    estación (hay prueba que lo fija: un CSV de 2026 no puede traer filas de 2009).
 - `legacy`: **mapa de modelos del legado SISMAI** (no altera el flujo). App con `models_legacy.py`
   **generado** (modelos `managed=False`, solo lectura) para las **430 tablas/vistas** de
   `sismai`/`inbdlar1`/`legacy`/`historico`, y el inventario priorizado
@@ -318,7 +343,7 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
 - **Pruebas automatizadas (24/09/2026):** backend con `DJANGO_DB_ENGINE=sqlite manage.py test`
-  (115 pruebas a 28/09/2026; base en `backend/tests_sisv.py`; requiere `__init__.py` en las apps — registros,
+  (131 pruebas a 28/09/2026: 115 de `backend/tests_sisv.py` + 16 de `conciliacion`; requiere `__init__.py` en las apps — registros,
   seguridad, territorio y catalogos eran namespace packages y por eso el descubrimiento fallaba);
   frontend con `npm test` (Vitest, 13 pruebas en `src/utils/cie.test.js` y `src/api/sisv.test.js`).
   Verificación manual: `manage.py check` y `npm run build`.

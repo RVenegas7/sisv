@@ -1,0 +1,208 @@
+import csv
+import os
+import tempfile
+from io import StringIO
+from unittest.mock import patch
+
+from django.core.management import call_command
+from django.test import TestCase
+
+from conciliacion.models import ConciliacionENO, ConciliacionENOCentro
+from conciliacion.services import clasificar, es_pseudo_total, normalizar_centro
+from seguridad.models import Organizacion
+from vigilancia.models import EventoENO
+
+
+class ServiciosConciliacionTests(TestCase):
+    def test_pseudo_total_detecta_los_totales_de_la_oficina(self):
+        self.assertTrue(es_pseudo_total("TOTAL DE PACIENTES ATENDIDOS (ATENCIÓN AMBULATORIA Y EMERGENCIA)"))
+        self.assertTrue(es_pseudo_total("TOTAL DE PACIENTES HOSPITALIZADOS POR TODAS CAUSAS"))
+        self.assertTrue(es_pseudo_total("total de pacientes atendidos"))
+        self.assertFalse(es_pseudo_total("SINDROME VIRAL (VIROSIS) (B34)"))
+        self.assertFalse(es_pseudo_total("MORTALIDAD NEONATAL TARDÍA DE 7 A 27 DÍAS"))
+        self.assertFalse(es_pseudo_total(""))
+        self.assertFalse(es_pseudo_total(None))
+
+    def test_normalizar_centro_ignora_tildes_parentesis_y_caixa(self):
+        self.assertEqual(normalizar_centro("HOSP. LA CARUCIEÑA"),
+                         normalizar_centro("HOSP LA CARUCIENA"))
+        self.assertEqual(normalizar_centro("AMB. EL ROBLE (LAR)"), "amb el roble")
+
+    def test_clasificar_por_estado(self):
+        self.assertEqual(clasificar(5, 7, 5, 7, False, True)[0], "CUADRA")
+        self.assertEqual(clasificar(5, 7, 4, 7, False, True)[0], "DIFERENCIA")
+        self.assertEqual(clasificar(5, 0, 0, 0, False, True)[0], "SOLO_CRUDO")
+        self.assertEqual(clasificar(0, 0, 3, 0, False, True)[0], "SOLO_SISV")
+        self.assertEqual(clasificar(0, 0, 0, 0, False, True)[0], "CUADRA")
+
+    def test_clasificar_por_resolucion(self):
+        self.assertEqual(clasificar(1, 0, 1, 0, True, True)[1], "CENTRO_SIN_ORG")
+        self.assertEqual(clasificar(1, 0, 0, 0, False, False)[1], "EVENTO_SIN_EQUIVALENTE")
+        self.assertEqual(clasificar(0, 0, 1, 0, False, True)[1], "SIN_FUENTE_EN_CRUDO")
+        self.assertEqual(clasificar(9, 0, 0, 0, False, False, es_pseudo=True)[0], "EXCLUIDO_EN_ETL")
+        self.assertEqual(clasificar(9, 0, 0, 0, False, False, es_pseudo=True)[1],
+                         "PSEUDO_TOTAL_EXCLUIDO")
+
+
+class ConciliarENOCommandTests(TestCase):
+    def setUp(self):
+        self.org = Organizacion.objects.create(
+            codigo="HOSP-A", nombre="HOSP. A", nivel="CENTRO", activo=True)
+        self.fallback = Organizacion.objects.create(
+            codigo="LEGACY-LARA", nombre="Legacy regional (histórico)",
+            nivel="REGIONAL", activo=True)
+        self.evento = EventoENO.objects.create(
+            codigo_evento="eno_prueba", nombre="Gripe", orden_epi12=1)
+        self.catalogo = {
+            111: ("001", "GRIPE"),
+            999: ("236", "TOTAL DE PACIENTES ATENDIDOS (ATENCIÓN AMBULATORIA Y EMERGENCIA)"),
+            888: ("041", "SINDROME VIRAL (VIROSIS) (B34)"),
+        }
+        self.nombres = {10: "HOSP. A", 11: "CENTRO QUE NO EXISTE"}
+
+    def _correr(self, crudo, sisv, anio=2026, csv="", ejecutar=True):
+        salida = StringIO()
+        # el comando ahora devuelve (…, documento, instancia) en cada fila cruda
+        crudo = [tuple(fila) + (fila[0] * 1000, "ESTACION-A") for fila in crudo]
+        with patch("conciliacion.management.commands.conciliar_eno."
+                   "Command._catalogo_legacy", return_value=(self.catalogo, self.nombres)), \
+             patch("conciliacion.management.commands.conciliar_eno."
+                   "Command._transcriptores", return_value={}), \
+             patch("conciliacion.management.commands.conciliar_eno."
+                   "Command._area", return_value={10.0, 11.0}), \
+             patch("conciliacion.management.commands.conciliar_eno."
+                   "por_evento_id", return_value={111: self.evento.id}), \
+             patch("conciliacion.management.commands.conciliar_eno."
+                   "Command._crudo", return_value=crudo), \
+             patch("conciliacion.management.commands.conciliar_eno."
+                   "Command._sisv", return_value=sisv):
+            call_command("conciliar_eno", "--anio", str(anio),
+                         *(["--ejecutar"] if ejecutar else []),
+                         *(["--csv", csv] if csv else []), stdout=salida)
+        return salida.getvalue()
+
+    def _fila(self, **kwargs):
+        return ConciliacionENO.objects.get(**kwargs)
+
+    def test_cuadra_cuando_el_legacy_y_sisv_coinciden(self):
+        salida = self._correr(
+            crudo=[(10, 5, 111, 5, 7, 0, 0)],
+            sisv={(self.org.id, 5, "MORBILIDAD", self.evento.id): (5, 7)},
+        )
+        f = self._fila(anio=2026, semana=5, legado_enfermedad_id=111)
+        self.assertEqual(f.estado, "CUADRA")
+        self.assertEqual(f.resolucion, "CONCILIADO")
+        self.assertEqual((f.crudo_h, f.crudo_m), (5, 7))
+        self.assertEqual((f.sisv_h, f.sisv_m), (5, 7))
+        self.assertEqual((f.diferencia_h, f.diferencia_m), (0, 0))
+        self.assertIn("diferencia=0", salida)
+
+    def test_detecta_la_diferencia_y_no_la_oculta(self):
+        self._correr(
+            crudo=[(10, 5, 111, 5, 7, 0, 0)],
+            sisv={(self.org.id, 5, "MORBILIDAD", self.evento.id): (4, 7)},
+        )
+        f = self._fila(anio=2026, semana=5, legado_enfermedad_id=111)
+        self.assertEqual(f.estado, "DIFERENCIA")
+        self.assertEqual(f.diferencia_h, 1)
+        self.assertEqual(f.diferencia_m, 0)
+
+    def test_la_fila_de_total_no_cuenta_como_enfermedad(self):
+        self._correr(crudo=[(10, 5, 999, 900, 0, 0, 0)], sisv={})
+        f = self._fila(anio=2026, semana=5, legado_enfermedad_id=999)
+        self.assertEqual(f.estado, "EXCLUIDO_EN_ETL")
+        self.assertEqual(f.resolucion, "PSEUDO_TOTAL_EXCLUIDO")
+        self.assertTrue(f.es_pseudo_total)
+        self.assertEqual(f.crudo_h, 900)
+        self.assertIsNone(f.evento_id)
+
+    def test_evento_sin_equivalente_queda_visible_como_no_conciliado(self):
+        self._correr(crudo=[(10, 5, 888, 4, 0, 0, 0)], sisv={})
+        f = self._fila(anio=2026, semana=5, legado_enfermedad_id=888)
+        self.assertEqual(f.estado, "SOLO_CRUDO")
+        self.assertEqual(f.resolucion, "EVENTO_SIN_EQUIVALENTE")
+        self.assertEqual(f.diferencia_h, 4)
+
+    def test_centro_sin_organizacion_cae_al_fallback_y_sigue_cuadrando(self):
+        self._correr(
+            crudo=[(11, 5, 111, 3, 0, 0, 0)],
+            sisv={(self.fallback.id, 5, "MORBILIDAD", self.evento.id): (3, 0)},
+        )
+        f = self._fila(anio=2026, semana=5, legado_enfermedad_id=111)
+        self.assertEqual(f.organizacion_id, self.fallback.id)
+        self.assertEqual(f.estado, "CUADRA")
+        self.assertEqual(f.resolucion, "CENTRO_SIN_ORG")
+
+    def test_guarda_el_detalle_por_centro(self):
+        self._correr(
+            crudo=[(10, 5, 111, 5, 7, 0, 0), (11, 5, 111, 3, 0, 0, 0)],
+            sisv={(self.org.id, 5, "MORBILIDAD", self.evento.id): (5, 7),
+                  (self.fallback.id, 5, "MORBILIDAD", self.evento.id): (3, 0)},
+        )
+        detalles = {d.legado_establecimiento_id: d for d in ConciliacionENOCentro.objects.all()}
+        self.assertEqual(set(detalles), {10, 11})
+        self.assertEqual(detalles[10].crudo_h, 5)
+        self.assertEqual(detalles[10].sisv_h, 5)
+        self.assertEqual(detalles[10].legado_establecimiento_nombre, "HOSP. A")
+
+    def test_guarda_la_estacion_que_transcribio(self):
+        self._correr(crudo=[(10, 5, 111, 5, 7, 0, 0)], sisv={})
+        d = ConciliacionENOCentro.objects.get(legado_establecimiento_id=10)
+        self.assertEqual(d.transcrito_por, "ESTACION-A")
+        self.assertEqual(d.legado_documento, 10000)
+
+    def test_solo_en_sisv_no_se_inventa_un_centro(self):
+        self._correr(
+            crudo=[],
+            sisv={(self.org.id, 5, "MORBILIDAD", self.evento.id): (2, 0)},
+        )
+        f = self._fila(anio=2026, semana=5)
+        self.assertEqual(f.estado, "SOLO_SISV")
+        self.assertEqual(f.sisv_h, 2)
+        self.assertEqual(f.crudo_h, 0)
+
+    def test_mortalidad_se_cuadra_por_separado(self):
+        self._correr(
+            crudo=[(10, 5, 111, 5, 7, 1, 2)],
+            sisv={(self.org.id, 5, "MORBILIDAD", self.evento.id): (5, 7),
+                  (self.org.id, 5, "MORTALIDAD", self.evento.id): (1, 2)},
+        )
+        m = self._fila(anio=2026, semana=5, tipo="MORTALIDAD")
+        self.assertEqual(m.estado, "CUADRA")
+        self.assertEqual((m.sisv_h, m.sisv_m), (1, 2))
+
+    def test_ignora_celdas_en_cero_y_semanas_invalidas(self):
+        self._correr(
+            crudo=[(10, 5, 111, 0, 0, 0, 0), (10, 99, 111, 4, 0, 0, 0), (10, 0, 111, 4, 0, 0, 0)],
+            sisv={},
+        )
+        self.assertEqual(ConciliacionENO.objects.count(), 0)
+
+    def test_el_csv_de_un_anio_no_arrastra_otros_anios(self):
+        self._correr(crudo=[(10, 5, 111, 5, 7, 0, 0)], sisv={}, anio=2026)
+        self._correr(crudo=[(10, 5, 111, 1, 2, 0, 0)], sisv={}, anio=2010)
+        ruta = tempfile.mktemp(suffix=".csv")
+        try:
+            self._correr(crudo=[], sisv={}, anio=2026, csv=ruta, ejecutar=False)
+            with open(ruta, encoding="utf-8-sig") as fh:
+                lineas = list(csv.DictReader(fh, delimiter=";"))
+        finally:
+            os.unlink(ruta)
+        self.assertEqual({int(l["anio"]) for l in lineas}, {2026})
+        self.assertEqual(len(lineas), 1)
+
+    def test_el_csv_de_centros_lleva_la_estacion(self):
+        self._correr(crudo=[(10, 5, 111, 5, 7, 0, 0)], sisv={}, anio=2026)
+        self._correr(crudo=[(10, 5, 111, 1, 2, 0, 0)], sisv={}, anio=2010)
+        ruta = tempfile.mktemp(suffix=".csv")
+        try:
+            self._correr(crudo=[], sisv={}, anio=2026, csv=ruta, ejecutar=False)
+            with open(f"{os.path.splitext(ruta)[0]}_centros.csv", encoding="utf-8-sig") as fh:
+                lineas = list(csv.DictReader(fh, delimiter=";"))
+        finally:
+            os.unlink(f"{os.path.splitext(ruta)[0]}_centros.csv")
+            if os.path.exists(ruta):
+                os.unlink(ruta)
+        self.assertEqual({int(l["anio"]) for l in lineas}, {2026})
+        self.assertEqual(lineas[0]["transcrito_por"], "ESTACION-A")
+        self.assertEqual(lineas[0]["establecimiento"], "HOSP. A")
