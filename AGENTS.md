@@ -152,13 +152,31 @@ Idioma de trabajo: **responder siempre en español**.
   **70** defunciones de 39 establecimientos fuera del árbol Lara, sin centro a propósito.
   **El renglón MORTALIDAD del ENO nunca se usó:** `RENGLONTELE` suma 3.618 muertes en 18 años
   contra 173.533 certificados; la mortalidad real vive en `registros.Defuncion`, no en ENO.
-- **Muerte materna (28/09/2026):** el indicador MM sale de `Defuncion.embarazo_o_puerperio`, que el
-  importador legacy rellena con `CODIGOS_MM = {1, 2}` de `CERTIFICADO.HPRESENCIAEMBARAZO` (1 = al
-  momento de la muerte, 2 = últimos 12 meses). **No** es un rango de fechas ni un código de causa, y
-  **no** depende de que la causa esté codificada: el tablero cuenta todas las MM e informa aparte
-  cuántas siguen sin CIE (de 17 en 2026, 16 quedaban codificadas). `manage.py corregir_mm_legacy`
-  recalcula el indicador sobre datos ya importados (corrigió 102 registros). MN = defunción de 0 a
-  27 días de vida, con fecha de nacimiento conocida.
+- **Muerte materna (corregido el 29/09/2026):** el indicador MM **ya no** sale de
+  `Defuncion.embarazo_o_puerperio`. Ese campo es un aviso opcional del certificador
+  (`CERTIFICADO.HPRESENCIAEMBARAZO` en 1=embarazo o 2=puerperio) y lo diligencia en solo el **11,9 %
+  de las muertes maternas**: 748 en el registro de investigación contra 89 marcadas en el
+  certificado, 2009-2026. Salva que MM no dependa de la CIE, pero **subcuenta**, y por eso el
+  tablero daba 7 en 2026 donde la responsable de Lara reporta 17 + 1 violenta.
+  - **El indicador sale de `sismai."RENGLON_CASOSMM"` enlazado a `sismai."CASOS_MMI"`
+    (`HCASOSMMI` → `CASOS_MMI."ID"`, 748 de 749 enlazan)**, que es el registro de investigación
+    caso por caso: **18 en 2026**, exactamente lo que reporta la oficina. La fecha de la muerte está
+    en `CASOS_MMI."FECHAOCURRENCIA"`, **no** en `PERIODOOCURRENCIA` (viene `NULL` en las 749), y
+    `HCASOSMMI` es el **ID de la persona, no un contador** (por eso `SUM` da 658.439.440.845). No
+    hay bug de mapeo: era la lectura equivocada (§21).
+  - El MM **sí es atribuible a un centro** por `CASOS_MMI."HDOCUMENTO"` → `DOCUMENTO."HORIGEN"`
+    (19 establecimientos, todos del árbol Lara), así que respeta el alcance como el MN. Con alcance
+    acotado y **cero MM atribuidas** se cae al certificado en vez de mostrar 0, porque un 0 ahí
+    significaría «este centro no tuvo muertes maternas», que es justo lo que no se sabe.
+  - El conteo de certificados no se pierde: el tablero expone `mm_certificadas`, `mm_codificadas`,
+    `mm_pendientes` y `mm_fuente`, y el frontend avisa de la diferencia. `manage.py
+    conciliar_mm [--anio N] [--ejecutar] [--csv ruta]` (grano año/semana/organización, modelo
+    `ConciliacionMaterna`): 460 filas, 33 CUADRA / 36 DIFERENCIA / 382 solo en el registro /
+    **9 solo en el certificado** — ninguna de las dos fuentes es completa, y el indicador es el del
+    registro.
+  - MN = defunción de 0 a 27 días de vida, con fecha de nacimiento conocida. **MN no se toca:** ya
+    cuadraba (213 = 213 en 2026 con `conciliar_neonatal`).
+  - `manage.py corregir_mm_legacy` sigue existiendo para el campo del certificado.
 - `conciliacion`: **auditoría SIS-04/EPI-12 crudo legacy vs SISV** (28/09/2026). App propia, no
   altera `vigilancia`. Modelos `ConciliacionENO` (año, semana, tipo, organización, enfermedad legacy,
   crudo/SISV/diferencia, `estado`, `resolucion`) y `ConciliacionENOCentro` (detalle por establecimiento
@@ -201,15 +219,23 @@ Idioma de trabajo: **responder siempre en español**.
       2009-2018 sale -10 % a -30 % (el formulario MMI se rellenaba menos que el certificado). Solo
       2019-2020 se invierte (+53 % y +1464 %) por la caída de captura (§20).
     - El lado SISV solo cuenta defunciones **con fecha de nacimiento**: es un mínimo.
-    - **No concilia MM:** `CASOS_MMI` mezcla materna, infantil y otras sin marcarlas, y usa `HSEXO`
-      con la convención **inversa** a `RENGLONTELE` (aquí 2 = F, allá 2 = M). MM sale de
-      `Defuncion.embarazo_o_puerperio`. Falta que la oficina diga qué filas son maternas.
-    - **Pista para cerrar MM sin preguntar nada** (PENDIENTES §21, sin ejecutar): existen
-      `sismai."RENGLON_CASOSMM"` (causas de muerte materna) y `RENGLON_CASOSMI` (infantil), ligadas a
-      `CASOS_MMI` por `HCASOSMMI` y con `HCAUSA_CIE10`. **Si `RENGLON_CASOSMM` tiene filas, la
-      clasificación de MM ya está en el legacy.** Falta contarlas y confirmar el enlace: no hay que
-      asumir que están pobladas. Ojo: el grano es (persona, causa) y una persona puede tener varias,
-      así que contar renglones no es contar muertes.
+    - **No concilia MM** (eso es `conciliar_mm`, 29/09/2026): `CASOS_MMI` mezcla materna, infantil y
+      otras sin marcarlas, y usa `HSEXO` con la convención **inversa** a `RENGLONTELE` (aquí 2 = F,
+      allá 2 = M).
+  - **Conciliación materna (`manage.py conciliar_mm`, 29/09/2026):** modelo
+    `conciliacion.ConciliacionMaterna` (migración `0004`), grano **(año, semana, organización)**.
+    Lado legacy = `sismai."RENGLON_CASOSMM"` enlazado a `CASOS_MMI` por `HCASOSMMI`
+    (748 de 749 enlazan; `count(DISTINCT "HCASOSMMI")` porque el grano es (persona, causa)).
+    Lado SISV = `registros.Defuncion` con `embarazo_o_puerperio`. Dry-run por defecto, `--csv` con
+    BOM, 8 pruebas. **Aquí los dos lados no son la misma definición y la diferencia es el
+    resultado:** el certificado marca el embarazo en el 11,9 % de las muertes del registro.
+    - **Resultado 2009-2026:** 748 del registro contra 89 certificados; 33 CUADRA / 36 DIFERENCIA /
+      382 solo en el registro / **9 solo en el certificado** (entre ellas una violenta, 2012).
+      Ninguna fuente es completa; el indicador es el del registro.
+    - Los certificados **sin organización no se filtran**: van al agregado. Filtrarlos por
+      `organizacion_id IS NOT NULL` los borraría en silencio y daría un falso "el certificado no
+      registró ninguna muerte materna".
+    - `DOCUMENTO."TIPO"` = 23 aquí también, por el mismo motivo que en la conciliación neonatal.
 
 - `legacy`: **mapa de modelos del legado SISMAI** (no altera el flujo). App con `models_legacy.py`
   **generado** (modelos `managed=False`, solo lectura) para las **430 tablas/vistas** de
@@ -389,8 +415,9 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
 - **Pruebas automatizadas (24/09/2026):** backend con `DJANGO_DB_ENGINE=sqlite manage.py test`
-  (146 pruebas a 28/09/2026: 115 de `backend/tests_sisv.py` + 25 de `conciliacion` (16 ENO + 9
-  neonatal) + 6 de `registros/tests_recuperar_establecimiento.py`; requiere `__init__.py` en las
+  (156 pruebas a 29/09/2026: 115 de `backend/tests_sisv.py` + 33 de `conciliacion` (16 ENO +
+  9 neonatal + 8 materna) + 6 de `registros/tests_recuperar_establecimiento.py`; requiere
+  `__init__.py` en las
   apps — registros, seguridad, territorio y catalogos eran namespace packages y por eso el
   descubrimiento fallaba);
   frontend con `npm test` (Vitest, 13 pruebas en `src/utils/cie.test.js` y `src/api/sisv.test.js`).

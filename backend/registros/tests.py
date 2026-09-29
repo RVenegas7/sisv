@@ -4,6 +4,7 @@ import os
 import shutil
 import tempfile
 from datetime import date, timedelta
+from unittest.mock import patch
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -312,10 +313,14 @@ class AnioEpidemiologicoTests(SISVBase):
 
 
 class MuerteMaternaTests(SISVBase):
-    """La muerte materna se cuenta aunque la causa no esté codificada.
+    """La muerte materna sale del registro de investigación de la oficina.
 
-    El catálogo legacy 'sismai.PRESENCIAEMBARAZO' marca 1=embarazo y 2=puerperio;
-    ambas son muerte materna, y que falte la CIE no deja de serlo.
+    `Defuncion.embarazo_o_puerperio` (`CERTIFICADO.HPRESENCIAEMBARAZO`) es un aviso
+    opcional del certificador, no un registro: en 2026 lo diligencia en 7 de las 18
+    muertes maternas. Por eso el indicador de MM se lee de
+    `sismai."RENGLON_CASOSMM"` enlazado a `CASOS_MMI`, y el del certificado se reporta
+    aparte. Estas pruebas fijan ese comportamiento con la fuente legacy ausente
+    (sqlite), que es exactamente cuando el tablero debe caer al certificado.
     """
 
     def _defuncion(self, uid, mm, pendiente):
@@ -329,17 +334,51 @@ class MuerteMaternaTests(SISVBase):
             codificacion_pendiente=pendiente,
         )
 
-    def test_dashboard_cuenta_mm_sin_cie(self):
+    def _registro_legacy(self, org_id, por_semana):
+        """Simula el registro de investigación: `{org_id: {semana: cantidad}}`."""
+        with patch("registros.views.muerte_materna_por_semana", return_value=por_semana):
+            return self.client.get("/api/registros/dashboard/?anio=2023").json()["data"][
+                "mortalidad_materno_infantil"]
+
+    def test_sin_registro_legacy_cae_al_certificado(self):
+        """Sin la fuente legacy el tablero usa el certificado y lo dice.
+
+        Mostrar 0 porque no se pudo leer el registro sería afirmar que no hubo muertes
+        maternas, que es lo contrario de lo que se sabe. Y avisar en el log es parte
+        del contrato: un tablero que calla la caída de la fuente es un tablero que
+        parece sano.
+        """
         self._defuncion("MM-01", True, True)
         self._defuncion("MM-02", True, False)
         self._defuncion("NO-MM", False, False)
         self.login(self.u_admin)
-        data = self.client.get("/api/registros/dashboard/?anio=2023").json()["data"]
-        mmi = data["mortalidad_materno_infantil"]
+        with self.assertLogs("registros.services", level="WARNING") as logs:
+            mmi = self.client.get("/api/registros/dashboard/?anio=2023").json()["data"][
+                "mortalidad_materno_infantil"]
+        self.assertIn("RENGLON_CASOSMM", logs.output[0])
         self.assertEqual(mmi["mm"], 2)
+        self.assertEqual(mmi["mm_fuente"], "CERTIFICADO")
         self.assertEqual(mmi["mm_codificadas"], 1)
         self.assertEqual(mmi["mm_pendientes"], 1)
-        self.assertEqual(mmi["mm_codificadas"] + mmi["mm_pendientes"], mmi["mm"])
+        self.assertEqual(mmi["mm_codificadas"] + mmi["mm_pendientes"], mmi["mm_certificadas"])
+
+    def test_el_registro_de_la_oficina_manda_sobre_el_certificado(self):
+        """El caso real de 2026: 18 en el registro de la oficina, 7 en los certificados."""
+        self._defuncion("MM-01", True, True)
+        self.login(self.u_admin)
+        mmi = self._registro_legacy(None, {22: 18})
+        self.assertEqual(mmi["mm"], 18)
+        self.assertEqual(mmi["mm_fuente"], "REGISTRO_INVESTIGACION")
+        # El certificado no se pierde: sigue visible al lado.
+        self.assertEqual(mmi["mm_certificadas"], 1)
+
+    def test_un_registro_vacio_no_es_un_cero(self):
+        """Un dict vacío significa "cero muertes en el periodo", no "no se pudo leer"."""
+        self._defuncion("MM-01", True, True)
+        self.login(self.u_admin)
+        mmi = self._registro_legacy(None, {})
+        self.assertEqual(mmi["mm"], 0)
+        self.assertEqual(mmi["mm_fuente"], "REGISTRO_INVESTIGACION")
 
     def test_comparativo_cuenta_mm_sin_cie(self):
         self._defuncion("MM-03", True, True)

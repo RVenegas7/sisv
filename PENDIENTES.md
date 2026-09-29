@@ -1064,14 +1064,15 @@ Los 21 casos van de 2026-02-03 a 2026-08-14, en las semanas 1 a 33. Los 18 repor
 registro, no de los certificados: la campo `HPRESENCIAEMBARAZO` solo lo marca 7 veces en todo 2026.
 ( ALSO CORREGIDO en §17.20: el campo marca 17 veces en 2026, 16 de las cuales son muerte materna.)
 
-**Bug de mapeo (hay que corregirlo):** en el espejo actual las columnas de `RENGLON_CASOSMM` están
-**desfasadas**. `HCASOSMMI` contiene un identificador (997186319) y no un conteo, y por eso
-`SUM(HCASOSMMI)` da **658.439.440.845** sobre 749 filas. `PERIODOOCURRENCIA` además viene `NULL` en
-las 749. Los valores que sí son legibles son establecimiento, CIE de causa, edad gestacional, forma
-de parto y `FECHAOPERACION`. Causa probable: el mapeo de `mapear_legacy` desalineó los offsets al
-replicar la tabla. **Al extraer el vivo hay que comparar el orden real de columnas** (`ALL_TAB_COLUMNS`
-con `COLUMN_ID`) contra el que asumió el modelo, y corregir `models_legacy.py` antes de volver a
-importar; si no, el error se reproduce en el entorno de casa.
+**❌ NO era un bug de mapeo (corregido el 29/09/2026, ver §21):** aquí se afirmó que las
+columnas de `RENGLON_CASOSMM` estaban desfasadas y que había que corregir `models_legacy.py`. **No
+era eso.** `HCASOSMMI` es simplemente el **ID de la persona** (enlaza con `CASOS_MMI."ID"`: 748 de
+749 filas casan) y por eso `SUM(HCASOSMMI)` da 658.439.440.845 — no es un conteo que se pueda sumar.
+`PERIODOOCURRENCIA` viene `NULL` en las 749 porque **no es la fecha**: la fecha de la muerte está en
+`CASOS_MMI."FECHAOCURRENCIA"`. **No hay nada que corregir en el mapeo**, y la comparación de
+`ALL_TAB_COLUMNS` que se pensaba hacer al extraer el vivo no hace falta para esta tabla. Los valores
+que sí son legibles en el renglón (establecimiento, CIE de causa, edad gestacional, forma de parto)
+más los que trae `CASOS_MMI` (nombre, edad, sexo, fecha) dan el registro completo.
 
 **El hueco de las semanas 32–37 sí es real y sí viene del origen.** Las defunciones en PostgreSQL
 se desploman desde el 1 de agosto de 2026:
@@ -1739,61 +1740,97 @@ mínimo, y las que no la tienen pueden ser neonatos que se quedan fuera.
 
 ---
 
-## 21. [PENDIENTE] Cerrar la muerte materna (MM) — hay una pista que puede evitar preguntar a la oficina
+## 21. [CERRADO 29/09/2026] La muerte materna: el registro de investigación manda sobre el certificado
 
-**Estado: sin ejecutar** (equipo sin batería el 28/09/2026). Nada de lo de aquí se corrió; lo único
-verificado es que las tablas **existen** y qué columnas tienen.
+**No hubo que preguntar nada a la oficina.** La pista de §21.1 funcionó tal cual y además corrigió
+el indicador del tablero, que estaba mal desde siempre. Resumen de lo verificado y aplicado:
 
-### 21.1 La pista: `RENGLON_CASOSMM` puede decir qué filas de `CASOS_MMI` son maternas
+- `sismai."RENGLON_CASOSMM"` tiene **749 filas** y `sismai."RENGLON_CASOSMI"` **9.993**; `CASOS_MMI`
+  tiene 10.742. `HCASOSMMI` **es una llave válida a `CASOS_MMI."ID"`**: 748 de las 749 filas de MM
+  enlazan y traen `FECHAOCURRENCIA`. El grano es (persona, causa), pero en la práctica hay **748
+  personas distintas en 748 renglones**, así que en MM contar renglones sí es contar muertes.
+- **El "bug de mapeo" de §17.18 no existía.** `HCASOSMMI` no está desfasado: es el ID de la persona
+  (997186319 y compañía), y por eso `SUM(HCASOSMMI)` da 658.439.440.845. `PERIODOOCURRENCIA` viene
+  `NULL` en las 749 porque **no es la fecha**: la fecha de la muerte está en
+  `CASOS_MMI."FECHAOCURRENCIA"`. No hay que corregir `models_legacy.py` ni el orden de columnas.
+- **El MM sí es atribuible a un centro**, igual que el MN: sale por `CASOS_MMI."HDOCUMENTO"` →
+  `DOCUMENTO."HORIGEN"`, y se reparte en **19 establecimientos**, todos del árbol Lara (502 en el
+  central, 118 en `DES LARA`, 81 en Pastor Oropezá IVSS...). No hizo falta el agregado sin
+  organización para nada.
+- `DOCUMENTO."TIPO"` es **23** en los formularios MMI, no 1, igual que en la conciliación neonatal.
 
-Hasta ahora MM está bloqueado por una **definición** (§20): `CASOS_MMI` mezcla materna, infantil y
-otras sin marcarlas. Pero el legacy tiene tablas que **no estaban en el inventario**:
+### 21.1 El hallazgo: el indicador de MM del tablero estaba subcontando
 
-| Tabla | Columnas | Qué parece ser |
-| --- | --- | --- |
-| `sismai."RENGLON_CASOSMM"` | `ID`, `HCASOSMMI`, `HOCURRENCIA`, `HSITIO_OCURRENCIA`, `HESTABLECIMIENTO`, `HCAUSA_CIE10` | **Causas de muerte materna** |
-| `sismai."RENGLON_CASOSMI"` | las anteriores + `EDAD_GESTACIONAL`, `CONTROL_PRENATAL`, `PESO`, `HCAUSABAS_CIE10`, `HNUTRICION`, `ESTANCIAHOSP`, `FECHAOPERACION`, `USUARIO` | Causas de muerte infantil |
-| `sismai."CASOSMM"`, `"CAUSA_MMEDICO"` | — | Cabeceras y catálogo de causas maternas |
+El tablero contaba MM como `Defuncion.embarazo_o_puerperio`, que viene de
+`CERTIFICADO.HPRESENCIAEMBARAZO IN (1, 2)`. **Ese campo es un aviso opcional del certificador, no un
+registro**: el certificado de defunción se diligencia en el hospital y describe a la mujer que
+murió; el embarazo o puerperio es un dato adicional que el certificador marca **si se le ocurre**.
+Lo hace en una fracción de los casos:
 
-`HCASOSMMI` es la llave a `CASOS_MMI."ID"`. **Si `RENGLON_CASOSMM` tiene filas, la pregunta "¿cuáles
-son maternas?" está respondida por el propio legacy** y no hace falta que la oficina defina nada:
-basta con las filas que tengan causa en `RENGLON_CASOSMM`.
+| Año | MM en el registro de investigación | MM en el certificado | Marcado |
+| --- | --- | --- | --- |
+| 2016 | 65 | 1 | 2 % |
+| 2017 | 78 | 3 | 4 % |
+| 2019 | 40 | 0 | 0 % |
+| 2022 | 70 | 4 | 6 % |
+| 2023 | 65 | 12 | 18 % |
+| 2025 | 39 | 23 | 59 % |
+| **2026** | **18** | **7** | **39 %** |
+| Total 2009–2026 | 748 | 89 | 11,9 % |
 
-⚠ **No verificado:** cuántas filas tiene cada una, si `HCASOSMMI` realmente enlaza, y si
-`HCAUSA_CIE10` apunta a `catalogos_cie10."codigo"` o a otro catálogo. No asumirlo.
+**El registro da 18 para 2026, que es exactamente los 17 + 1 violenta que reportó la responsable de
+Lara.** Con el indicador anterior el tablero decía 7.
 
-### 21.2 Qué hacer, en orden
+La prueba de que no es un problema de captura sino de diligenciamiento: en 10 de las fechas de MM de
+2026 hay defunciones femeninas en PostgreSQL ese mismo día, con el campo sin marcar. La muerte se
+capturó; lo que no se llenó fue el aviso.
 
-1. Contar filas de `RENGLON_CASOSMM`, `RENGLON_CASOSMI` y `CASOS_MMI`, y ver cuántas de las 10.737
-   filas de `CASOS_MMI` quedan cubiertas por cada renglón. Si una tabla está vacía, se descarta la
-   pista y se vuelve al punto 4.
-2. Si hay cobertura: clasificar MM por causa (los capítulos O de CIE-10 son embarazo, parto y
-   puerperio) y **conciliarlo contra `Defuncion.embarazo_o_puerperio`**, que viene de
-   `CERTIFICADO.HPRESENCIAEMBARAZO IN (1,2)`. Son dos fuentes independientes de la misma
-   definición: si concuadran, MM queda cerrado sin preguntar nada. Si no, la diferencia es el
-   hallazgo.
-3. Ojo con el grano: `RENGLON_CASOSMM` es **(persona, causa)** y una persona puede tener varias
-   causas. Contar filas de renglón no es contar muertes.
-4. Si no hay dato utilizable, recién ahí armar el cuestionario para la oficina (§21.3).
+### 21.2 Lo que se aplicó
 
-### 21.3 Cuestionario para la oficina (solo si el punto 2 no cierra)
+- **El tablero** (`registros/views.py::_mortalidad_materno_infantil`) cuenta MM desde
+  `RENGLON_CASOSMM`+`CASOS_MMI` y expone `mm_certificadas` / `mm_codificadas` / `mm_pendientes` al
+  lado, con `mm_fuente` para saber de dónde salió el número. `/reportes` usa la misma fuente.
+- **Recorta por alcance** como el MN, porque el registro trae establecimiento. Con alcance de centro
+  y **cero MM atribuidas a ese centro** se cae al certificado en vez de mostrar 0: un 0 ahí
+  significaría "este centro no tuvo muertes maternas", que es justo lo que no se sabe. En el mirror
+  de desarrollo todos los establecimientos caen al agregado porque `Organizacion` solo tiene las 6
+  demo; con `asignar_organizacion_legacy` aplicado resuelve.
+- **`manage.py conciliar_mm`** (gemelo de `conciliar_neonatal`, grano año/semana/organización): 460
+  filas, 748 del registro contra 89 certificados, **33 semanas CUADRA, 36 DIFERENCIA, 382 solo en
+  el registro y 9 solo en el certificado**. La diferencia **es** el hallazgo y el comando la reporta
+  como tal en vez de esconderla.
+- Modelo `conciliacion.ConciliacionMaterna`, migración `0004`, 8 pruebas nuevas; las de MM del
+  tablero fijan el caso real (18 del registro contra 1 certificado) y que un registro vacío **no** es
+  un cero. Suite: **156 pruebas** (antes 146).
 
-Lo que hay que llevar: el inventario de columnas de `CASOS_MMI` con tipo, cuanto se llena y ejemplos
-—**no** el volcado de nombres. Preguntas, en orden de importancia:
+### 21.3 Las 9 semanas «solo en el certificado»: ninguna fuente es completa
 
-1. **¿Qué filas de `CASOS_MMI` son muerte materna?** ¿Existe un campo, un valor de `HSEXO` o una
-   tabla que las separe? Sin esto no hay MM desde el registro de la oficina.
-2. **¿Qué significa `HSEXO` aquí?** En `CASOS_MMI`, 708 personas de 12 a 50 años tienen `HSEXO=2`
-   y ninguna de 1, lo que apunta a **2 = F**. En `RENGLONTELE` es al revés (**1 = F, 2 = M**,
-   verificado con nombres). Una de las dos tablas está invertida, y con la convención equivocada
-   el conteo de MM sería una suposición.
-3. **¿`CASOS_MMI` es un registro acumulado o una notificación por envío?** Si es notificación,
-   la misma muerte puede aparecer en dos semanas y hay que deduplicar antes de contar.
-4. **¿Por qué 10.111 de 10.737 filas no tienen `CEDULA`?** Y por qué hay cédulas repetidas entre
-   personas distintas: la `13759942` aparece en cuatro nombres diferentes en el mismo
-   `HDOCUMENTO` (`144522895`). Sin identidad confiable no se puede cruzar `CASOS_MMI` con
-   `CERTIFICADO`.
-5. **¿Qué son las 703 filas sin `UNIDAD_EDAD`?** El rango de `EDAD` va de 1 a 49, así que la unidad
-   no es recuperable del número.
-6. **Los rangos de `EDAD` en horas y días** (0-86 h, 1-92 d) confirman que la tabla cubre a los
-   recién nacidos; ¿hay un tope de edad aparte para el registro materno?
+Al revés de lo temido, hay 9 semanas con muerte materna **en el certificado y no en el registro de
+investigación**, y no son ruido: las causas son *síndrome HELLP*, *otras inercias uterinas*, *choque
+hipovolémico* y *trabajo de parto prematuro espontáneo*, más **una violenta** (*agresión con disparo*,
+2012), que es el «+1» que la responsable separó del resto. O sea: el registro de
+investigación tampoco capturó todas. **El indicador es el del registro (es el que la oficina usa y
+reporta) y el certificado se reporta aparte**, no se suman.
+
+### 21.4 Las preguntas de §21.3 que ya no hacen falta
+
+1. ~~¿Qué filas de `CASOS_MMI` son muerte materna?~~ **Resuelto**: las que enlazan con
+   `RENGLON_CASOSMM`. No hace falta que la oficina defina nada.
+2. ~~¿Qué significa `HSEXO` en `CASOS_MMI`?~~ **Resuelto por los datos**: las 18 MM de 2026 tienen
+   `HSEXO=2` con edades de 16 a 38, o sea **2 = F** en esta tabla, al revés que `RENGLONTELE`
+   (1 = F). Confirmado por 748 casos coherentes, no por 3 ejemplos.
+3. ~~¿`CASOS_MMI` es acumulado o notificación por envío?~~ **No hace falta**: `RENGLON_CASOSMM` es
+   una investigación por muerte, con una fila por persona, y su propia fecha.
+
+Lo que **queda abierto** y sí conviene preguntar en algún momento, pero ya no bloquea nada:
+por qué 10.111 de 10.742 filas de `CASOS_MMI` no tienen `CEDULA` y por qué hay cédulas repetidas
+entre personas distintas; y qué son las 703 filas sin `UNIDAD_EDAD`. Sin identidad confiable no se
+puede cruzar `CASOS_MMI` con `CERTIFICADO` uno a uno, pero **para contar MM no hace falta**: el
+conteo no requiere cruzar identidades.
+
+### 21.5 Lo que se descartó
+
+La idea de reclasificar MM/MN **por causa CIE** (§20) sigue descartada y ahora se sabe por qué además:
+en 2026 el 97,5 % de los certificados tiene `HCAUSABASICA` nula y solo 54 de 6.247 defunciones están
+codificadas. El registro de investigación tampoco salva esto: su `HCAUSA_CIE10` viene sin catálogo
+resuelto. La MM no se puede sacar del CIE mientras la codificación siga así.

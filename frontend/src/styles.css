@@ -958,6 +958,12 @@ main.contenido {
   text-decoration: underline;
 }
 
+.tarjeta-nota {
+  color: var(--gris);
+  font-size: 0.74rem;
+  line-height: 1.3;
+}
+
 .dash-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

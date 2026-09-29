@@ -109,11 +109,9 @@ class ConciliacionNeonatal(models.Model):
     nombre, edad **con su unidad**, sexo y fecha de ocurrencia. Los neonatos son las
     filas con edad en horas o en días de 0 a 27.
 
-    ⚠ Esta tabla **no** concilia la muerte materna. `CASOS_MMI` mezcla materna,
-    infantil y otras, sin marcar cuál es cuál, y usa `HSEXO` con la convención
-    inversa a `RENGLONTELE`; el indicador de MM sale de
-    `Defuncion.embarazo_o_puerperio` (`CERTIFICADO.HPRESENCIAEMBARAZO`), que sí es
-    una definición cerrada. Ver PENDIENTES.md §20.
+    ⚠ Esta tabla **no** concilia la muerte materna: aquí se cuentan los neonatos de
+    `CASOS_MMI`, que mezcla materna, infantil y otras sin marcarlas. La MM se concilia
+    aparte contra `RENGLON_CASOSMM` en `ConciliacionMaterna`. Ver PENDIENTES.md §20 y §21.
     """
 
     ESTADO_CHOICES = [
@@ -158,6 +156,78 @@ class ConciliacionNeonatal(models.Model):
     class Meta:
         verbose_name = "Conciliación neonatal"
         verbose_name_plural = "Conciliaciones neonatales"
+        unique_together = ("anio", "semana", "organizacion")
+        ordering = ("anio", "semana", "organizacion_id")
+        indexes = [models.Index(fields=["anio", "estado"])]
+
+    def __str__(self):
+        return f"{self.anio} S{self.semana:02d} org={self.organizacion_id} " \
+               f"legacy={self.legado} sisv={self.sisv}"
+
+
+class ConciliacionMaterna(models.Model):
+    """Muerte materna del registro de investigación de la oficina contra SISV.
+
+    El grano es **(año, semana, organización)**, igual que `ConciliacionNeonatal`.
+
+    El lado de la oficina es `sismai."RENGLON_CASOSMM"` enlazado a
+    `sismai."CASOS_MMI"`: **749 renglones, uno por persona, 748 de los 748 enlazan**
+    con `CASOS_MMI."ID"` y traen `FECHAOCURRENCIA`. ⚠ `HCASOSMMI` es el **ID de la
+    persona, no un conteo** — por eso `SUM(HCASOSMMI)` da 658.439.440.845 y no 749
+    (§17.18 lo sospechó como bug de mapeo: no lo es, era la lectura equivocada).
+    `PERIODOOCURRENCIA` viene `NULL` en las 749 porque **no es la fecha**: la fecha
+    real de la muerte está en `CASOS_MMI."FECHAOCURRENCIA"`.
+
+    El lado SISV es `Defuncion.embarazo_o_puerperio` (`CERTIFICADO.HPRESENCIAEMBARAZO`),
+    que **se queda como el indicador de los certificados**, no como el total. Ese
+    campo es un aviso opcional del certificador y solo lo diligencia 7 de 18 veces en
+    2026, así que contarlo como MM subestima el indicador real. La diferencia entre
+    ambos lados es precisamente el hallazgo: no es una pérdida de datos sino que el
+    certificado rarely marca el embarazo, y el registro de investigación sí.
+    """
+
+    ESTADO_CHOICES = [
+        ("CUADRA", "Cuadra"),
+        ("DIFERENCIA", "Diferencia"),
+        ("SOLO_CRUDO", "Solo en el registro de la oficina"),
+        ("SOLO_SISV", "Solo en SISV"),
+    ]
+    RESOLUCION_CHOICES = [
+        ("CONCILIADO", "Conciliado"),
+        ("CENTRO_SIN_ORG", "Centro sin organización"),
+    ]
+
+    anio = models.SmallIntegerField("Año", db_index=True)
+    semana = models.SmallIntegerField("Semana epidemiológica", db_index=True)
+
+    organizacion = models.ForeignKey(
+        "seguridad.Organizacion",
+        on_delete=models.CASCADE,
+        related_name="conciliaciones_materna",
+        verbose_name="Organización",
+        help_text="A NULL cuando el establecimiento legacy no tiene organización propia; "
+                  "esos casos caen en el agregado regional, no se pierden.",
+    )
+    es_agregado_sin_org = models.BooleanField(
+        "Pertenece al agregado regional",
+        default=False,
+        help_text="El establecimiento legacy no resolvió a una organización y se sumó al "
+        "agregado 'Legacy regional (histórico)'.",
+    )
+
+    cantidad_centros_legacy = models.PositiveIntegerField("Centros legacy", default=1)
+
+    legado = models.IntegerField("Muertes maternas en el registro de la oficina", default=0)
+    sisv = models.IntegerField("Muertes maternas marcadas en el certificado", default=0)
+    diferencia = models.IntegerField("Diferencia", default=0)
+
+    estado = models.CharField("Estado", max_length=12, choices=ESTADO_CHOICES, db_index=True)
+    resolucion = models.CharField("Resolución", max_length=20, choices=RESOLUCION_CHOICES)
+    calculado_en = models.DateTimeField("Calculado en", default=timezone.now, db_index=True)
+
+    class Meta:
+        verbose_name = "Conciliación materna"
+        verbose_name_plural = "Conciliaciones maternas"
         unique_together = ("anio", "semana", "organizacion")
         ordering = ("anio", "semana", "organizacion_id")
         indexes = [models.Index(fields=["anio", "estado"])]

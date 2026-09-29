@@ -41,6 +41,27 @@ function AvisoCobertura({ cobertura }) {
   )
 }
 
+// La muerte materna tiene dos fuentes y no son la misma. El certificado de defuncion
+// trae un campo de "presencia de embarazo" que es un aviso del certificador, no un
+// registro: en 2026 lo diligencia en 7 de las 18 muertes que documenta el registro de
+// investigacion de la oficina. Por eso el tablero muestra el total del registro y deja
+// el del certificado a la vista, en vez de sumar los dos o mostrar el menor sin decir
+// de donde sale.
+function AvisoMuerteMaterna({ mmi }) {
+  if (!mmi || mmi.mm_fuente !== "REGISTRO_INVESTIGACION") return null
+  const sinMarcar = (mmi.mm || 0) - (mmi.mm_certificadas || 0)
+  if (sinMarcar <= 0) return null
+  return (
+    <div className="aviso aviso-cobertura" role="status">
+      <strong>Las muertes maternas se cuentan con el registro de investigación de la oficina.</strong>{" "}
+      En el periodo, el certificado de defunción marcó embarazo o puerperio en{" "}
+      <b>{mmi.mm_certificadas}</b> de <b>{mmi.mm}</b>; las otras <b>{sinMarcar}</b> están en el
+      registro de investigación y no en el certificado. El certificado no se rellena siempre,
+      por eso el total sale del registro y no de la suma de los dos.
+    </div>
+  )
+}
+
 const MODULOS = ["nacimientos", "defunciones", "fichas"]
 const MODULO_LABEL = { nacimientos: "Nacimientos", defunciones: "Defunciones", fichas: "Vigilancia" }
 const COLORES = { nacimientos: "#0b7a4b", defunciones: "#b91c1c", fichas: "#0f5aa0" }
@@ -98,6 +119,7 @@ export default function Tablero() {
       </header>
 
       <AvisoCobertura cobertura={datos.cobertura} />
+      <AvisoMuerteMaterna mmi={datos.mortalidad_materno_infantil} />
 
       <section className="tarjetas">
         {[
@@ -112,6 +134,13 @@ export default function Tablero() {
           <article key={rotulo} className="tarjeta" style={{ borderTopColor: color }}>
             <span>{rotulo}</span>
             <strong>{valor}</strong>
+            {rotulo.startsWith("MM (") && (
+              <small className="tarjeta-nota">
+                {datos.mortalidad_materno_infantil?.mm_fuente === "REGISTRO_INVESTIGACION"
+                  ? `registro de investigación · ${datos.mortalidad_materno_infantil?.mm_certificadas || 0} en certificados`
+                  : "según certificado de defunción"}
+              </small>
+            )}
             {url && <Link to={url}>Cargar registro →</Link>}
           </article>
         ))}

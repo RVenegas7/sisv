@@ -7,7 +7,8 @@ from unittest.mock import patch
 from django.core.management import call_command
 from django.test import TestCase
 
-from conciliacion.models import ConciliacionENO, ConciliacionENOCentro, ConciliacionNeonatal
+from conciliacion.models import (ConciliacionENO, ConciliacionENOCentro, ConciliacionMaterna,
+                                 ConciliacionNeonatal)
 from conciliacion.services import clasificar, es_pseudo_total, normalizar_centro
 from seguridad.models import Organizacion
 from vigilancia.models import EventoENO
@@ -305,6 +306,112 @@ class ConciliarNeonatalCommandTests(TestCase):
                 lineas = list(csv.DictReader(fh, delimiter=";"))
         finally:
             os.unlink(ruta)
+            self.assertEqual(len(lineas), 2)
+            self.assertEqual({int(l["semana"]) for l in lineas}, {5, 6})
+            self.assertEqual(lineas[0]["organizacion"], "HOSP. A")
+
+
+class ConciliarMMCommandTests(TestCase):
+    """Conciliación de muerte materna: registro de investigación vs certificado.
+
+    A diferencia del neonatal, aquí los dos lados **no son la misma definición** y la
+    diferencia es el hallazgo: el certificado marca el embarazo o puerperio en una
+    fracción de las muertes que el registro de investigación documenta. Por eso el
+    comando no trata la diferencia como una falla, sino como el resultado.
+    """
+
+    def setUp(self):
+        self.org = Organizacion.objects.create(
+            codigo="HOSP-A", nombre="HOSP. A", nivel="CENTRO", activo=True)
+        self.fallback = Organizacion.objects.create(
+            codigo="LEGACY-LARA", nombre="Legacy regional (histórico)",
+            nivel="REGIONAL", activo=True)
+        self.nombres = {10: "HOSP. A", 11: "CENTRO QUE NO EXISTE"}
+
+    def _correr(self, legacy, sisv, anio=2026, csv="", ejecutar=True):
+        salida = StringIO()
+        with patch("conciliacion.management.commands.conciliar_mm."
+                   "Command._nombres_establecimiento", return_value=self.nombres), \
+             patch("conciliacion.management.commands.conciliar_mm."
+                   "Command._area", return_value={10.0, 11.0}), \
+             patch("conciliacion.management.commands.conciliar_mm."
+                   "Command._legacy", return_value=legacy), \
+             patch("conciliacion.management.commands.conciliar_mm."
+                   "Command._sisv", return_value=sisv):
+            call_command("conciliar_mm", "--anio", str(anio),
+                         *(["--ejecutar"] if ejecutar else []),
+                         *(["--csv", csv] if csv else []), stdout=salida)
+        return salida.getvalue()
+
+    def test_el_tipo_de_documento_mmi_no_es_el_del_eno(self):
+        """`DOCUMENTO.TIPO` 1 es el ENO de mortalidad; los formularios MMI son 23.
+
+        Filtrar por 1 deja el lado legacy vacío en silencio.
+        """
+        from conciliacion.management.commands import conciliar_mm as cmd
+        self.assertEqual(cmd.TIPO_MMI, 23)
+        self.assertNotEqual(cmd.TIPO_MMI, 1)
+
+    def test_el_caso_real_de_2026(self):
+        """Registro 18, certificados 7: el certificado no marca 11 de cada 18."""
+        salida = self._correr(legacy=[(10, 2026, 22, 18)],
+                              sisv=[(self.org.id, 2026, 22, 7)])
+        f = ConciliacionMaterna.objects.get(anio=2026, semana=22, organizacion=self.org)
+        self.assertEqual((f.legado, f.sisv, f.diferencia), (18, 7, 11))
+        self.assertEqual(f.estado, "DIFERENCIA")
+        # El comando informa el porcentaje marcado, que es el hallazgo.
+        self.assertIn("38.9", salida)
+
+    def test_cuadra_cuando_el_certificado_tambien_lo_marca(self):
+        """Las semanas en que el certificado sí marca la muerte materna cuadran."""
+        self._correr(legacy=[(10, 2026, 22, 3)], sisv=[(self.org.id, 2026, 22, 3)])
+        f = ConciliacionMaterna.objects.get(anio=2026, semana=22, organizacion=self.org)
+        self.assertEqual(f.estado, "CUADRA")
+        self.assertEqual(f.diferencia, 0)
+
+    def test_avisa_cuando_el_certificado_tiene_y_el_registro_no(self):
+        """Ninguna fuente es completa: hay muertes que el registro no registró."""
+        salida = self._correr(legacy=[(10, 2026, 22, 0)],
+                              sisv=[(self.org.id, 2026, 22, 2)])
+        f = ConciliacionMaterna.objects.get(anio=2026, semana=22, organizacion=self.org)
+        self.assertEqual(f.estado, "SOLO_SISV")
+        self.assertIn("no llegó a registrar", salida)
+
+    def test_el_centro_sin_organizacion_va_al_agregado_y_no_se_pierde(self):
+        self._correr(legacy=[(11, 2026, 5, 2)], sisv=[])
+        f = ConciliacionMaterna.objects.get(anio=2026, semana=5, organizacion=self.fallback)
+        self.assertTrue(f.es_agregado_sin_org)
+        self.assertEqual(f.resolucion, "CENTRO_SIN_ORG")
+        self.assertEqual(f.legado, 2)
+
+    def test_sin_ejecutar_no_escribe_nada(self):
+        self._correr(legacy=[(10, 2026, 5, 4)], sisv=[(self.org.id, 2026, 5, 1)], ejecutar=False)
+        self.assertEqual(ConciliacionMaterna.objects.count(), 0)
+
+    def test_el_agregado_no_infla_el_conteo_de_centros(self):
+        """`cantidad_centros_legacy` es por celda: un centro en 5 semanas sigue siendo 1.
+
+        Sumar las celdas daría 5 centros donde hay 1, y el informe de MM presentaría
+        una red de centros que no existe.
+        """
+        salida = self._correr(legacy=[(11, 2026, 5, 1), (11, 2026, 6, 1),
+                                      (11, 2026, 7, 1), (11, 2026, 8, 1),
+                                      (11, 2026, 9, 1)], sisv=[])
+        f = ConciliacionMaterna.objects.get(anio=2026, semana=5, organizacion=self.fallback)
+        self.assertEqual(f.cantidad_centros_legacy, 1)
+        self.assertIn("1 establecimientos", salida)
+
+    def test_el_csv_lleva_una_fila_por_semana_y_organizacion(self):
+        ruta = tempfile.mktemp(suffix=".csv")
+        try:
+            self._correr(legacy=[(10, 2026, 5, 4), (10, 2026, 6, 2)],
+                         sisv=[(self.org.id, 2026, 5, 1)], csv=ruta)
+            with open(ruta, encoding="utf-8-sig") as fh:
+                lineas = list(csv.DictReader(fh, delimiter=";"))
+        finally:
+            os.unlink(ruta)
         self.assertEqual(len(lineas), 2)
         self.assertEqual({int(l["semana"]) for l in lineas}, {5, 6})
         self.assertEqual(lineas[0]["organizacion"], "HOSP. A")
+        self.assertEqual(lineas[0]["registro_oficina"], "4")
+        self.assertEqual(lineas[0]["certificados"], "1")

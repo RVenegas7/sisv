@@ -13,7 +13,9 @@ from sisv_backend.api import error, ok
 
 from .models import ConfiguracionGeneral, Defuncion, FichaVigilancia, Nacimiento
 from .serializers import DefuncionSerializer, FichaVigilanciaSerializer, NacimientoSerializer
+from .services import muerte_materna_por_semana
 from catalogos.models import MapeoCIE
+from seguridad.models import Organizacion
 from vigilancia.models import ConsolidadoSemanal
 
 MESES_ES = [
@@ -160,6 +162,17 @@ def _filtro_anio(anio):
     return {"fecha_evento__gte": desde, "fecha_evento__lte": hasta}
 
 
+def _rango_epidemiologico(anio):
+    """`(desde, hasta)` del año epidemiológico, para las consultas que no son sobre
+    `fecha_evento` sino sobre la fecha del legacy."""
+    return rango_anio_epidemiologico(anio)
+
+
+def _alcance_acotado(user):
+    """¿El usuario solo ve parte de los datos (su centro o su estado)?"""
+    return isinstance(alcance_registros(user), dict)
+
+
 def _por_semana(qs):
     """Conteo por semana epidemiológica venezolana {SE: cantidad}.
 
@@ -195,6 +208,75 @@ def contar_neonatales(qs):
         if fecha_evento and fecha_nacimiento and 0 <= (fecha_evento - fecha_nacimiento).days <= 27:
             total += 1
     return total
+
+
+def _mortalidad_materno_infantil(request, qs_def, filtro):
+    """MM y MN del tablero.
+
+    **MM sale del registro de investigación de la oficina** (`RENGLON_CASOSMM`
+    enlazado a `CASOS_MMI`), no de `Defuncion.embarazo_o_puerperio`. Ese campo del
+    certificado es un aviso opcional del certificador y lo diligencia en 7 de las
+    18 muertes maternas de 2026: contarlo da 7 donde el registro da 18, que es justo
+    lo que reportó la responsable de Lara.
+
+    El registro trae establecimiento (`CASOS_MMI."HDOCUMENTO"` → `DOCUMENTO."HORIGEN"`,
+    19 centros, todos del árbol Lara), así que **el MM sí se recorta por alcance** igual
+    que el MN y que las defunciones.
+
+    El conteo de certificados no se pierde: pasa a `mm_certificadas` con cuántas siguen
+    sin CIE, y así la diferencia entre ambos queda a la vista en vez de esconderse
+    dentro de un total.
+    """
+    mm_certificadas = qs_def.filter(embarazo_o_puerperio=True)
+    codificadas = mm_certificadas.filter(codificacion_pendiente=False).count()
+
+    por_semana_registro = None
+    if filtro:
+        por_semana_registro = muerte_materna_por_semana(
+            filtro.get("fecha_evento__gte"), filtro.get("fecha_evento__lte"),
+            organizaciones=_organizaciones_del_alcance(request),
+        )
+
+    # `None` = no se pudo leer el registro legacy.
+    # Un dict **vacío** con alcance acotado no es "cero muertes": es que los
+    # establecimientos legacy no resolvieron a las organizaciones que el usuario ve
+    # (los nombres del legacy, "HOSP. CENTRAL UNIV. DR. ANTONIO MARIA PINEDA", no son
+    # los de `Organizacion`, "Hospital Central de Barquisimeto"). Mostrar 0 ahí sería
+    # afirmar que el centro no tuvo muertes maternas, que es lo contrario de lo que se
+    # sabe, así que en ese caso se cae al certificado, que sí es por centro.
+    if por_semana_registro is None or (not por_semana_registro and _alcance_acotado(request.user)):
+        mm = mm_certificadas.count()
+        fuente = "CERTIFICADO"
+    else:
+        mm = sum(por_semana_registro.values())
+        fuente = "REGISTRO_INVESTIGACION"
+
+    return {
+        "mm": mm,
+        "mm_fuente": fuente,
+        "mm_certificadas": mm_certificadas.count(),
+        "mm_codificadas": codificadas,
+        "mm_pendientes": mm_certificadas.count() - codificadas,
+        "mn": contar_neonatales(qs_def),
+    }
+
+
+def _organizaciones_del_alcance(request):
+    """IDs de organización que el usuario puede ver, o `None` si ve todas.
+
+    `None` significa "sin filtro", que es lo que espera
+    `muerte_materna_por_organizacion`. Con alcance de centro o regional se traduce el
+    alcance a un conjunto de organizaciones para que el MM del registro respete la
+    misma frontera que las defunciones.
+    """
+    alc = alcance_registros(request.user)
+    if not isinstance(alc, dict):
+        return None
+    if alc["tipo"] == "CENTRO":
+        return {alc["organizacion_id"]}
+    if alc["tipo"] == "REGIONAL" and alc.get("estado"):
+        return set(Organizacion.objects.filter(estado=alc["estado"]).values_list("id", flat=True))
+    return None
 
 
 def _fusionar(series):
@@ -614,16 +696,7 @@ class DashboardView(APIView):
                     "certificado_vivo": qs_def.count(),
                     "nacimientos_defunciones": 0,
                 },
-                "mortalidad_materno_infantil": {
-                    # La muerte materna no depende de que la causa esté codificada: se cuentan
-                    # todas y se informa aparte cuántas siguen sin CIE (15 de 17 en 2026).
-                    "mm": qs_def.filter(embarazo_o_puerperio=True).count(),
-                    "mm_codificadas": qs_def.filter(
-                        embarazo_o_puerperio=True, codificacion_pendiente=False
-                    ).count(),
-                    "mm_pendientes": qs_def.filter(embarazo_o_puerperio=True, codificacion_pendiente=True).count(),
-                    "mn": contar_neonatales(qs_def),
-                },
+                "mortalidad_materno_infantil": _mortalidad_materno_infantil(request, qs_def, filtro),
                 "nacimientos_salud": {
                     "nacidos_vivos": qs_nac.filter(nacido_vivo=True).count(),
                     "por_sexo": _grupo_contar(qs_nac, "sexo"),
@@ -712,10 +785,23 @@ class ReporteComparativoView(APIView):
                 qs = _por_alcance(modelo.objects.filter(**_filtro_anio(anio), **extra), request)
                 return _por_semana(qs)
 
+            def mm_por_semana():
+                """MM del registro de investigación, o del certificado si no se pudo leer.
+
+                `None` es "la fuente legacy no está disponible"; un dict vacío es "ese
+                año no hay muertes maternas registradas" y sí es una respuesta válida,
+                así que no se puede usar `or` para confundir los dos casos.
+                """
+                desde, hasta = _rango_epidemiologico(anio)
+                registro = muerte_materna_por_semana(
+                    desde, hasta, organizaciones=_organizaciones_del_alcance(request))
+                return registro if registro is not None else \
+                    contar(Defuncion, embarazo_o_puerperio=True)
+
             return {
                 "nacimientos": contar(Nacimiento),
                 "muertes": contar(Defuncion),
-                "muertes_maternas": contar(Defuncion, embarazo_o_puerperio=True),
+                "muertes_maternas": mm_por_semana(),
                 "muertes_neonatales": _neonatales_por_semana(
                     _por_alcance(Defuncion.objects.filter(**_filtro_anio(anio)), request)
                 ),
