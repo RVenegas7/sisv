@@ -140,6 +140,18 @@ Idioma de trabajo: **responder siempre en español**.
   Consolidados 0**. Bandeja de codificación: endpoint de defunciones acepta `?pendientes=1`
   (`codificacion_pendiente=True`); el checkbox «Solo pendientes de codificación» en `/defunciones`
   (CargaDefunciones.jsx) lista las **49.162** defunciones que esperan CIE.
+- **El establecimiento de la mitad de las defunciones estaba perdido (28/09/2026, corregido):**
+  `importar_legacy_registros` leía solo `CERTIFICADO."HESTABLECIMIENTO_OCUR"`, que viene **nulo en
+  87.203 de 173.533 certificados**, mientras `"HESTABLECIMIENTO"` **siempre** está. Esas muertes se
+  importaron sin nombre y por tanto con `organizacion_id IS NULL` (el 50,3% del histórico),
+  invisibles para cualquier usuario con alcance de centro. El importador ya usa `_OCUR` **o, si es
+  nulo, `HESTABLECIMIENTO`**; para lo ya importado está `manage.py
+  recuperar_establecimiento_defuncion [--ejecutar]` (un solo `UPDATE ... FROM`, **solo campos
+  vacíos**, idempotente). Aplicado: 87.203 recuperadas + 87.240 asignadas con
+  `asignar_organizacion_legacy --ejecutar` (que además asignó 14.460 fichas huérfanas). Quedan
+  **70** defunciones de 39 establecimientos fuera del árbol Lara, sin centro a propósito.
+  **El renglón MORTALIDAD del ENO nunca se usó:** `RENGLONTELE` suma 3.618 muertes en 18 años
+  contra 173.533 certificados; la mortalidad real vive en `registros.Defuncion`, no en ENO.
 - **Muerte materna (28/09/2026):** el indicador MM sale de `Defuncion.embarazo_o_puerperio`, que el
   importador legacy rellena con `CODIGOS_MM = {1, 2}` de `CERTIFICADO.HPRESENCIAEMBARAZO` (1 = al
   momento de la muerte, 2 = últimos 12 meses). **No** es un rango de fechas ni un código de causa, y
@@ -343,7 +355,8 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
 - **Pruebas automatizadas (24/09/2026):** backend con `DJANGO_DB_ENGINE=sqlite manage.py test`
-  (131 pruebas a 28/09/2026: 115 de `backend/tests_sisv.py` + 16 de `conciliacion`; requiere `__init__.py` en las apps — registros,
+  (137 pruebas a 28/09/2026: 115 de `backend/tests_sisv.py` + 16 de `conciliacion` + 6 de
+  `registros/tests_recuperar_establecimiento.py`; requiere `__init__.py` en las apps — registros,
   seguridad, territorio y catalogos eran namespace packages y por eso el descubrimiento fallaba);
   frontend con `npm test` (Vitest, 13 pruebas en `src/utils/cie.test.js` y `src/api/sisv.test.js`).
   Verificación manual: `manage.py check` y `npm run build`.

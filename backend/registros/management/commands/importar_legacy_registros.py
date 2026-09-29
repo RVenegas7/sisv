@@ -71,6 +71,16 @@ def como_entero(v):
         return None
 
 
+def como_id(v):
+    """Identificador de establecimiento, o `None` si no hay uno utilizable.
+
+    Oracle guarda estos campos como `double precision` (id numérico), así que un
+    0 significa "sin dato" y no un establecimiento real.
+    """
+    i = como_entero(v)
+    return i if i else None
+
+
 def talla_valida(v):
     """Talla en cm razonable (20-100); descarta valores basura del legacy (p. ej. 5000)."""
     try:
@@ -272,8 +282,8 @@ class Command(BaseCommand):
         sql = """
             SELECT c."ID", c."NOMBRE", c."APELLIDO", c."CEDULA", c."SEXO", c."FECHA_M",
                    c."FECHA_N", c."HORAMUERTE", c."HSITIO_M", c."HESTABLECIMIENTO_OCUR",
-                   c."HLOCARESIDENCIA", c."HPRESENCIAEMBARAZO", c."AUTOPSIA",
-                   c."OTROMEDFIRMANTE", c."HCAUSABASICA"
+                   c."HESTABLECIMIENTO", c."HLOCARESIDENCIA", c."HPRESENCIAEMBARAZO",
+                   c."AUTOPSIA", c."OTROMEDFIRMANTE", c."HCAUSABASICA"
             FROM sismai."CERTIFICADO" c
             WHERE c."FECHA_M" IS NOT NULL AND c."FECHA_M" >= DATE '1900-01-01'
             ORDER BY c."ID"
@@ -294,12 +304,16 @@ class Command(BaseCommand):
         procesados = set()
         for f in filas:
             (cid, nombre, apellido, cedula, sexo, fecha_m, fecha_n, hora, sitio,
-             est_ocur, geo_id, embarazo, autopsia, otro_med, causa_bas) = f
+             est_ocur, est_cert, geo_id, embarazo, autopsia, otro_med, causa_bas) = f
             fecha = fecha_m.date() if hasattr(fecha_m, "date") else fecha_m
             legacy_id = str(int(cid))
             if legacy_id in existentes or legacy_id in procesados:
                 continue
             procesados.add(legacy_id)
+            # HESTABLECIMIENTO_OCUR viene nulo en la mitad de los certificados, pero
+            # HESTABLECIMIENTO siempre está: sin este fallback esas muertes quedan sin
+            # establecimiento y después sin organización (el 50% del histórico).
+            est_id = como_id(est_ocur) or como_id(est_cert)
             est, mun, parr = self.geo.get(float(geo_id) if geo_id is not None else -1, ("", "", ""))
             c10_id, c11_id, sug_id, pend, cod_legacy = self._resolver_cie(causa_bas, fecha)
             lista = sorted(causas.get(float(cid), []), key=lambda x: (x[0] or "z"))
@@ -323,7 +337,7 @@ class Command(BaseCommand):
                     sexo=SEXO.get(como_entero(sexo), "I"),
                     fecha_nacimiento=(fecha_n.date() if hasattr(fecha_n, "date") else fecha_n) if fecha_n else None,
                     lugar_defuncion="ESTABLECIMIENTO" if como_entero(sitio) == 1 else "OTRO",
-                    establecimiento=self.estable.get(float(est_ocur) if est_ocur is not None else -1, ""),
+                    establecimiento=self.estable.get(est_id, ""),
                     estado=est, municipio=mun, parroquia=parr,
                     causa_directa=(texto or "")[:300],
                     embarazo_o_puerperio=como_entero(embarazo) in CODIGOS_MM,

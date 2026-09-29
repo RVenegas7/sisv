@@ -1608,3 +1608,44 @@ Avisos que evitan conclusiones equivocadas:
 Decisión de diseño que conviene no deshacer: cuando varios establecimientos legacy caen en la misma
 organización, el detalle deja `sisv_h/sisv_m` en `NULL` y marca `colision`, porque SISV guarda la
 **suma** y repartirla entre centros sería inventar.
+
+---
+
+## 19. [COMPLETADO] Fase B — muertes ENO vs CERTIFICADO y el establecimiento perdido (28/09/2026)
+
+**El renglón MORTALIDAD del ENO nunca se usó.** `RENGLONTELE."MUERTESHOM"/"MUERTESMUJ"`
+suman **3.618 muertes en todo 2009–2026** frente a **173.533 certificados de defunción**:
+el 2%. Por eso la conciliación de la fase A marcaría `MORTALIDAD` como `CUADRA` sobre
+ceros. No es un defecto de la migración: las oficinas nunca transcribieron muertes al
+EPI-12. La mortalidad real de SISV vive en `registros.Defuncion`.
+
+**`CERTIFICADO` → `Defuncion` está completo: 173.533 = 173.533.** Pero la mitad estaba
+inutilizable por falta de centro, y la causa era un bug real del importador:
+
+- `importar_legacy_registros._defunciones` leía solo `CERTIFICADO."HESTABLECIMIENTO_OCUR"`.
+- Ese campo viene **nulo en 87.203 de los 173.533 certificados**, mientras
+  `"HESTABLECIMIENTO"` **siempre está** (en 87.203 de 87.203; cero casos con ambos nulos).
+- Resultado: 87.203 muertes importadas sin nombre de establecimiento y, por tanto, con
+  `organizacion_id IS NULL` — el 50,3% del histórico de defunciones, invisible para
+  cualquier usuario con alcance de centro.
+
+Corregido en dos pasos:
+
+1. `importar_legacy_registros` ahora usa `_OCUR` **y, si es nulo, `HESTABLECIMIENTO`**
+   (misma precedencia que ya usaba `cargar_mm_mn_roto`). Evita que se repita.
+2. `manage.py recuperar_establecimiento_defuncion [--ejecutar]` rellena el nombre en lo ya
+   importado. Un solo `UPDATE ... FROM` en transacción, **solo sobre campos vacíos**:
+   nunca pisa un establecimiento ya escrito. Idempotente.
+
+Aplicado sobre la BD: **87.203 defunciones recuperadas** y, con
+`asignar_organizacion_legacy --ejecutar`, **87.240** asignadas a su centro (se crearon 4
+organizaciones y se reutilizaron 711). Quedan **70 defunciones sin centro**, de 39
+establecimientos que no están en el árbol Lara («DES PORTUGUESA», hospitales de otros
+estados): es correcto que no se inventen centros.
+
+Efecto colateral útil: el mismo comando asignó **14.460 fichas de vigilancia** que también
+estaban huérfanas. Las 8.703 que siguen sin centro son fichas individuales sin
+establecimiento (se agrupan por residencia), lo cual es lo esperado.
+
+Con esto la mortalidad por año queda atribuida al 100% en 2009–2026 (de 4 centros en 2009
+a 100–140 por año). 6 pruebas nuevas; suite completa **137 OK**.
