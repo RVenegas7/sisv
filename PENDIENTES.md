@@ -1649,3 +1649,44 @@ establecimiento (se agrupan por residencia), lo cual es lo esperado.
 
 Con esto la mortalidad por año queda atribuida al 100% en 2009–2026 (de 4 centros en 2009
 a 100–140 por año). 6 pruebas nuevas; suite completa **137 OK**.
+
+---
+
+## 20. [PARCIAL] Fase C — MM/MN por semana, y dos caídas de captura que nadie había visto (28/09/2026)
+
+Al contrastar el MN de SISV (`Defuncion`, 0–27 días entre `fecha_nacimiento` y `fecha_evento`)
+contra el registro materno-infantil de la oficina (`sismai."CASOS_MMI"`, 10.737 casos 2009-2026,
+con `EDAD` en horas/días/meses/años y enlace `HDOCUMENTO` → `DOCUMENTO` → centro + semana):
+
+**El MN de SISV sigue bien al registro de la oficina** en los años con captura normal
+(2015-2026 difieren en el orden del 5-15%). Eso valida la definición de 0 a 27 días que ya
+usa el tablero. Los neonatos de `CASOS_MMI` son las filas en horas (1.912) y días ≤27 (5.251).
+
+**Pero hay dos caídas de captura de meses que ninguna pantalla detecta:**
+
+| Serie | Normal | Colapsada | Recuperada |
+| --- | --- | --- | --- |
+| Defunciones | ~1.000/mes | **2019-06 → 2021-07** (11-90/mes) | 2021-08 |
+| Nacimientos | ~900/mes | **2019-10 → 2021-11** (5-45/mes) | 2021-12 |
+
+En las 21 meses de 2019-06 a 2021-02 hay **3.083 certificados frente a 22.779** en los 21
+meses previos: faltan ~19.700. Las的死 defunciones de 2019 (5.291) y 2020 (427) no son un
+cambio epidemiológico, es que el sistema dejó de capturar.
+
+**Y la información sí se registró en otro lado:** el registro MMI de la oficina tiene **455
+casos en 2019 y 334 en 2020**, con 264 y 165 neonatos, mientras el sistema de certificados
+tenía 167 y 5. O sea: durante la caída se registró la mortalidad materno-infantil en un
+sitio y no en el otro. Es la misma lógica del hueco MM/MN de agosto-septiembre 2026 (§16), dos
+años antes, y nadie lo había detectado.
+
+Por qué el tablero no lo avisa: `_cobertura` marca meses **vacíos**, no meses **degradados**.
+Cada mes de la caída tiene algunas decenas de filas, así que la serie se dibuja como si
+fuera una caída real. Detectar una caída exige umbrales, y un umbral mal puesto inventa huecos
+falsos; por eso **no se cambió nada sin decidir**.
+
+**MM sigue bloqueado por una definición, no por un bug:** `CASOS_MMI` no distingue la muerte
+materna de la infantil. En el grupo de edad «años» hay 708 personas de 12-50 años con
+`HSEXO=2`, lo que sugiere que **aquí 2 = F**, al revés que en `RENGLONTELE` (donde 1 = F y
+2 = M, verificado con nombres). Con las dos convenciones mezcladas, cualquier cifra de MM
+salida de ahí sería una suposición. Hace falta que la oficina diga qué filas de `CASOS_MMI`
+son maternas.
