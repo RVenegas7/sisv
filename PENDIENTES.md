@@ -1670,7 +1670,7 @@ usa el tablero. Los neonatos de `CASOS_MMI` son las filas en horas (1.912) y dí
 | Nacimientos | ~900/mes | **2019-10 → 2021-11** (5-45/mes) | 2021-12 |
 
 En las 21 meses de 2019-06 a 2021-02 hay **3.083 certificados frente a 22.779** en los 21
-meses previos: faltan ~19.700. Las的死 defunciones de 2019 (5.291) y 2020 (427) no son un
+meses previos: faltan ~19.700. Las defunciones de 2019 (5.291) y 2020 (427) no son un
 cambio epidemiológico, es que el sistema dejó de capturar.
 
 **Y la información sí se registró en otro lado:** el registro MMI de la oficina tiene **455
