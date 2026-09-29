@@ -204,6 +204,12 @@ Idioma de trabajo: **responder siempre en español**.
     - **No concilia MM:** `CASOS_MMI` mezcla materna, infantil y otras sin marcarlas, y usa `HSEXO`
       con la convención **inversa** a `RENGLONTELE` (aquí 2 = F, allá 2 = M). MM sale de
       `Defuncion.embarazo_o_puerperio`. Falta que la oficina diga qué filas son maternas.
+    - **Pista para cerrar MM sin preguntar nada** (PENDIENTES §21, sin ejecutar): existen
+      `sismai."RENGLON_CASOSMM"` (causas de muerte materna) y `RENGLON_CASOSMI` (infantil), ligadas a
+      `CASOS_MMI` por `HCASOSMMI` y con `HCAUSA_CIE10`. **Si `RENGLON_CASOSMM` tiene filas, la
+      clasificación de MM ya está en el legacy.** Falta contarlas y confirmar el enlace: no hay que
+      asumir que están pobladas. Ojo: el grano es (persona, causa) y una persona puede tener varias,
+      así que contar renglones no es contar muertes.
 
 - `legacy`: **mapa de modelos del legado SISMAI** (no altera el flujo). App con `models_legacy.py`
   **generado** (modelos `managed=False`, solo lectura) para las **430 tablas/vistas** de

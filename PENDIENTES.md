@@ -1737,3 +1737,63 @@ Dos trampas del legacy que hubo que esquivar:
 ⚠ El lado SISV solo cuenta defunciones **con fecha de nacimiento** (104 sin ella en 2026): es un
 mínimo, y las que no la tienen pueden ser neonatos que se quedan fuera.
 
+---
+
+## 21. [PENDIENTE] Cerrar la muerte materna (MM) — hay una pista que puede evitar preguntar a la oficina
+
+**Estado: sin ejecutar** (equipo sin batería el 28/09/2026). Nada de lo de aquí se corrió; lo único
+verificado es que las tablas **existen** y qué columnas tienen.
+
+### 21.1 La pista: `RENGLON_CASOSMM` puede decir qué filas de `CASOS_MMI` son maternas
+
+Hasta ahora MM está bloqueado por una **definición** (§20): `CASOS_MMI` mezcla materna, infantil y
+otras sin marcarlas. Pero el legacy tiene tablas que **no estaban en el inventario**:
+
+| Tabla | Columnas | Qué parece ser |
+| --- | --- | --- |
+| `sismai."RENGLON_CASOSMM"` | `ID`, `HCASOSMMI`, `HOCURRENCIA`, `HSITIO_OCURRENCIA`, `HESTABLECIMIENTO`, `HCAUSA_CIE10` | **Causas de muerte materna** |
+| `sismai."RENGLON_CASOSMI"` | las anteriores + `EDAD_GESTACIONAL`, `CONTROL_PRENATAL`, `PESO`, `HCAUSABAS_CIE10`, `HNUTRICION`, `ESTANCIAHOSP`, `FECHAOPERACION`, `USUARIO` | Causas de muerte infantil |
+| `sismai."CASOSMM"`, `"CAUSA_MMEDICO"` | — | Cabeceras y catálogo de causas maternas |
+
+`HCASOSMMI` es la llave a `CASOS_MMI."ID"`. **Si `RENGLON_CASOSMM` tiene filas, la pregunta "¿cuáles
+son maternas?" está respondida por el propio legacy** y no hace falta que la oficina defina nada:
+basta con las filas que tengan causa en `RENGLON_CASOSMM`.
+
+⚠ **No verificado:** cuántas filas tiene cada una, si `HCASOSMMI` realmente enlaza, y si
+`HCAUSA_CIE10` apunta a `catalogos_cie10."codigo"` o a otro catálogo. No asumirlo.
+
+### 21.2 Qué hacer, en orden
+
+1. Contar filas de `RENGLON_CASOSMM`, `RENGLON_CASOSMI` y `CASOS_MMI`, y ver cuántas de las 10.737
+   filas de `CASOS_MMI` quedan cubiertas por cada renglón. Si una tabla está vacía, se descarta la
+   pista y se vuelve al punto 4.
+2. Si hay cobertura: clasificar MM por causa (los capítulos O de CIE-10 son embarazo, parto y
+   puerperio) y **conciliarlo contra `Defuncion.embarazo_o_puerperio`**, que viene de
+   `CERTIFICADO.HPRESENCIAEMBARAZO IN (1,2)`. Son dos fuentes independientes de la misma
+   definición: si concuadran, MM queda cerrado sin preguntar nada. Si no, la diferencia es el
+   hallazgo.
+3. Ojo con el grano: `RENGLON_CASOSMM` es **(persona, causa)** y una persona puede tener varias
+   causas. Contar filas de renglón no es contar muertes.
+4. Si no hay dato utilizable, recién ahí armar el cuestionario para la oficina (§21.3).
+
+### 21.3 Cuestionario para la oficina (solo si el punto 2 no cierra)
+
+Lo que hay que llevar: el inventario de columnas de `CASOS_MMI` con tipo, cuanto se llena y ejemplos
+—**no** el volcado de nombres. Preguntas, en orden de importancia:
+
+1. **¿Qué filas de `CASOS_MMI` son muerte materna?** ¿Existe un campo, un valor de `HSEXO` o una
+   tabla que las separe? Sin esto no hay MM desde el registro de la oficina.
+2. **¿Qué significa `HSEXO` aquí?** En `CASOS_MMI`, 708 personas de 12 a 50 años tienen `HSEXO=2`
+   y ninguna de 1, lo que apunta a **2 = F**. En `RENGLONTELE` es al revés (**1 = F, 2 = M**,
+   verificado con nombres). Una de las dos tablas está invertida, y con la convención equivocada
+   el conteo de MM sería una suposición.
+3. **¿`CASOS_MMI` es un registro acumulado o una notificación por envío?** Si es notificación,
+   la misma muerte puede aparecer en dos semanas y hay que deduplicar antes de contar.
+4. **¿Por qué 10.111 de 10.737 filas no tienen `CEDULA`?** Y por qué hay cédulas repetidas entre
+   personas distintas: la `13759942` aparece en cuatro nombres diferentes en el mismo
+   `HDOCUMENTO` (`144522895`). Sin identidad confiable no se puede cruzar `CASOS_MMI` con
+   `CERTIFICADO`.
+5. **¿Qué son las 703 filas sin `UNIDAD_EDAD`?** El rango de `EDAD` va de 1 a 49, así que la unidad
+   no es recuperable del número.
+6. **Los rangos de `EDAD` en horas y días** (0-86 h, 1-92 d) confirman que la tabla cubre a los
+   recién nacidos; ¿hay un tope de edad aparte para el registro materno?
