@@ -95,6 +95,78 @@ class ConciliacionENO(models.Model):
         return f"{self.anio} S{self.semana:02d} {self.tipo} {self.organizacion_id} [{self.legado_enfermedad_id}]"
 
 
+class ConciliacionNeonatal(models.Model):
+    """Muerte neonatal (0 a 27 días) del registro MMI de la oficina contra SISV.
+
+    El grano es **(año, semana, organización)**. La semana se calcula **en cada lado
+    desde la fecha real del evento** con la misma función epidemiológica, y **no**
+    desde `DOCUMENTO."PERIODO"`: en el legacy ese campo no es una semana, es un
+    número de formulario del centro, con rangos que se solapan (en 2019 el periodo
+    29 va del 2 de enero al 12 de septiembre). Comparar `PERIODO` contra la semana
+    de SISV mediría un número de formulario, no una diferencia de captura.
+
+    El lado legacy es `sismai."CASOS_MMI"` (el registro materno-infantil), que trae
+    nombre, edad **con su unidad**, sexo y fecha de ocurrencia. Los neonatos son las
+    filas con edad en horas o en días de 0 a 27.
+
+    ⚠ Esta tabla **no** concilia la muerte materna. `CASOS_MMI` mezcla materna,
+    infantil y otras, sin marcar cuál es cuál, y usa `HSEXO` con la convención
+    inversa a `RENGLONTELE`; el indicador de MM sale de
+    `Defuncion.embarazo_o_puerperio` (`CERTIFICADO.HPRESENCIAEMBARAZO`), que sí es
+    una definición cerrada. Ver PENDIENTES.md §20.
+    """
+
+    ESTADO_CHOICES = [
+        ("CUADRA", "Cuadra"),
+        ("DIFERENCIA", "Diferencia"),
+        ("SOLO_CRUDO", "Solo en el registro de la oficina"),
+        ("SOLO_SISV", "Solo en SISV"),
+    ]
+    RESOLUCION_CHOICES = [
+        ("CONCILIADO", "Conciliado"),
+        ("CENTRO_SIN_ORG", "Centro sin organización"),
+    ]
+
+    anio = models.SmallIntegerField("Año", db_index=True)
+    semana = models.SmallIntegerField("Semana epidemiológica", db_index=True)
+
+    organizacion = models.ForeignKey(
+        "seguridad.Organizacion",
+        on_delete=models.CASCADE,
+        related_name="conciliaciones_neonatal",
+        verbose_name="Organización",
+        help_text="A NULL cuando el establecimiento legacy no tiene organización propia; "
+                  "esos casos caen en el agregado regional, no se pierden.",
+    )
+    es_agregado_sin_org = models.BooleanField(
+        "Pertenece al agregado regional",
+        default=False,
+        help_text="El establecimiento legacy no resolvió a una organización y se sumó al "
+                  "agregado 'Legacy regional (histórico)'.",
+    )
+
+    cantidad_centros_legacy = models.PositiveIntegerField("Centros legacy", default=1)
+
+    legado = models.IntegerField("Neonatos en el registro MMI", default=0)
+    sisv = models.IntegerField("Neonatos en SISV", default=0)
+    diferencia = models.IntegerField("Diferencia", default=0)
+
+    estado = models.CharField("Estado", max_length=12, choices=ESTADO_CHOICES, db_index=True)
+    resolucion = models.CharField("Resolución", max_length=20, choices=RESOLUCION_CHOICES)
+    calculado_en = models.DateTimeField("Calculado en", default=timezone.now, db_index=True)
+
+    class Meta:
+        verbose_name = "Conciliación neonatal"
+        verbose_name_plural = "Conciliaciones neonatales"
+        unique_together = ("anio", "semana", "organizacion")
+        ordering = ("anio", "semana", "organizacion_id")
+        indexes = [models.Index(fields=["anio", "estado"])]
+
+    def __str__(self):
+        return f"{self.anio} S{self.semana:02d} org={self.organizacion_id} " \
+               f"legacy={self.legado} sisv={self.sisv}"
+
+
 class ConciliacionENOCentro(models.Model):
     """Detalle por establecimiento legacy: qué reportó cada centro y dónde acabó.
 

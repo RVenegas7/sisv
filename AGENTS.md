@@ -184,6 +184,27 @@ Idioma de trabajo: **responder siempre en español**.
     antes**. Antes de 2019-08 el campo queda vacío a propósito, no inventado.
   - El `--csv` respeta `--anio`/`--desde` y escribe además `<ruta>_centros.csv` con el detalle y la
     estación (hay prueba que lo fija: un CSV de 2026 no puede traer filas de 2009).
+  - **Conciliación neonatal (fase C, `manage.py conciliar_neonatal`, 28/09/2026):** modelo
+    `conciliacion.ConciliacionNeonatal` (migración `0003`), grano **(año, semana, organización)**.
+    Lado legacy = `sismai."CASOS_MMI"` (registro materno-infantil, 10.754 casos 2009-2026): los
+    neonatos son edad en **horas** (≤648) o en **días ≤27**, y el centro sale de
+    `HDOCUMENTO` → `DOCUMENTO.HORIGEN` → nombre normalizado. Lado SISV = `registros.Defuncion` con
+    fecha de nacimiento conocida y 0-27 días. Dry-run por defecto, `--csv` con BOM, 9 pruebas.
+    - ⚠ **`DOCUMENTO."PERIODO"` NO es una semana**: es un número de formulario del centro y sus
+      rangos se solapan (en 2019 el periodo 29 va del 2 de enero al 12 de septiembre; 20.446 pares
+      solapados). La semana se calcula **en cada lado desde la fecha real** con
+      `vigilancia.services.semana_epidemiologica`.
+    - ⚠ **`DOCUMENTO."TIPO"` = 23** en los 10.754 documentos MMI, no 1 (1 = ENO de mortalidad,
+      `RENGLONTELE`). Filtrar por 1 deja el legacy vacío en silencio.
+    - **Resultado:** los dos sistemas coinciden casi exacto en 2023-2026 (2023 +2 %, 2024 +1 %,
+      2025 -1 %, 2026 +7 %): valida la definición de 0-27 días del tablero y el importador.
+      2009-2018 sale -10 % a -30 % (el formulario MMI se rellenaba menos que el certificado). Solo
+      2019-2020 se invierte (+53 % y +1464 %) por la caída de captura (§20).
+    - El lado SISV solo cuenta defunciones **con fecha de nacimiento**: es un mínimo.
+    - **No concilia MM:** `CASOS_MMI` mezcla materna, infantil y otras sin marcarlas, y usa `HSEXO`
+      con la convención **inversa** a `RENGLONTELE` (aquí 2 = F, allá 2 = M). MM sale de
+      `Defuncion.embarazo_o_puerperio`. Falta que la oficina diga qué filas son maternas.
+
 - `legacy`: **mapa de modelos del legado SISMAI** (no altera el flujo). App con `models_legacy.py`
   **generado** (modelos `managed=False`, solo lectura) para las **430 tablas/vistas** de
   `sismai`/`inbdlar1`/`legacy`/`historico`, y el inventario priorizado
@@ -355,9 +376,10 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
 - **Pruebas automatizadas (24/09/2026):** backend con `DJANGO_DB_ENGINE=sqlite manage.py test`
-  (137 pruebas a 28/09/2026: 115 de `backend/tests_sisv.py` + 16 de `conciliacion` + 6 de
-  `registros/tests_recuperar_establecimiento.py`; requiere `__init__.py` en las apps — registros,
-  seguridad, territorio y catalogos eran namespace packages y por eso el descubrimiento fallaba);
+  (146 pruebas a 28/09/2026: 115 de `backend/tests_sisv.py` + 25 de `conciliacion` (16 ENO + 9
+  neonatal) + 6 de `registros/tests_recuperar_establecimiento.py`; requiere `__init__.py` en las
+  apps — registros, seguridad, territorio y catalogos eran namespace packages y por eso el
+  descubrimiento fallaba);
   frontend con `npm test` (Vitest, 13 pruebas en `src/utils/cie.test.js` y `src/api/sisv.test.js`).
   Verificación manual: `manage.py check` y `npm run build`.
 - **Seguridad (23/09/2026):** la API exige sesión por defecto (`IsAuthenticated` global; públicos solo

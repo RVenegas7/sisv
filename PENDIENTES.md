@@ -1690,3 +1690,40 @@ materna de la infantil. En el grupo de edad «años» hay 708 personas de 12-50 
 2 = M, verificado con nombres). Con las dos convenciones mezcladas, cualquier cifra de MM
 salida de ahí sería una suposición. Hace falta que la oficina diga qué filas de `CASOS_MMI`
 son maternas.
+
+### 20.1 Conciliación neonatal semanal (cerrado) — `manage.py conciliar_neonatal`
+
+El MN quedó conciliado de verdad, por semana y centro: modelo `conciliacion.ConciliacionNeonatal`
+(migración `0003`) y comando homónimo, con `--desde/--anio/--ejecutar/--csv/--todo-pais/--alerta`.
+Dry-run por defecto, CSV con BOM, 9 pruebas nuevas; suite completa **146 OK**.
+
+| Año | Legacy | SISV | Dif. | % |
+| --- | --- | --- | --- | --- |
+| 2018 | 452 | 516 | -64 | -12 % |
+| 2019 | 262 | 171 | **+91** | **+53 %** |
+| 2020 | 172 | 11 | **+161** | **+1464 %** |
+| 2021 | 242 | 412 | -170 | -41 % |
+| 2022 | 564 | 627 | -63 | -10 % |
+| 2023 | 793 | 776 | +17 | **+2 %** |
+| 2024 | 583 | 580 | +3 | **+1 %** |
+| 2025 | 384 | 389 | -5 | **-1 %** |
+| 2026 | 234 | 218 | +16 | **+7 %** |
+
+Dos sistemas independientes (el registro MMI de la oficina y los certificados de SISV) **coinciden
+casi exacto en 2023-2026**. Eso valida a la vez la definición de 0-27 días del tablero y el
+importador. 2009-2018 sale -10 % a -30 % (SISV por encima): el formulario MMI se rellenaba menos
+que el certificado, no al revés. Solo 2019-2020 se invierte, y es la caída de captura.
+
+Dos trampas del legacy que hubo que esquivar:
+
+- **`DOCUMENTO."PERIODO"` no es una semana**, es un número de formulario del centro: en 2019 el
+  periodo 29 va del 2 de enero al 12 de septiembre, y hay **20.446 pares de periodos solapados**.
+  La semana se calcula **en los dos lados desde la fecha real del evento** con
+  `vigilancia.services.semana_epidemiologica`.
+- **`DOCUMENTO."TIPO"` = 23** en los 10.754 documentos de `CASOS_MMI`, no 1 (1 es el ENO de
+  mortalidad, `RENGLONTELE`). Filtrar por 1 deja el lado legacy vacío **en silencio**: la primera
+  corrida dio 0 sin avisar. Hay una prueba que fija el 23.
+
+⚠ El lado SISV solo cuenta defunciones **con fecha de nacimiento** (104 sin ella en 2026): es un
+mínimo, y las que no la tienen pueden ser neonatos que se quedan fuera.
+

@@ -7,7 +7,7 @@ from unittest.mock import patch
 from django.core.management import call_command
 from django.test import TestCase
 
-from conciliacion.models import ConciliacionENO, ConciliacionENOCentro
+from conciliacion.models import ConciliacionENO, ConciliacionENOCentro, ConciliacionNeonatal
 from conciliacion.services import clasificar, es_pseudo_total, normalizar_centro
 from seguridad.models import Organizacion
 from vigilancia.models import EventoENO
@@ -206,3 +206,105 @@ class ConciliarENOCommandTests(TestCase):
         self.assertEqual({int(l["anio"]) for l in lineas}, {2026})
         self.assertEqual(lineas[0]["transcrito_por"], "ESTACION-A")
         self.assertEqual(lineas[0]["establecimiento"], "HOSP. A")
+
+
+class ConciliarNeonatalCommandTests(TestCase):
+    """Conciliación de mortalidad neonatal (0-27 días) del registro MMI vs SISV."""
+
+    def setUp(self):
+        self.org = Organizacion.objects.create(
+            codigo="HOSP-A", nombre="HOSP. A", nivel="CENTRO", activo=True)
+        self.fallback = Organizacion.objects.create(
+            codigo="LEGACY-LARA", nombre="Legacy regional (histórico)",
+            nivel="REGIONAL", activo=True)
+        self.nombres = {10: "HOSP. A", 11: "CENTRO QUE NO EXISTE"}
+
+    def _correr(self, legacy, sisv, anio=2026, csv="", ejecutar=True, alerta=5):
+        salida = StringIO()
+        with patch("conciliacion.management.commands.conciliar_neonatal."
+                   "Command._nombres_establecimiento", return_value=self.nombres), \
+             patch("conciliacion.management.commands.conciliar_neonatal."
+                   "Command._area", return_value={10.0, 11.0}), \
+             patch("conciliacion.management.commands.conciliar_neonatal."
+                   "Command._legacy", return_value=legacy), \
+             patch("conciliacion.management.commands.conciliar_neonatal."
+                   "Command._sisv", return_value=sisv):
+            call_command("conciliar_neonatal", "--anio", str(anio),
+                         "--alerta", str(alerta),
+                         *(["--ejecutar"] if ejecutar else []),
+                         *(["--csv", csv] if csv else []), stdout=salida)
+        return salida.getvalue()
+
+    def test_el_tipo_de_documento_mmi_no_es_el_del_eno(self):
+        """`DOCUMENTO.TIPO` 1 es el ENO de mortalidad; los formularios MMI son 23.
+
+        Filtrar por 1 deja el lado legacy vacío en silencio, que es como se
+        perdió la primera corrida de esta conciliación.
+        """
+        from conciliacion.management.commands import conciliar_neonatal as cmd
+        self.assertEqual(cmd.TIPO_MMI, 23)
+        self.assertNotEqual(cmd.TIPO_MMI, 1)
+
+    def test_estado_por_lado(self):
+        from conciliacion.management.commands.conciliar_neonatal import Command
+        est = Command._estado
+        self.assertEqual(est(3, 3), "CUADRA")
+        self.assertEqual(est(5, 3), "DIFERENCIA")
+        self.assertEqual(est(4, 0), "SOLO_CRUDO")
+        self.assertEqual(est(0, 2), "SOLO_SISV")
+        self.assertEqual(est(0, 0), "CUADRA")
+
+    def test_cuadra_cuando_el_registro_y_sisv_coinciden(self):
+        self._correr(legacy=[(10, 2026, 5, 4)], sisv=[(self.org.id, 2026, 5, 4)])
+        f = ConciliacionNeonatal.objects.get(anio=2026, semana=5, organizacion=self.org)
+        self.assertEqual(f.estado, "CUADRA")
+        self.assertEqual(f.resolucion, "CONCILIADO")
+        self.assertEqual((f.legado, f.sisv, f.diferencia), (4, 4, 0))
+
+    def test_detecta_el_hueco_de_captura(self):
+        """El caso 2019-2020: el registro de la oficina tiene y SISV no."""
+        self._correr(legacy=[(10, 2020, 10, 9)], sisv=[(self.org.id, 2020, 10, 0)])
+        f = ConciliacionNeonatal.objects.get(anio=2020, semana=10, organizacion=self.org)
+        self.assertEqual(f.estado, "SOLO_CRUDO")
+        self.assertEqual(f.diferencia, 9)
+
+    def test_el_centro_sin_organizacion_va_al_agregado_y_no_se_pierde(self):
+        self._correr(legacy=[(11, 2026, 5, 2)], sisv=[])
+        f = ConciliacionNeonatal.objects.get(anio=2026, semana=5,
+                                             organizacion=self.fallback)
+        self.assertTrue(f.es_agregado_sin_org)
+        self.assertEqual(f.resolucion, "CENTRO_SIN_ORG")
+        self.assertEqual(f.legado, 2)
+        self.assertEqual(f.cantidad_centros_legacy, 1)
+
+    def test_sin_ejecutar_no_escribe_nada(self):
+        self._correr(legacy=[(10, 2026, 5, 4)], sisv=[(self.org.id, 2026, 5, 4)],
+                     ejecutar=False)
+        self.assertEqual(ConciliacionNeonatal.objects.count(), 0)
+
+    def test_avisa_las_semanas_con_el_registro_por_encima(self):
+        salida = self._correr(legacy=[(10, 2020, 10, 9)], sisv=[(self.org.id, 2020, 10, 0)])
+        self.assertIn("por encima de SISV", salida)
+        self.assertIn("2020 S10", salida)
+
+    def test_el_agregado_no_dispara_la_alerta_de_hueco(self):
+        """El agregado regional siempre queda 'todo legacy y nada de SISV'.
+
+        Si saltara la alerta, cada semana llenaría el aviso de falsos positivos.
+        """
+        salida = self._correr(legacy=[(11, 2026, 5, 40)], sisv=[])
+        self.assertNotIn("por encima de SISV", salida)
+        self.assertIn("Agregado regional", salida)
+
+    def test_el_csv_lleva_una_fila_por_semana_y_organizacion(self):
+        ruta = tempfile.mktemp(suffix=".csv")
+        try:
+            self._correr(legacy=[(10, 2026, 5, 4), (10, 2026, 6, 2)],
+                         sisv=[(self.org.id, 2026, 5, 4)], csv=ruta)
+            with open(ruta, encoding="utf-8-sig") as fh:
+                lineas = list(csv.DictReader(fh, delimiter=";"))
+        finally:
+            os.unlink(ruta)
+        self.assertEqual(len(lineas), 2)
+        self.assertEqual({int(l["semana"]) for l in lineas}, {5, 6})
+        self.assertEqual(lineas[0]["organizacion"], "HOSP. A")
