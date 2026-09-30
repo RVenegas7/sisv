@@ -1834,3 +1834,110 @@ La idea de reclasificar MM/MN **por causa CIE** (§20) sigue descartada y ahora 
 en 2026 el 97,5 % de los certificados tiene `HCAUSABASICA` nula y solo 54 de 6.247 defunciones están
 codificadas. El registro de investigación tampoco salva esto: su `HCAUSA_CIE10` viene sin catálogo
 resuelto. La MM no se puede sacar del CIE mientras la codificación siga así.
+
+---
+
+## 22. [PENDIENTE — ejecutar 01/10/2026] Respaldo total del Oracle yunque la sincronización sigue rota
+
+**Lo que pidió el usuario el 30/09:** respaldar la base de producción, corregir lo que impide que la
+sincronización produzca los 5 archivos, y reevaluar los hallazgos después de que corra. **Alcance de esta
+sección: dejar anotado el plan. Nada de lo de abajo se ha ejecutado todavía** (salvo los dos scripts
+nuevos, que están escritos pero sin validar).
+
+### 22.1 Lo que se encontró (30/09, solo lectura)
+
+El paquete de la semana **`routlar1_2992026_137.ZIP` (29/09) trae 4 archivos, no 5**: `bloqlar1.log`,
+`copyhistlar1.log`, `routlar1.log`, `routlar1.dmp`. Falta el quinto, que es el de replicación
+(`repllar1.log` / `repllar1_mort.log` / `replla1_nata.log`).
+
+Dos cosas que **no** son culpa del paquete:
+
+- **`T_CERTNACI` no existe.** En `TEMP` hay 82 tablas, todas creadas el 29/09 a las 13:07, y sí están
+  `T_CERTMORT`, `T_MADRNACI`, `T_RNACNACI` y `T_RNACANUL` — o sea que **el `CREATE` de natalidad corrió a
+  medias**: la primera tabla falló y las demás se crearon igual.
+- **`SISMAI.EVENTOS_SINC` está congelada.** 16.741 filas, **todas del 21/09 09:08** (la fecha del DROP+
+  recreada), y solo de `PACIENTE_COND_ESPE`, `PACIENTE_FICHA_EPI` y `REG_VACUNACION`. **Ni un solo evento
+  de `CERTIFICADO` ni de `CERTNACIMIENTO`.** Mientras no se encole, la sincronización no tiene materia
+  prima aunque el paquete salga bien.
+
+Además hay **16 objetos inválidos** (1 función `FIDPADRE`, 4 procedimientos `SPDOC`/`SPREGDSP`/
+`SPREGEPI`/`SPREGTEL`, 11 vistas), siendo `NATALIDAD` laDependent de `T_CERTNACI`. Que estos objetos
+inválidos **causen** la cola vacía es **una hipótesis razonable, no una causa probada**: el orden es
+`CREATE T_CERTNACI` → vistas → **encolar** → `cr_repli_nata.sql`, y si todo el bloque falló en la primera
+tabla, los eventos nunca llegaron a encolarse.
+
+### 22.2 Pendiente 1 — Respaldo (lo primero, antes de tocar nada)
+
+**Regla: ningún DDL en producción hasta que exista un respaldo verificado.**
+
+- `migracion/respaldo_total.sh` (nuevo) — `exp` por esquemas `SISMAI TEMP HISTORICO INBDLAR1`.
+  **Le falta lo esencial:**
+  1. **Credencial de base.** `exp` pide usuario/contraseña de Oracle, y la clave que abre el SSH del SO
+     pero en la base da `ORA-01017` (probado el 30/09: `EXP-00056` → `ORA-01017` → `EXP-00030` →
+     `EXP-00000`). Las claves de `SISMAI`/`TEMP`/`HISTORICO` están en `SaludCor/ActualizaS/System.cfg`
+     del share pero **ofuscadas**, y no es seguro descifrar credenciales de producción para armar un
+     respaldo. **Hace falta que el usuario dé una clave válida o autorice crear un usuario de export.**
+  2. `INDEXES=N`/`CONSTRAINTS=N` dejan fuera índices y constraints → **no es un respaldo íntegro**.
+  3. Quitar la contraseña del parfile legible en `/home/oracle` y ponerla en un `.env` ignorado por git.
+  4. Correr los esquemas **secuencialmente**, no los 4 a la vez (el UNDO es de 1 GB, §17.7).
+- `migracion/espejo_csv.sh` (nuevo) — respaldo por CSV con `sqlplus / as sysdba`, que **no necesita clave
+  de base** y que PostgreSQL **sí** puede leer (un `.dmp` es binario de Oracle y no se puede importar,
+  §17.8). **Lo que ya quedó verificado el 30/09** (simulación + prueba real, no solo escrito):
+  - El conteo de control sale con **525 tablas** de los 4 esquemas y la estructura trae
+    **exactamente 525 `CREATE TABLE`**: el contraste es el criterio de éxito, no "salió sin error".
+  - Extracción real de `SISMAI.ACTIVIDAD`: **6.542 líneas de 13 campos**, con acentos correctos
+    (`Niños y Adolescentes Abandonados`). Un renglón por fila, que es lo que exige el `COPY`.
+  - `TEMPS.T_USUARIOS`: 5 filas, 21 campos.
+  - La clave **ya no está en el repo**: se lee de `legancy_conf/credenciales.env` (ignorado por git) o
+    de la variable `CLAVE`; sin ella el script se detiene con mensaje claro.
+  **Lo que falta:** correrlo de verdad (2-4 h) y cargar a PostgreSQL. Los ajustes de sqlplus que lo
+  hacen funcionar están comentados en el script porque no son evidentes: `SET WRAP OFF`/`TAB OFF` (sin
+  ellos una fila larga se parte en varias y el `COPY` no cuadra columnas), `SET TRIMSPOOL ON`,
+  `SET COLSEP ','` y `SET NUMWIDTH 20`. La base es **`WE8ISO8859P1`**, no `WE8MSWIN1252` como dice
+  `AGENTS.md`; por eso `NLS_LANG` va en el entorno del proceso (en 10.1 `ALTER SESSION SET NLS_LANG` no
+  existe) y hay que forzar `AMERICAN_AMERICA.AL32UTF8`. El DDL se saca con `GET_DDL` en un `SELECT`
+  pelado porque el buffer de `DBMS_OUTPUT` es acumulativo y está capado a 32 KB: por PL/SQL abortaba en
+  la tercera tabla.
+- Destino: `/home/oracle` (59 GB libres). **Los dumps/CSV no van al repositorio** (datos sensibles) y
+  deben quedar con permisos restringidos.
+
+### 22.3 Pendiente 2 — Recompilar los 16 objetos (solo tras verificar el respaldo)
+
+Script de recompilación **pendiente de escribir**; no existe aún. Con `sqlplus / as sysdba`, sobre
+`SISMAI` y `TEMP`, `ALTER … COMPILE` de la lista del §22.1 y después contar inválidos **antes y después**
+con `ALL_OBJECTS`/`ALL_ERRORS` para dejar número, no impresión. **Cambia objetos del sistema en
+producción: la autorización del usuario es explícita y solo cubre estos 16.** Si `T_CERTNACI` no existe
+porque su `CREATE` falló, hay que crearla antes (el DDL del share `crear.sql` **no se usa**: borra
+`EVENTOS_SINC`).
+
+### 22.4 Pendiente 3 — Que salgan 5 archivos
+
+- `migracion/preflight_ventana.sh` ya se ajustó para aceptar los tres nombres posibles del log y para
+  **exigir** `T_CERTNACI`/`T_CERTMORT`, así que hoy detectaría el paquete de 4. **Pero validar ≠ generar:**
+  el quinto archivo lo produce el cliente Windows, y **no hay acceso a esa máquina**.
+- Los scripts del share (`SincFich`, `cr_repli_*`, `bloqueob.sql`) son de ~2020 y **no incluyen el
+  orquestador semanal actual**; tampoco hay log de replicación del 29/09 que diga por qué no se creó
+  `T_CERTNACI`. Hay que ubiquitous el cliente (`SistemaTransferencia.exe`) o su `.bat` Weekly.
+- **Nunca** correr `crear.sql` (hace DROP+CREATE de `SISMAI.EVENTOS_SINC`) ni `bloqueob.sql` (mata
+  sesiones) para «resolver» esto.
+
+### 22.5 Pendiente 4 — Reevaluar los hallazgos
+
+Solo tiene sentido **después** de que la sincronización corra y traiga eventos. Entonces se repite el
+diagnóstico (`migracion/diagnostico_certnaci.sql`, salida de referencia en
+`auditoria/diagnostico_certnaci_20260930.txt`) para comprobar: (a) que la cola `EVENTOS_SINC` volvió a
+crecer con eventos de `CERTIFICADO`/`CERTNACIMIENTO`, (b) que el ZIP trae 5 archivos, (c) que
+`T_CERTNACI` existe y (d) cuántos objetos siguen inválidos. Hasta entonces, **la concordancia
+EN/ISO de §17 y las conciliaciones de §18–21 no se tocan**: describen el histórico ya cargado.
+
+### 22.6 Lo que se necesita del usuario para el 01/10
+
+1. **Clave de una cuenta Oracle con permisos de lectura** (o permiso para crear una de export). Sin esto
+   el `.dmp` clásico no sale; la vía CSV con `sysdba` funciona igual y es la que ya está encaminada.
+2. **Autorización explícita** para el `ALTER … COMPILE` de los 16 objetos (ya la dio el 30/09, pero
+   conviene recordarla al ejecutar).
+3. **Acceso al cliente Windows** que arma el paquete, o el `.bat` Weekly actual, para cerrar el punto del
+   quinto archivo.
+
+_Anotado el 30/09/2026. Al ejecutar mañana, actualizar esta sección con el resultado real y mover lo que
+quede a §22.5._

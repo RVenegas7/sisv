@@ -38,9 +38,20 @@ MANAGE="$RAIZ/backend/manage.py"
 HORA_RESPALDO="${HORA_RESPALDO:-13:00}"
 SOLAPES="${SOLAPES:-7}"
 
-# Los 5 archivos que tiene que traer el sobre. Son los mismos en todos los
-# routlar1_*.ZIP revisados; si mañana aparece otro, esto lo delata.
-ESPERADOS="bloqlar1.log copyhistlar1.log repllar1.log routlar1.log routlar1.dmp"
+# Los 5 archivos que tiene que traer el sobre.
+#
+# OJO, 30/09/2026: el quinto NO se llama "repllar1.log" y hace meses que no.
+# Ningun script de SincFich lo produce: la fase de replicacion que arma
+# TEMP.T_* desde SISMAI.EVENTOS_SINC hace SPOOL a nombres por modulo
+#   C:\sincfich\mort\repllar1_mort.log   (cr_repli_mort.sql:1)
+#   C:\sincfich\nata\replla1_nata.log    (cr_repli_nata.sql:1)
+# y el "repllar1.log" plano venia del motor viejo de copia, ya retirado. Los
+# sobres del 21/09 (sincronizado/) traen los dos nombres con sufijo.
+# Por eso el preflight daba FALLO todas las semanas desde el 08/09 sin que
+# faltara nada: estaba buscando un archivo que el sistema no genera.
+# Se acepta cualquiera de los dos, que es lo que realmente puede aparecer.
+ESPERADOS="bloqlar1.log copyhistlar1.log routlar1.log routlar1.dmp"
+ESPERADOS_REPL="repllar1_mort.log replla1_nata.log repllar1.log"
 
 OK=0
 AVISOS=0
@@ -164,16 +175,53 @@ if interesado sobre; then
           veredicto FALLO "el sobre NO trae $e (falta un archivo del paquete)"
         fi
       done
-      if [ "$(printf '%s\n' "$LISTA" | wc -l)" -lt 5 ]; then
-        veredicto FALLO "el sobre trae $(printf '%s\n' "$LISTA" | wc -l) archivos y deberian ser 5"
-        veredicto AVISO "repllar1.log falta desde el sobre del 08/09/2026 (PENDIENTES 17):"
-        veredicto AVISO "revisar en el servidor que lo siga produciendo /home/salud/bin"
+      # El quinto archivo es el log de la fase de replicacion. Su nombre cambio
+      # con los scripts por modulo, asi que se acepta cualquiera de los tres.
+      if printf '%s\n' $ESPERADOS_REPL | grep -q -x -F -f <(printf '%s\n' "$LISTA"); then
+        veredicto OK "el sobre trae el log de replicacion: $(printf '%s\n' $ESPERADOS_REPL | grep -x -F -f <(printf '%s\n' "$LISTA") | tr '\n' ' ')"
+      else
+        veredicto FALLO "el sobre NO trae el log de replicacion (ninguno de: $ESPERADOS_REPL)"
+      fi
+      TOTAL_SO="$(printf '%s\n' "$LISTA" | wc -l)"
+      if [ "$TOTAL_SO" -lt 5 ]; then
+        veredicto FALLO "el sobre trae $TOTAL_SO archivos y deberian ser 5"
+      else
+        veredicto OK "el sobre trae los $TOTAL_SO archivos"
       fi
       # routlar1.dmp es el que lleva los datos; si esta en 0, el sobre no sirve.
       if unzip -l "$ULTIMO" 2>/dev/null | awk '$4=="routlar1.dmp" {exit ($1+0 > 1000 ? 0 : 1)}'; then
         veredicto OK "routlar1.dmp tiene contenido"
       else
         veredicto FALLO "routlar1.dmp vacio o ausente: el sobre no lleva datos"
+      fi
+      # El log del exp (routlar1.log) es el unico lugar donde se ve que tablas
+      # viajan y cuantas filas. Se abre aqui porque un sobre con 5 archivos
+      # igual puede no llevar ninguna natalidad: el 29/09 trajo 5 y sin
+      # embargo T_CERTNACI no existia, o sea el nivel central recibio partos
+      # (T_MADRNACI/T_RNACNACI) sin los certificados de nacimiento.
+      if unzip -l "$ULTIMO" 2>/dev/null | awk '$4=="routlar1.log" {found=1} END {exit(found?0:1)}'; then
+        veredicto OK "el sobre trae routlar1.log (ficha del envio)"
+        TMP_LOG="$(mktemp)"
+        unzip -p "$ULTIMO" routlar1.log 2>/dev/null | tr -d '\r' > "$TMP_LOG"
+        TABLAS_SO="$(grep -ci 'exportando la tabla' "$TMP_LOG" 2>/dev/null || echo 0)"
+        veredicto OK "el envio exporto $TABLAS_SO tablas de TEMP"
+        # Tablas que si deben viajar: sin ellas el nivel central tiene huecos.
+        # T_CERTNACI = certificados de nacimiento, T_CERTMORT = de defuncion.
+        for t in T_CERTNACI T_CERTMORT; do
+          if grep -qi "^.*tabla *$t *$" "$TMP_LOG" 2>/dev/null; then
+            N="$(awk -v tb="$t" 'BEGIN{IGNORECASE=1} $0 ~ "tabla *" tb " *$" {getline; gsub(/[^0-9]/,""); print; exit}' "$TMP_LOG")"
+            if [ "${N:-0}" -gt 0 ]; then
+              veredicto OK "$t viaja con $N filas"
+            else
+              veredicto FALLO "$t viaja pero VACIA (0 filas): el central no recibe nada de esa tabla"
+            fi
+          else
+            veredicto FALLO "$t NO aparece en el envio: la tabla no existe en TEMP"
+          fi
+        done
+        rm -f "$TMP_LOG"
+      else
+        veredicto AVISO "el sobre no trae routlar1.log: no se puede verificar que viajaron los datos"
       fi
       # El central no recibe nada hasta que el sobre del martes llega al nivel
       # central: por eso la ventana es el dia del envio y no el del corte.
