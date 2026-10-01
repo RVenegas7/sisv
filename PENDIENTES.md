@@ -1991,3 +1991,109 @@ EN/ISO de §17 y las conciliaciones de §18–21 no se tocan**: describen el his
 _Anotado el 30/09/2026 y actualizado esa misma tarde (scripts de respaldo y recompilación corregidos y
 listos; el despliegue sigue pendiente de ejecución). Al ejecutar mañana, actualizar esta sección con el
 resultado real y mover lo que quede a §22.5._
+
+---
+
+## 23. [PARCIAL 01/10/2026] Los certificados oficiales: EV-14 hecho, EV de nacimiento y el registro semanal MM/MN pendientes
+
+El usuario aportó 8 capturas de los formularios reales (`capturas/certificado_nacimiento.jpg`,
+`certificado_defuncion.jpg`, `pantalla1_mm.jpg` … `pantalla6_mm.jpg`; los números de certificado están
+tachados por seguridad). La tarea era ajustar las pantallas ya diseñadas a los campos que pide cada
+certificado. Este entorno **no puede ver imágenes**, así que se transcribieron con **RapidOCR**
+(`rapidocr_onnxruntime` instalado en `.venv`; tesseract no está en el sistema). El OCR del certificado
+impreso sale muy sucio ("Cerificado de Nacimiento EV25", "causaeas"), pero el de las **pantallas del
+sistema** es bueno, y son las que mandan: los rótulos de sección se leen sin ambigüedad.
+
+### 23.1 Lo que dice cada captura
+
+| Captura | Documento | Contenido reconocido |
+| --- | --- | --- |
+| `certificado_nacimiento.jpg` | Certificado de Nacimiento EV-25 (impreso) | 1. Lugar de nacimiento, 2. Fecha de nacimiento, 3. Tipo de parto (único/gemelar), sección de la madre al nacer, dirección habitual de la madre, "distribución gratuita original madre o padre" |
+| `certificado_defuncion.jpg` | Certificado de Defunción EV-14 (impreso, 82 campos) | Registro civil; identificación del fallecido (1-9); 30/39 edad; 31.a-c y 40.a-e gestas / última gesta / contribuyó a la muerte / puerperio / embarazada; 32/41 estado conyugal; 35/45 y 36/46 ocupación y residencia; 42 lee y escribe; 48.a-c cirugía (sí, fecha, descripción); 49 manera de morir; 50 fecha y hora del hecho violento; 53 descripción del hecho; 57 diagnóstico confirmado por; 60 correo; 61/65 médico y cargo; 68 destino del cadáver; 70-80 registro civil, acta, folio, gaceta, resolución; 81-82 firma y sello |
+| `pantalla1_mm.jpg`, `pantalla2_mm.jpg` | **Certificado de Defunción — Modelo Nuevo** (el que se llena en pantalla) | Cabecera: consecutivo, año, partida, nº de certificado, NOMSIS, fecha de elaboración. Secciones **I** Identificación del fallecido (apellido, nombre, sexo, cédula, fecha y hora de muerte, edad, lugar de nacimiento, etnia, asistencia médica, sitio y lugar de ocurrencia, dirección, código comunidad, ubicación geográfica; nacionalidad V/E/P; datos de la partida de nacimiento: tomo, folio, libro, acta), **II** menores de un año / muerte fetal y datos de la madre, **III-IV** 1 año o más / muerte en mujeres en edad fértil, **V** muerte violenta, **VI** certificación médica (causa descrita por el médico, causa aplicando las reglas, causa primera parte, segunda parte — "separados por punto y coma" —, causa básica, antecedentes CIE-10, otros estados patológicos, "registrar cada causa en filas diferentes", diagnóstico confirmado por autopsia/examen del cadáver/examen de laboratorio/historia clínica/interrogatorio, médico firmante), **VII** responsable de la certificación |
+| `pantalla3_mm.jpg` | **Certificado de Nacimiento — Modelo Nuevo** | Sección I datos del nacimiento (nombre, sexo **Masculino/Femenino/Hermafrodita**, fecha y hora, semana de gestación, peso, talla, nro de historia clínica), II datos de la madre, III datos del padre, IV registro civil, constancia de nacimiento, responsable de la certificación (nombre, cargo, director del establecimiento) |
+| `pantalla4_mm.jpg` … `pantalla6_mm.jpg` | **Registro Semanal de la Mortalidad Materna y Mortalidad Infantil (Anexo del Telegrama)** | Código del establecimiento que reporta, año-periodo, semana, fecha, número, frecuencia semanal; nº de partos, nacidos vivos, nacidos muertos, abortos; **detalle de mortalidad materna** (tipo de identificación, cédula, edad, apellidos, nombres, fecha, residencia en Venezuela/fuera del país, ocurrencia); **mortalidad infantil y 1-4 años** (apellidos, nombres, fecha, sexo, edad, unidad, peso, control prenatal nº de consultas, edad gestacional, código de residencia, residencia, ocurrencia); informe/observaciones |
+
+> Ojo con algo que cambia la lectura del tablero: el formulario nuevo **no** tiene un checkbox
+> "defunción materna" suelto como el legacy. Lo que tiene es el bloque de la madre (secciones II/III-IV:
+> nº de gestas, fecha de la última gesta, "contribuyó a la muerte", "en puerperio de", "estaba
+> embarazada"). El campo `embarazo_o_puerperio` se conserva por compatibilidad y por el indicador de
+> §21, pero **la forma de diligenciarlo en el EV-14 es esa**, no una marca suelta.
+
+### 23.2 HECHO: el certificado de defunción ahora sigue el EV-14
+
+Antes el formulario solo pedía 5 campos obligatorios y tres casillas; el EV-14 tiene 82. Se amplió
+`registros.Defuncion` (migración `0005_defuncion_ev14`) con **50 campos nuevos**, todos opcionales, y el
+frontend se reorganizó por secciones oficiales:
+
+| Sección | Campos agregados |
+| --- | --- |
+| **I — Identificación** | `nacionalidad`, `segundo_apellido`, `segundo_nombre`, `edad_ignorada`, `lugar_nacimiento`, `nacimiento_exterior`, `estado_civil`, `profesion`, `ocupacion_lugar_trabajo`, `sabe_leer_escribir`, `residencia_habitual`, `asistencia_medica` |
+| **II — Menor de un año / muerte fetal / madre** | `es_muerte_fetal`, `peso_nacer_gramos`, `edad_gestacional_semanas`, `tipo_embarazo`, `tipo_parto`, `asistencia_parto`, `madre_apellidos`, `madre_nombres`, `madre_cedula`, `madre_numero_gestas`, `madre_fecha_ultima_gesta`, `madre_embarazada`, `madre_puerperio` |
+| **V — Muerte violenta** | `manera_de_morir`, `fecha_hecho_violento`, `hora_hecho_violento`, `descripcion_hecho_violento` |
+| **VI — Certificación médica** | `causa_antecedentes`, `otros_estados_patologicos`, `diagnostico_examen_cadaver`, `diagnostico_examen_laboratorio`, `diagnostico_historia_clinica`, `diagnostico_interrogatorio_familiar`, `cirugia`, `fecha_ultima_cirugia`, `descripcion_cirugia`, `intervalo_enf_muerte`, `correo_contacto`, `matricula_mpps` |
+| **VII — Registro civil** | `registro_civil_nombre`, `folio_defuncion`, `numero_acta_defuncion`, `fecha_registro`, `declarante_nombres`, `declarante_cedula`, `registrador_civil_nombres`, `registrador_civil_cedula`, `gaceta`, `resolucion` |
+
+Decisiones que conviene no perder:
+
+- **Nada se volvió obligatorio.** Los 50 campos son `null`/`blank`, así que los certificados ya cargados y
+  los que produce el ETL siguen siendo válidos; el certificado mínimo sigue creándose (prueba
+  `test_los_certificados_existentes_no_cambian`).
+- **El territorio y el centro no se duplican en la sección I**: siguen viniendo del `SelectTerritorial` y
+  del `CentroSelector` del bloque 1, que ya respetan el alcance del usuario.
+- `embarazo_o_puerperio` **no se toca**. Es el campo que lee el tablero (§21) y el que usa
+  `conciliar_mm`; el bloque de la madre es información de respaldo, no un reemplazo. La prueba
+  `test_seccion_ii_muerte_fetal_y_datos_de_la_madre` fija que las dos cosas conviven.
+- Las causas se manejan como **una línea por causa**, como dice el formulario nuevo ("registrar cada causa
+  en filas diferentes"): `causa_directa` (línea a), `causa_antecedentes` (b, c, d) y
+  `otros_estados_patologicos`, con la causa básica ya en el CIE de `SeccionCIE`.
+
+Pruebas: `registros/tests.py::DefuncionEV14Tests` (7) — una por sección, una de que el mínimo no se rompió
+y una de que una elección inválida se rechaza. **Suite completa 163 OK** (156 → 163), frontend 13 OK,
+`npm run build` OK.
+
+### 23.3 PENDIENTE: el certificado de nacimiento (EV)
+
+`CargaNacimientos.jsx` cubre hoy tipo de parto, pesos, gemelar y padres, pero le faltan campos que el
+formulario nuevo sí pide:
+
+- **Sexo `Hermafrodita`**: el modelo usa `I = Indeterminado`. Es el mismo dato con otro nombre en el
+  certificado; lo correcto es renombrar la etiqueta a "Hermafrodita" (o aceptar ambos valores) **sin
+  cambiar el código en BD**, porque hay cientos de miles de nacimientos con `I` y 17 años de histórico.
+- **Nacionalidad y nº de pasaporte/documento** de madre y de padre (hoy solo hay `madre_cedula`).
+- **Residencia habitual de madre y de padre**: dirección, código de comunidad, **Venezuela / Exterior** y
+  **país**. Hoy el territorio registrado es el del establecimiento, no el de la madre.
+- **Nro de historia clínica** del recién nacido (aparece en la sección I).
+- **Responsable de la certificación**: nombre, cargo y "director del establecimiento". Nota: el SISV tiene
+  el `organizacion` del certificado, pero **no** tiene la persona que firma; eso es un dato nuevo.
+- **Fecha de emisión / nº de planilla** del certificado.
+
+Mismo criterio que en §23.2: campos opcionales, migración aparte, sin tocar lo cargado.
+
+### 23.4 PENDIENTE: el Registro Semanal de Mortalidad Materna e Infantil (Anexo del Telegrama)
+
+Esto **no** es el consolidado semanal de ENO (`vigilancia.ConsolidadoSemanal`, EPI-12/EPI-14) ni el
+EPI-15 de morbilidad (`Epi15.jsx`). Es otro formulario, con otro grano: **un registro por establecimiento
+y por semana**, con conteos agregados y detalle caso por caso. No existe en SISV.
+
+Lo que habría que construir:
+
+1. Modelo nuevo, grano **(establecimiento, semana ISO)**: código del establecimiento, año, periodo, fechas,
+   y los agregados `partos`, `nacidos_vivos`, `nacidos_muertos`, `abortos`.
+2. Detalle de **mortalidad materna** (una fila por muerte): tipo de identificación, cédula, edad,
+   apellidos, nombres, fecha, residencia en Venezuela/fuera del país, lugar de ocurrencia.
+3. Detalle de **mortalidad infantil y 1-4 años**: apellidos, nombres, fecha, sexo, edad, unidad, peso,
+   control prenatal (nº de consultas), edad gestacional, código y nombre de residencia, ocurrencia.
+4. API + pantalla, con la autorización de envío que ya tiene el consolidado (`BORRADOR/ENVIADO/CERRADO`).
+
+**Antes de construirlo hay que resolver una pregunta de origen, y es la importante:** los conteos de este
+formulario se llenan a mano en el centro y se envían por telegrama. **¿Esa misma información ya está en
+`registros.Nacimiento` y `registros.Defuncion`?** Si sí, el anexo se puede **generar** desde el modelo de
+hechos en vez de tecerse a mano, que es lo que el resto del SISV ya hace. Y si sí, se abre una consecuencia
+de alcance: el tablero mide MM y MN por semana y por centro (§20, §21) contra **fuentes distintas** —
+el consolidado de ENO, el registro de investigación y este anexo—, que es exactamente el problema que
+§21 ya documentó para la muerte materna. Habría que decidir cuál manda antes de tener un cuarto número
+compitiendo.
+
+**Recomendación: no construir el anexo como formulario de captura.** Construirlo como **reporte generado**
+desde nacimientos y defunciones, que es lo que el usuario necesita de verdad, y que además concilia.

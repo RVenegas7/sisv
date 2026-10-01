@@ -142,6 +142,50 @@ class Nacimiento(RegistroConCIE):
 
 class Defuncion(RegistroConCIE):
     SEXO = [("M", "Masculino"), ("F", "Femenino"), ("I", "Indeterminado")]
+    NACIONALIDAD = [
+        ("V", "Venezolana"),
+        ("E", "Extranjera"),
+        ("P", "Pasaporte"),
+        ("I", "Ignorado"),
+        ("O", "Otra"),
+    ]
+    ESTADO_CIVIL = [
+        ("SOLTERO", "Soltero(a)"),
+        ("CASADO", "Casado(a)"),
+        ("VIUDO", "Viudo(a)"),
+        ("DIVORCIADO", "Divorciado(a)"),
+        ("UNIDO", "Unido(a)"),
+        ("SEPARADO", "Separado(a)"),
+    ]
+    MANERA_DE_MORIR = [
+        ("ENFERMEDAD", "Enfermedad"),
+        ("ACCIDENTE", "Accidente"),
+        ("AGRESION", "Agresión"),
+        ("AUTOINFLIGIDA", "Autoinfligida"),
+        ("NO_DETERMINADA", "No determinada"),
+        ("ESTUDIO_FORENSE", "Estudio forense"),
+    ]
+    SI_NO_IGNORADO = [
+        ("SI", "Sí"),
+        ("NO", "No"),
+        ("IGNORADO", "Ignorado"),
+    ]
+    TIPO_EMBARAZO = [
+        ("UNICO", "Único"),
+        ("MULTIPLE", "Múltiple"),
+    ]
+    TIPO_PARTO = [
+        ("VAGINAL", "Vaginal"),
+        ("CESAREA", "Cesárea"),
+        ("INSTRUMENTAL", "Instrumental"),
+        ("OTRO", "Otro"),
+    ]
+    PERIODO_PUERPERIO = [
+        ("NIUNA", "No corresponde"),
+        ("DENTRO42D", "Dentro de 42 días"),
+        ("DENTRO12M", "Dentro de 12 meses"),
+        ("IGNORADO", "Ignorado"),
+    ]
 
     registro_numero = models.CharField("Nº de certificado", max_length=30, unique=True)
     lote_id = models.CharField("Lote de carga masiva", max_length=40, blank=True, db_index=True)
@@ -162,6 +206,68 @@ class Defuncion(RegistroConCIE):
     embalsamado = models.BooleanField("Embalsamado", default=False)
     certificador_nombres = models.CharField("Médico certificador", max_length=150, blank=True)
     certificador_cedula = models.CharField("C.I. certificador", max_length=20, blank=True)
+
+    # --- EV-14 (formulario oficial de defunción, Venezuela) ---------------
+    # Sección I — Identificación del fallecido(a)
+    nacionalidad = models.CharField("Nacionalidad", max_length=1, choices=NACIONALIDAD, blank=True, default="")
+    segundo_apellido = models.CharField("Segundo apellido", max_length=150, blank=True, default="")
+    segundo_nombre = models.CharField("Segundo nombre", max_length=150, blank=True, default="")
+    edad_ignorada = models.BooleanField("Edad ignorada", default=False)
+    lugar_nacimiento = models.CharField("Lugar de nacimiento", max_length=200, blank=True, default="")
+    nacimiento_exterior = models.BooleanField("Nacimiento en el exterior", default=False)
+    estado_civil = models.CharField("Estado civil", max_length=15, choices=ESTADO_CIVIL, blank=True, default="")
+    profesion = models.CharField("Profesión", max_length=100, blank=True, default="")
+    ocupacion_lugar_trabajo = models.CharField("Ocupación y lugar de trabajo", max_length=200, blank=True, default="")
+    sabe_leer_escribir = models.CharField("Sabe leer y escribir", max_length=10, choices=SI_NO_IGNORADO, blank=True, default="")
+    residencia_habitual = models.CharField("Dirección de residencia habitual", max_length=300, blank=True, default="")
+    asistencia_medica = models.CharField("Asistencia médica", max_length=10, choices=SI_NO_IGNORADO, blank=True, default="")
+
+    # Sección II — Menores de un año / muerte fetal y datos de la madre
+    es_muerte_fetal = models.BooleanField("Es muerte fetal", default=False)
+    peso_nacer_gramos = models.PositiveIntegerField("Peso al nacer (g)", null=True, blank=True)
+    edad_gestacional_semanas = models.PositiveSmallIntegerField("Semanas de gestación", null=True, blank=True)
+    tipo_embarazo = models.CharField("Tipo de embarazo", max_length=10, choices=TIPO_EMBARAZO, blank=True, default="")
+    tipo_parto = models.CharField("Tipo de parto", max_length=12, choices=TIPO_PARTO, blank=True, default="")
+    asistencia_parto = models.CharField("Asistencia del parto", max_length=100, blank=True, default="")
+    madre_apellidos = models.CharField("Apellidos de la madre", max_length=150, blank=True, default="")
+    madre_nombres = models.CharField("Nombres de la madre", max_length=150, blank=True, default="")
+    madre_cedula = models.CharField("Cédula de la madre", max_length=20, blank=True, default="")
+    madre_numero_gestas = models.PositiveSmallIntegerField("Número de gestas (madre)", null=True, blank=True)
+    madre_fecha_ultima_gesta = models.DateField("Fecha de la última gesta", null=True, blank=True)
+    madre_embarazada = models.CharField("Estaba embarazada", max_length=10, choices=SI_NO_IGNORADO, blank=True, default="")
+    madre_puerperio = models.CharField("En puerperio de", max_length=12, choices=PERIODO_PUERPERIO, blank=True, default="")
+
+    # Sección V — Muerte violenta
+    manera_de_morir = models.CharField("Manera de morir", max_length=15, choices=MANERA_DE_MORIR, blank=True, default="")
+    fecha_hecho_violento = models.DateField("Fecha del hecho violento", null=True, blank=True)
+    hora_hecho_violento = models.TimeField("Hora del hecho violento", null=True, blank=True)
+    descripcion_hecho_violento = models.CharField("Descripción del hecho violento", max_length=300, blank=True, default="")
+
+    # Sección VI — Certificación médica
+    causa_antecedentes = models.CharField("Causas antecedentes (texto)", max_length=300, blank=True, default="")
+    otros_estados_patologicos = models.CharField("Otros estados patológicos (texto)", max_length=300, blank=True, default="")
+    diagnostico_examen_cadaver = models.BooleanField("Diagnóstico: examen del cadáver", default=False)
+    diagnostico_examen_laboratorio = models.BooleanField("Diagnóstico: examen de laboratorio", default=False)
+    diagnostico_historia_clinica = models.BooleanField("Diagnóstico: historia clínica", default=False)
+    diagnostico_interrogatorio_familiar = models.BooleanField("Diagnóstico: interrogatorio familiar o testigo", default=False)
+    cirugia = models.BooleanField("Tuvo alguna cirugía", default=False)
+    fecha_ultima_cirugia = models.DateField("Fecha de la última cirugía", null=True, blank=True)
+    descripcion_cirugia = models.CharField("Breve descripción de la cirugía", max_length=300, blank=True, default="")
+    intervalo_enf_muerte = models.CharField("Intervalo entre inicio y muerte", max_length=200, blank=True, default="")
+    correo_contacto = models.EmailField("Correo electrónico de contacto", max_length=150, blank=True, default="")
+    matricula_mpps = models.CharField("Matrícula MPPS del médico", max_length=30, blank=True, default="")
+
+    # Sección VII — Registro civil
+    registro_civil_nombre = models.CharField("Nombre del registro civil", max_length=150, blank=True, default="")
+    folio_defuncion = models.CharField("Folio del acta", max_length=20, blank=True, default="")
+    numero_acta_defuncion = models.CharField("Número del acta de defunción", max_length=30, blank=True, default="")
+    fecha_registro = models.DateField("Fecha de registro", null=True, blank=True)
+    declarante_nombres = models.CharField("Apellidos y nombres del declarante", max_length=200, blank=True, default="")
+    declarante_cedula = models.CharField("Cédula del declarante", max_length=20, blank=True, default="")
+    registrador_civil_nombres = models.CharField("Apellidos y nombres del registrador civil", max_length=200, blank=True, default="")
+    registrador_civil_cedula = models.CharField("Cédula del registrador civil", max_length=20, blank=True, default="")
+    gaceta = models.CharField("Gaceta", max_length=30, blank=True, default="")
+    resolucion = models.CharField("Resolución", max_length=30, blank=True, default="")
 
     class Meta:
         verbose_name = "Defunción"

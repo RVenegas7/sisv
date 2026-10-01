@@ -29,6 +29,62 @@ const VACIO = {
   embalsamado: false,
   certificador_nombres: "",
   certificador_cedula: "",
+
+  nacionalidad: "",
+  segundo_apellido: "",
+  segundo_nombre: "",
+  edad_ignorada: false,
+  lugar_nacimiento: "",
+  nacimiento_exterior: false,
+  estado_civil: "",
+  profesion: "",
+  ocupacion_lugar_trabajo: "",
+  sabe_leer_escribir: "",
+  residencia_habitual: "",
+  asistencia_medica: "",
+
+  es_muerte_fetal: false,
+  peso_nacer_gramos: "",
+  edad_gestacional_semanas: "",
+  tipo_embarazo: "",
+  tipo_parto: "",
+  asistencia_parto: "",
+  madre_apellidos: "",
+  madre_nombres: "",
+  madre_cedula: "",
+  madre_numero_gestas: "",
+  madre_fecha_ultima_gesta: "",
+  madre_embarazada: "",
+  madre_puerperio: "",
+
+  manera_de_morir: "",
+  fecha_hecho_violento: "",
+  hora_hecho_violento: "",
+  descripcion_hecho_violento: "",
+
+  causa_antecedentes: "",
+  otros_estados_patologicos: "",
+  diagnostico_examen_cadaver: false,
+  diagnostico_examen_laboratorio: false,
+  diagnostico_historia_clinica: false,
+  diagnostico_interrogatorio_familiar: false,
+  cirugia: false,
+  fecha_ultima_cirugia: "",
+  descripcion_cirugia: "",
+  intervalo_enf_muerte: "",
+  correo_contacto: "",
+  matricula_mpps: "",
+
+  registro_civil_nombre: "",
+  folio_defuncion: "",
+  numero_acta_defuncion: "",
+  fecha_registro: "",
+  declarante_nombres: "",
+  declarante_cedula: "",
+  registrador_civil_nombres: "",
+  registrador_civil_cedula: "",
+  gaceta: "",
+  resolucion: "",
 }
 
 const ANIO_ACTUAL = new Date().getFullYear()
@@ -47,6 +103,57 @@ const OPCIONES = {
     ["DOMICILIO", "Domicilio"],
     ["VIA_PUBLICA", "Vía pública"],
     ["OTRO", "Otro"],
+  ],
+  NACIONALIDAD: [
+    ["", "—"],
+    ["V", "Venezolana"],
+    ["E", "Extranjera"],
+    ["P", "Pasaporte"],
+    ["I", "Ignorado"],
+    ["O", "Otra"],
+  ],
+  ESTADO_CIVIL: [
+    ["", "—"],
+    ["SOLTERO", "Soltero(a)"],
+    ["CASADO", "Casado(a)"],
+    ["VIUDO", "Viudo(a)"],
+    ["DIVORCIADO", "Divorciado(a)"],
+    ["UNIDO", "Unido(a)"],
+    ["SEPARADO", "Separado(a)"],
+  ],
+  SI_NO_IGNORADO: [
+    ["", "—"],
+    ["SI", "Sí"],
+    ["NO", "No"],
+    ["IGNORADO", "Ignorado"],
+  ],
+  TIPO_EMBARAZO: [
+    ["", "—"],
+    ["UNICO", "Único"],
+    ["MULTIPLE", "Múltiple"],
+  ],
+  TIPO_PARTO: [
+    ["", "—"],
+    ["VAGINAL", "Vaginal"],
+    ["CESAREA", "Cesárea"],
+    ["INSTRUMENTAL", "Instrumental"],
+    ["OTRO", "Otro"],
+  ],
+  PERIODO_PUERPERIO: [
+    ["", "—"],
+    ["NIUNA", "No corresponde"],
+    ["DENTRO42D", "Dentro de 42 días"],
+    ["DENTRO12M", "Dentro de 12 meses"],
+    ["IGNORADO", "Ignorado"],
+  ],
+  MANERA_DE_MORIR: [
+    ["", "—"],
+    ["ENFERMEDAD", "Enfermedad"],
+    ["ACCIDENTE", "Accidente"],
+    ["AGRESION", "Agresión"],
+    ["AUTOINFLIGIDA", "Autoinfligida"],
+    ["NO_DETERMINADA", "No determinada"],
+    ["ESTUDIO_FORENSE", "Estudio forense"],
   ],
 }
 
@@ -203,7 +310,7 @@ export default function CargaDefunciones({ usuario }) {
     <div className="pagina">
       <header className="cabecera-pagina">
         <h1>Registro de Defunciones</h1>
-        <p>Certificados de defunción - SISV. La causa se clasifica contra CIE-10 (histórico) o CIE-11 (actual) según la fecha.</p>
+        <p>Certificado de Defunción (EV-14) - SISV. La causa básica se clasifica contra CIE-10 (histórico) o CIE-11 (actual) según la fecha.</p>
       </header>
 
       {estado.tipo && (
@@ -253,24 +360,6 @@ export default function CargaDefunciones({ usuario }) {
           <Campo label="Hora" htmlFor="hora_defuncion">
             <Input id="hora_defuncion" type="time" value={form.hora_defuncion} onChange={(e) => cambiar("hora_defuncion", e.target.value)} />
           </Campo>
-        </Seccion>
-
-        <Seccion titulo="2. Datos del fallecido">
-          <Campo label="Nombres" htmlFor="fallecido_nombres" error={errores.fallecido_nombres}>
-            <Input id="fallecido_nombres" value={form.fallecido_nombres} error={errores.fallecido_nombres} onChange={(e) => cambiar("fallecido_nombres", e.target.value)} />
-          </Campo>
-          <Campo label="Apellidos" htmlFor="fallecido_apellidos" error={errores.fallecido_apellidos}>
-            <Input id="fallecido_apellidos" value={form.fallecido_apellidos} error={errores.fallecido_apellidos} onChange={(e) => cambiar("fallecido_apellidos", e.target.value)} />
-          </Campo>
-          <Campo label="Cédula (opcional)" htmlFor="fallecido_cedula">
-            <Input id="fallecido_cedula" value={form.fallecido_cedula} onChange={(e) => cambiar("fallecido_cedula", e.target.value)} placeholder="V-12345678" />
-          </Campo>
-          <Campo label="Sexo" htmlFor="sexo" error={errores.sexo}>
-            <Select id="sexo" opciones={OPCIONES.SEXO} value={form.sexo} onChange={(e) => cambiar("sexo", e.target.value)} />
-          </Campo>
-          <Campo label="Fecha de nacimiento" htmlFor="fecha_nacimiento">
-            <Input id="fecha_nacimiento" type="date" value={form.fecha_nacimiento} onChange={(e) => cambiar("fecha_nacimiento", e.target.value)} />
-          </Campo>
           <Campo label="Lugar de defunción" htmlFor="lugar_defuncion">
             <Select id="lugar_defuncion" opciones={OPCIONES.LUGAR} value={form.lugar_defuncion} onChange={(e) => cambiar("lugar_defuncion", e.target.value)} />
           </Campo>
@@ -281,12 +370,136 @@ export default function CargaDefunciones({ usuario }) {
             valor={{ estado: form.estado, municipio: form.municipio, parroquia: form.parroquia, comunidad: form.comunidad }}
             onChange={(t) => setForm((f) => ({ ...f, ...t }))}
           />
+        </Seccion>
+
+        <Seccion titulo="2. Sección I — Identificación del fallecido(a)">
+          <Campo label="Primer nombre" htmlFor="fallecido_nombres" error={errores.fallecido_nombres}>
+            <Input id="fallecido_nombres" value={form.fallecido_nombres} error={errores.fallecido_nombres} onChange={(e) => cambiar("fallecido_nombres", e.target.value)} />
+          </Campo>
+          <Campo label="Segundo nombre" htmlFor="segundo_nombre">
+            <Input id="segundo_nombre" value={form.segundo_nombre} onChange={(e) => cambiar("segundo_nombre", e.target.value)} />
+          </Campo>
+          <Campo label="Primer apellido" htmlFor="fallecido_apellidos" error={errores.fallecido_apellidos}>
+            <Input id="fallecido_apellidos" value={form.fallecido_apellidos} error={errores.fallecido_apellidos} onChange={(e) => cambiar("fallecido_apellidos", e.target.value)} />
+          </Campo>
+          <Campo label="Segundo apellido" htmlFor="segundo_apellido">
+            <Input id="segundo_apellido" value={form.segundo_apellido} onChange={(e) => cambiar("segundo_apellido", e.target.value)} />
+          </Campo>
+          <Campo label="Nacionalidad" htmlFor="nacionalidad">
+            <Select id="nacionalidad" opciones={OPCIONES.NACIONALIDAD} value={form.nacionalidad} onChange={(e) => cambiar("nacionalidad", e.target.value)} />
+          </Campo>
+          <Campo label="Cédula / documento (opcional)" htmlFor="fallecido_cedula">
+            <Input id="fallecido_cedula" value={form.fallecido_cedula} onChange={(e) => cambiar("fallecido_cedula", e.target.value)} placeholder="V-12345678" />
+          </Campo>
+          <Campo label="Sexo" htmlFor="sexo" error={errores.sexo}>
+            <Select id="sexo" opciones={OPCIONES.SEXO} value={form.sexo} onChange={(e) => cambiar("sexo", e.target.value)} />
+          </Campo>
+          <Campo label="Fecha de nacimiento" htmlFor="fecha_nacimiento">
+            <Input id="fecha_nacimiento" type="date" value={form.fecha_nacimiento} onChange={(e) => cambiar("fecha_nacimiento", e.target.value)} />
+          </Campo>
+          <label className="checkbox">
+            <input type="checkbox" checked={form.edad_ignorada} onChange={(e) => cambiar("edad_ignorada", e.target.checked)} />
+            Edad ignorada
+          </label>
+          <Campo label="Lugar de nacimiento" htmlFor="lugar_nacimiento">
+            <Input id="lugar_nacimiento" value={form.lugar_nacimiento} onChange={(e) => cambiar("lugar_nacimiento", e.target.value)} />
+          </Campo>
+          <label className="checkbox">
+            <input type="checkbox" checked={form.nacimiento_exterior} onChange={(e) => cambiar("nacimiento_exterior", e.target.checked)} />
+            Nacimiento en el exterior
+          </label>
+          <Campo label="Estado civil" htmlFor="estado_civil">
+            <Select id="estado_civil" opciones={OPCIONES.ESTADO_CIVIL} value={form.estado_civil} onChange={(e) => cambiar("estado_civil", e.target.value)} />
+          </Campo>
+          <Campo label="Profesión" htmlFor="profesion">
+            <Input id="profesion" value={form.profesion} onChange={(e) => cambiar("profesion", e.target.value)} />
+          </Campo>
+          <Campo label="Ocupación y lugar de trabajo" htmlFor="ocupacion_lugar_trabajo">
+            <Input id="ocupacion_lugar_trabajo" value={form.ocupacion_lugar_trabajo} onChange={(e) => cambiar("ocupacion_lugar_trabajo", e.target.value)} />
+          </Campo>
+          <Campo label="Sabe leer y escribir" htmlFor="sabe_leer_escribir">
+            <Select id="sabe_leer_escribir" opciones={OPCIONES.SI_NO_IGNORADO} value={form.sabe_leer_escribir} onChange={(e) => cambiar("sabe_leer_escribir", e.target.value)} />
+          </Campo>
+          <Campo label="Dirección de residencia habitual" htmlFor="residencia_habitual">
+            <Input id="residencia_habitual" value={form.residencia_habitual} onChange={(e) => cambiar("residencia_habitual", e.target.value)} />
+          </Campo>
+          <Campo label="Asistencia médica" htmlFor="asistencia_medica">
+            <Select id="asistencia_medica" opciones={OPCIONES.SI_NO_IGNORADO} value={form.asistencia_medica} onChange={(e) => cambiar("asistencia_medica", e.target.value)} />
+          </Campo>
           <CentroSelector usuario={usuario} value={form.organizacion} onChange={(v) => cambiar("organizacion", v)} />
         </Seccion>
 
-        <Seccion titulo="3. Causas y procedimientos">
-          <Campo label="Causa inmediata (texto)" htmlFor="causa_directa">
+        <Seccion titulo="3. Sección II — Menores de un año, muerte fetal y datos de la madre">
+          <label className="checkbox">
+            <input type="checkbox" checked={form.es_muerte_fetal} onChange={(e) => cambiar("es_muerte_fetal", e.target.checked)} />
+            Es muerte fetal
+          </label>
+          <Campo label="Peso al nacer (g)" htmlFor="peso_nacer_gramos">
+            <Input id="peso_nacer_gramos" type="number" min="0" value={form.peso_nacer_gramos} onChange={(e) => cambiar("peso_nacer_gramos", e.target.value)} />
+          </Campo>
+          <Campo label="Semanas de gestación" htmlFor="edad_gestacional_semanas">
+            <Input id="edad_gestacional_semanas" type="number" min="0" max="45" value={form.edad_gestacional_semanas} onChange={(e) => cambiar("edad_gestacional_semanas", e.target.value)} />
+          </Campo>
+          <Campo label="Tipo de embarazo" htmlFor="tipo_embarazo">
+            <Select id="tipo_embarazo" opciones={OPCIONES.TIPO_EMBARAZO} value={form.tipo_embarazo} onChange={(e) => cambiar("tipo_embarazo", e.target.value)} />
+          </Campo>
+          <Campo label="Tipo de parto" htmlFor="tipo_parto">
+            <Select id="tipo_parto" opciones={OPCIONES.TIPO_PARTO} value={form.tipo_parto} onChange={(e) => cambiar("tipo_parto", e.target.value)} />
+          </Campo>
+          <Campo label="Asistencia del parto" htmlFor="asistencia_parto">
+            <Input id="asistencia_parto" value={form.asistencia_parto} onChange={(e) => cambiar("asistencia_parto", e.target.value)} placeholder="Médico, enfermera, partera…" />
+          </Campo>
+          <h3 className="subseccion">Datos de la madre</h3>
+          <Campo label="Apellidos de la madre" htmlFor="madre_apellidos">
+            <Input id="madre_apellidos" value={form.madre_apellidos} onChange={(e) => cambiar("madre_apellidos", e.target.value)} />
+          </Campo>
+          <Campo label="Nombres de la madre" htmlFor="madre_nombres">
+            <Input id="madre_nombres" value={form.madre_nombres} onChange={(e) => cambiar("madre_nombres", e.target.value)} />
+          </Campo>
+          <Campo label="Cédula de la madre" htmlFor="madre_cedula">
+            <Input id="madre_cedula" value={form.madre_cedula} onChange={(e) => cambiar("madre_cedula", e.target.value)} />
+          </Campo>
+          <Campo label="Número de gestas" htmlFor="madre_numero_gestas">
+            <Input id="madre_numero_gestas" type="number" min="0" value={form.madre_numero_gestas} onChange={(e) => cambiar("madre_numero_gestas", e.target.value)} />
+          </Campo>
+          <Campo label="Fecha de la última gesta" htmlFor="madre_fecha_ultima_gesta">
+            <Input id="madre_fecha_ultima_gesta" type="date" value={form.madre_fecha_ultima_gesta} onChange={(e) => cambiar("madre_fecha_ultima_gesta", e.target.value)} />
+          </Campo>
+          <Campo label="Estaba embarazada" htmlFor="madre_embarazada">
+            <Select id="madre_embarazada" opciones={OPCIONES.SI_NO_IGNORADO} value={form.madre_embarazada} onChange={(e) => cambiar("madre_embarazada", e.target.value)} />
+          </Campo>
+          <Campo label="En puerperio de" htmlFor="madre_puerperio">
+            <Select id="madre_puerperio" opciones={OPCIONES.PERIODO_PUERPERIO} value={form.madre_puerperio} onChange={(e) => cambiar("madre_puerperio", e.target.value)} />
+          </Campo>
+        </Seccion>
+
+        <Seccion titulo="4. Sección V — Muerte violenta">
+          <Campo label="Manera de morir" htmlFor="manera_de_morir">
+            <Select id="manera_de_morir" opciones={OPCIONES.MANERA_DE_MORIR} value={form.manera_de_morir} onChange={(e) => cambiar("manera_de_morir", e.target.value)} />
+          </Campo>
+          <Campo label="Fecha del hecho violento" htmlFor="fecha_hecho_violento">
+            <Input id="fecha_hecho_violento" type="date" value={form.fecha_hecho_violento} onChange={(e) => cambiar("fecha_hecho_violento", e.target.value)} />
+          </Campo>
+          <Campo label="Hora del hecho violento" htmlFor="hora_hecho_violento">
+            <Input id="hora_hecho_violento" type="time" value={form.hora_hecho_violento} onChange={(e) => cambiar("hora_hecho_violento", e.target.value)} />
+          </Campo>
+          <Campo label="Breve descripción del hecho violento" htmlFor="descripcion_hecho_violento">
+            <Input id="descripcion_hecho_violento" value={form.descripcion_hecho_violento} onChange={(e) => cambiar("descripcion_hecho_violento", e.target.value)} />
+          </Campo>
+        </Seccion>
+
+        <Seccion titulo="5. Sección VI — Certificación médica">
+          <Campo label="Causa inmediata (línea a)" htmlFor="causa_directa">
             <Input id="causa_directa" value={form.causa_directa} onChange={(e) => cambiar("causa_directa", e.target.value)} />
+          </Campo>
+          <Campo label="Causas antecedentes (línea b, c, d)" htmlFor="causa_antecedentes">
+            <Input id="causa_antecedentes" value={form.causa_antecedentes} onChange={(e) => cambiar("causa_antecedentes", e.target.value)} />
+          </Campo>
+          <Campo label="Otros estados patológicos" htmlFor="otros_estados_patologicos">
+            <Input id="otros_estados_patologicos" value={form.otros_estados_patologicos} onChange={(e) => cambiar("otros_estados_patologicos", e.target.value)} />
+          </Campo>
+          <Campo label="Intervalo entre inicio y muerte" htmlFor="intervalo_enf_muerte">
+            <Input id="intervalo_enf_muerte" value={form.intervalo_enf_muerte} onChange={(e) => cambiar("intervalo_enf_muerte", e.target.value)} placeholder="Ej.: años, meses, días, horas" />
           </Campo>
           <label className="checkbox">
             <input type="checkbox" checked={form.embarazo_o_puerperio} onChange={(e) => cambiar("embarazo_o_puerperio", e.target.checked)} />
@@ -300,19 +513,86 @@ export default function CargaDefunciones({ usuario }) {
             <input type="checkbox" checked={form.embalsamado} onChange={(e) => cambiar("embalsamado", e.target.checked)} />
             Embalsamado
           </label>
+          <h3 className="subseccion">Diagnóstico confirmado por</h3>
+          <label className="checkbox">
+            <input type="checkbox" checked={form.diagnostico_examen_cadaver} onChange={(e) => cambiar("diagnostico_examen_cadaver", e.target.checked)} />
+            Examen del cadáver
+          </label>
+          <label className="checkbox">
+            <input type="checkbox" checked={form.diagnostico_examen_laboratorio} onChange={(e) => cambiar("diagnostico_examen_laboratorio", e.target.checked)} />
+            Examen de laboratorio
+          </label>
+          <label className="checkbox">
+            <input type="checkbox" checked={form.diagnostico_historia_clinica} onChange={(e) => cambiar("diagnostico_historia_clinica", e.target.checked)} />
+            Historia clínica
+          </label>
+          <label className="checkbox">
+            <input type="checkbox" checked={form.diagnostico_interrogatorio_familiar} onChange={(e) => cambiar("diagnostico_interrogatorio_familiar", e.target.checked)} />
+            Interrogatorio familiar o testigo
+          </label>
+          <h3 className="subseccion">Cirugía</h3>
+          <label className="checkbox">
+            <input type="checkbox" checked={form.cirugia} onChange={(e) => cambiar("cirugia", e.target.checked)} />
+            Tuvo alguna cirugía
+          </label>
+          <Campo label="Fecha de la última cirugía" htmlFor="fecha_ultima_cirugia">
+            <Input id="fecha_ultima_cirugia" type="date" value={form.fecha_ultima_cirugia} onChange={(e) => cambiar("fecha_ultima_cirugia", e.target.value)} />
+          </Campo>
+          <Campo label="Breve descripción de la cirugía" htmlFor="descripcion_cirugia">
+            <Input id="descripcion_cirugia" value={form.descripcion_cirugia} onChange={(e) => cambiar("descripcion_cirugia", e.target.value)} />
+          </Campo>
         </Seccion>
 
-        <Seccion titulo="4. Médico certificador">
-          <Campo label="Nombres" htmlFor="certificador_nombres">
+        <Seccion titulo="6. Médico certificador">
+          <Campo label="Apellidos y nombres del médico responsable" htmlFor="certificador_nombres">
             <Input id="certificador_nombres" value={form.certificador_nombres} onChange={(e) => cambiar("certificador_nombres", e.target.value)} />
           </Campo>
           <Campo label="Cédula" htmlFor="certificador_cedula">
             <Input id="certificador_cedula" value={form.certificador_cedula} onChange={(e) => cambiar("certificador_cedula", e.target.value)} />
           </Campo>
+          <Campo label="Matrícula MPPS" htmlFor="matricula_mpps">
+            <Input id="matricula_mpps" value={form.matricula_mpps} onChange={(e) => cambiar("matricula_mpps", e.target.value)} />
+          </Campo>
+          <Campo label="Correo electrónico de contacto" htmlFor="correo_contacto">
+            <Input id="correo_contacto" type="email" value={form.correo_contacto} onChange={(e) => cambiar("correo_contacto", e.target.value)} />
+          </Campo>
+        </Seccion>
+
+        <Seccion titulo="7. Sección VII — Registro civil">
+          <Campo label="Nombre del registro civil" htmlFor="registro_civil_nombre">
+            <Input id="registro_civil_nombre" value={form.registro_civil_nombre} onChange={(e) => cambiar("registro_civil_nombre", e.target.value)} />
+          </Campo>
+          <Campo label="Número del acta de defunción" htmlFor="numero_acta_defuncion">
+            <Input id="numero_acta_defuncion" value={form.numero_acta_defuncion} onChange={(e) => cambiar("numero_acta_defuncion", e.target.value)} />
+          </Campo>
+          <Campo label="Folio del acta" htmlFor="folio_defuncion">
+            <Input id="folio_defuncion" value={form.folio_defuncion} onChange={(e) => cambiar("folio_defuncion", e.target.value)} />
+          </Campo>
+          <Campo label="Fecha de registro" htmlFor="fecha_registro">
+            <Input id="fecha_registro" type="date" value={form.fecha_registro} onChange={(e) => cambiar("fecha_registro", e.target.value)} />
+          </Campo>
+          <Campo label="Declarante (apellidos y nombres)" htmlFor="declarante_nombres">
+            <Input id="declarante_nombres" value={form.declarante_nombres} onChange={(e) => cambiar("declarante_nombres", e.target.value)} />
+          </Campo>
+          <Campo label="Cédula del declarante" htmlFor="declarante_cedula">
+            <Input id="declarante_cedula" value={form.declarante_cedula} onChange={(e) => cambiar("declarante_cedula", e.target.value)} />
+          </Campo>
+          <Campo label="Registrador civil (apellidos y nombres)" htmlFor="registrador_civil_nombres">
+            <Input id="registrador_civil_nombres" value={form.registrador_civil_nombres} onChange={(e) => cambiar("registrador_civil_nombres", e.target.value)} />
+          </Campo>
+          <Campo label="Cédula del registrador civil" htmlFor="registrador_civil_cedula">
+            <Input id="registrador_civil_cedula" value={form.registrador_civil_cedula} onChange={(e) => cambiar("registrador_civil_cedula", e.target.value)} />
+          </Campo>
+          <Campo label="Gaceta" htmlFor="gaceta">
+            <Input id="gaceta" value={form.gaceta} onChange={(e) => cambiar("gaceta", e.target.value)} />
+          </Campo>
+          <Campo label="Resolución" htmlFor="resolucion">
+            <Input id="resolucion" value={form.resolucion} onChange={(e) => cambiar("resolucion", e.target.value)} />
+          </Campo>
         </Seccion>
 
         <SeccionCIE
-          titulo="5. Clasificación CIE (causa básica de defunción)"
+          titulo="8. Clasificación CIE (causa básica de defunción)"
           etiqueta="Causa de defunción"
           fechaEvento={form.fecha_evento}
           version={cieVersion}

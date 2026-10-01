@@ -129,11 +129,32 @@ Idioma de trabajo: **responder siempre en español**.
   y filtros (módulo/desde/hasta/estado). `ConfiguracionGeneral` en `registros` (GET/PUT `/configuracion/`).
   Los serializers decoran cada registro con `organizacion`, `organizacion_id`, `organizacion_nombre` y
   `organizacion_nivel`; PATCH parcial valida CIE solo si se tocan campos CIE.
-  **Reporte comparativo anual (24/09/2026):** `/registros/reportes/comparativo/?anio1=&anio2=`
+  **`Reporte comparativo anual (24/09/2026):`** `/registros/reportes/comparativo/?anio1=&anio2=`
   (`ReporteComparativoView`) por semana epidemiológica (ISO 1–53) con series nacimientos, muertes,
   muertes_maternas (M, `embarazo_o_puerperio=True`) y mmi (fichas `LEGACY-MMI`/`LEGACY-VIOLENTA`),
   respetando alcance; en `/reportes` se renderiza con `GraficoLineas` (SVG propio, anio1 sólido/anio2
   punteado, sin dependencias).
+  - **Certificado de defunción = EV-14 oficial (01/10/2026, migración `0005_defuncion_ev14`):**
+    `Defuncion` tiene **50 campos más**, todos opcionales (`null`/`blank`) para no romper los certificados
+    ya cargados ni el ETL, organizados por las secciones del EV-14: **I** identificación
+    (`nacionalidad`, `segundo_apellido`/`segundo_nombre`, `edad_ignorada`, `lugar_nacimiento`,
+    `nacimiento_exterior`, `estado_civil`, `profesion`, `ocupacion_lugar_trabajo`,
+    `sabe_leer_escribir`, `residencia_habitual`, `asistencia_medica`), **II** menor de un año / muerte
+    fetal / madre (`es_muerte_fetal`, `peso_nacer_gramos`, `edad_gestacional_semanas`, `tipo_embarazo`,
+    `tipo_parto`, `asistencia_parto`, `madre_*` incluido `madre_numero_gestas`,
+    `madre_fecha_ultima_gesta`, `madre_embarazada`, `madre_puerperio`), **V** muerte violenta
+    (`manera_de_morir`, `fecha_/hora_hecho_violento`, `descripcion_hecho_violento`), **VI** certificación
+    médica (`causa_antecedentes`, `otros_estados_patologicos`, `intervalo_enf_muerte`, los 4
+    `diagnostico_*` de «confirmado por», `cirugia`/`fecha_ultima_cirugia`/`descripcion_cirugia`,
+    `correo_contacto`, `matricula_mpps`) y **VII** registro civil (`registro_civil_nombre`,
+    `numero_acta_defuncion`, `folio_defuncion`, `fecha_registro`, `declarante_*`, `registrador_civil_*`,
+    `gaceta`, `resolucion`). `/defunciones` (`CargaDefunciones.jsx`) se reorganizó con esos rótulos.
+    Reglas: **nada nuevo es obligatorio** (el certificado mínimo se sigue creando) y **`embarazo_o_puerperio`
+    no se toca** (es lo que leen el tablero y `conciliar_mm`; el bloque de la madre es respaldo, no
+    reemplazo). Pruebas en `registros/tests.py::DefuncionEV14Tests`. Análisis de las capturas del usuario y
+    los dos pendientes que quedan (EV de nacimiento, registro semanal MM/MN) en `PENDIENTES.md` §23.
+    Las capturas están en `capturas/`; para leerlas **hay que pasar por OCR** (`rapidocr_onnxruntime` en
+    `.venv`, tesseract no está instalado), porque este entorno no ve imágenes.
 - **Limpiar legacy fuera de Lara / demo (24/09/2026):** `manage.py limpiar_legacy_no_lara` (criterio
   **centro Lara + domicilio Lara**, economía del árbol DES LARA=67754/DPS LARA=3441583108; dry-run por
   defecto, `--ejecutar` aplica). Ejecutado: **Nacimientos 438.577, Defunciones 171.115, Fichas 0,
@@ -418,8 +439,9 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
 - **Pruebas automatizadas (24/09/2026):** backend con `DJANGO_DB_ENGINE=sqlite manage.py test`
-  (156 pruebas a 29/09/2026: 115 de `backend/tests_sisv.py` + 33 de `conciliacion` (16 ENO +
-  9 neonatal + 8 materna) + 6 de `registros/tests_recuperar_establecimiento.py`; requiere
+  (163 pruebas a 01/10/2026: 115 de `backend/tests_sisv.py` + 33 de `conciliacion` (16 ENO +
+  9 neonatal + 8 materna) + 9 de `registros/tests.py` (2 EV-14 y 7 de las secciones del
+  certificado EV-14) + 6 de `registros/tests_recuperar_establecimiento.py`; requiere
   `__init__.py` en las
   apps — registros, seguridad, territorio y catalogos eran namespace packages y por eso el
   descubrimiento fallaba);

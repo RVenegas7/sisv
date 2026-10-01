@@ -414,6 +414,140 @@ class DefuncionYFichaTests(SISVBase):
         )
         self.assertEqual(r.status_code, 201)
 
+class DefuncionEV14Tests(SISVBase):
+    """El formulario de defunción sigue el certificado oficial EV-14.
+
+    El EV-14 tiene secciones que el modelo anterior no tenía: Identification
+    completa del fallecido, muerte fetal con datos de la madre, muerte violenta,
+    certificación médica (antecedentes, diagnóstico confirmado por, cirugía) y
+    registro civil. Estas pruebas fijan que esos campos se pueden cargar y volver a
+    leer, y que la defunción materna del certificado no se pisa con el nuevo detalle
+    de la madre: `embarazo_o_puerperio` sigue siendo el indicador que lee el tablero.
+    """
+
+    def _post(self, **extra):
+        datos = {
+            "registro_numero": "D-EV14",
+            "fecha_evento": "2023-06-01",
+            "version_cie": "CIE11",
+            "cie11": self.cie11_categoria.pk,
+            "sexo": "F",
+            "fallecido_nombres": "Pedro",
+            "fallecido_apellidos": "Gómez",
+            "organizacion": self.org_hcb.id,
+        }
+        datos.update(extra)
+        return self.client.post(
+            "/api/registros/defunciones/", datos, content_type="application/json"
+        )
+
+    def test_seccion_i_identificacion(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(
+            nacionalidad="V", segundo_nombre="José", segundo_apellido="Ramírez",
+            estado_civil="CASADO", profesion="Docente",
+            ocupacion_lugar_trabajo="Escuela Bilingüe", sabe_leer_escribir="SI",
+            residencia_habitual="Av. Principal con calle 5", asistencia_medica="SI",
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        d = r.json()["data"]
+        self.assertEqual(d["nacionalidad"], "V")
+        self.assertEqual(d["segundo_nombre"], "José")
+        self.assertEqual(d["estado_civil"], "CASADO")
+        self.assertEqual(d["residencia_habitual"], "Av. Principal con calle 5")
+
+    def test_seccion_ii_muerte_fetal_y_datos_de_la_madre(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(
+            es_muerte_fetal=True, peso_nacer_gramos=800, edad_gestacional_semanas=28,
+            tipo_embarazo="UNICO", tipo_parto="CESAREA", asistencia_parto="Médico",
+            madre_apellidos="Pérez", madre_nombres="Ana", madre_cedula="V-12345678",
+            madre_numero_gestas=3, madre_fecha_ultima_gesta="2023-06-01",
+            madre_embarazada="SI", madre_puerperio="DENTRO42D",
+            embarazo_o_puerperio=True,
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        d = r.json()["data"]
+        self.assertTrue(d["es_muerte_fetal"])
+        self.assertEqual(d["peso_nacer_gramos"], 800)
+        self.assertEqual(d["edad_gestacional_semanas"], 28)
+        self.assertEqual(d["madre_puerperio"], "DENTRO42D")
+        # El detalle de la madre no suplanta el indicador que lee el tablero.
+        self.assertTrue(d["embarazo_o_puerperio"])
+
+    def test_seccion_v_muerte_violenta(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(
+            manera_de_morir="AGRESION", fecha_hecho_violento="2023-06-01",
+            hora_hecho_violento="18:30", descripcion_hecho_violento="Herida por arma blanca",
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        d = r.json()["data"]
+        self.assertEqual(d["manera_de_morir"], "AGRESION")
+        self.assertEqual(d["descripcion_hecho_violento"], "Herida por arma blanca")
+
+    def test_seccion_vi_certificacion_medica(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(
+            causa_directa="Choque séptico", causa_antecedentes="Diabetes mellitus",
+            otros_estados_patologicos="Hipertensión arterial",
+            intervalo_enf_muerte="Días", autopsia=True,
+            diagnostico_examen_cadaver=True, diagnostico_historia_clinica=True,
+            cirugia=True, fecha_ultima_cirugia="2023-05-01",
+            descripcion_cirugia="Colecistectomía", correo_contacto="medico@ejemplo.ve",
+            matricula_mpps="MPPS-1234",
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        d = r.json()["data"]
+        self.assertEqual(d["causa_antecedentes"], "Diabetes mellitus")
+        self.assertTrue(d["autopsia"])
+        self.assertTrue(d["diagnostico_examen_cadaver"])
+        self.assertTrue(d["diagnostico_historia_clinica"])
+        self.assertFalse(d["diagnostico_examen_laboratorio"])
+        self.assertTrue(d["cirugia"])
+        self.assertEqual(d["descripcion_cirugia"], "Colecistectomía")
+
+    def test_seccion_vii_registro_civil(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(
+            registro_civil_nombre="Registro Civil de Barquisimeto",
+            numero_acta_defuncion="A-123", folio_defuncion="45", fecha_registro="2023-06-05",
+            declarante_nombres="María Gómez", declarante_cedula="V-87654321",
+            registrador_civil_nombres="Luis Pérez", registrador_civil_cedula="V-11223344",
+            gaceta="42.318", resolucion="RES-001",
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        d = r.json()["data"]
+        self.assertEqual(d["registro_civil_nombre"], "Registro Civil de Barquisimeto")
+        self.assertEqual(d["numero_acta_defuncion"], "A-123")
+        self.assertEqual(d["fecha_registro"], "2023-06-05")
+        self.assertEqual(d["gaceta"], "42.318")
+
+    def test_los_certificados_existentes_no_cambian(self):
+        """Los campos nuevos son opcionales: un certificado mínimo se sigue creando."""
+        self.login(self.u_trans_hcb)
+        r = self.client.post(
+            "/api/registros/defunciones/",
+            {"registro_numero": "D-MIN", "fecha_evento": "2023-06-01", "version_cie": "CIE11",
+             "cie11": self.cie11_categoria.pk, "sexo": "M",
+             "fallecido_nombres": "Luis", "fallecido_apellidos": "Soto",
+             "organizacion": self.org_hcb.id},
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        d = r.json()["data"]
+        self.assertEqual(d["nacionalidad"], "")
+        self.assertEqual(d["manera_de_morir"], "")
+        self.assertFalse(d["es_muerte_fetal"])
+        self.assertFalse(d["cirugia"])
+
+    def test_manera_de_morir_invalida_se_rechaza(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(manera_de_morir="MAGIA")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("manera_de_morir", r.json()["errors"])
+
+
 class CoberturaTableroTests(SISVBase):
     """El tablero tiene que avisar cuando la serie tiene un hueco.
 
