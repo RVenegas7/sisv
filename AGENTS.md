@@ -155,9 +155,10 @@ Idioma de trabajo: **responder siempre en español**.
 - **Muerte materna (corregido el 29/09/2026):** el indicador MM **ya no** sale de
   `Defuncion.embarazo_o_puerperio`. Ese campo es un aviso opcional del certificador
   (`CERTIFICADO.HPRESENCIAEMBARAZO` en 1=embarazo o 2=puerperio) y lo diligencia en solo el **11,9 %
-  de las muertes maternas**: 748 en el registro de investigación contra 89 marcadas en el
-  certificado, 2009-2026. Salva que MM no dependa de la CIE, pero **subcuenta**, y por eso el
-  tablero daba 7 en 2026 donde la responsable de Lara reporta 17 + 1 violenta.
+  de las muertes maternas**: 748 en el registro de investigación contra **89 marcadas con solo el
+  código 1. Con la corrección 1+2 (§17.20) el certificado marca 191**, 2009-2026. Salva que MM no
+  dependa de la CIE, pero **subcuenta**, y por eso el tablero daba 7 en 2026 donde la responsable de
+  Lara reporta 17 + 1 violenta.
   - **El indicador sale de `sismai."RENGLON_CASOSMM"` enlazado a `sismai."CASOS_MMI"`
     (`HCASOSMMI` → `CASOS_MMI."ID"`, 748 de 749 enlazan)**, que es el registro de investigación
     caso por caso: **18 en 2026**, exactamente lo que reporta la oficina. La fecha de la muerte está
@@ -171,9 +172,10 @@ Idioma de trabajo: **responder siempre en español**.
   - El conteo de certificados no se pierde: el tablero expone `mm_certificadas`, `mm_codificadas`,
     `mm_pendientes` y `mm_fuente`, y el frontend avisa de la diferencia. `manage.py
     conciliar_mm [--anio N] [--ejecutar] [--csv ruta]` (grano año/semana/organización, modelo
-    `ConciliacionMaterna`): 460 filas, 33 CUADRA / 36 DIFERENCIA / 382 solo en el registro /
-    **9 solo en el certificado** — ninguna de las dos fuentes es completa, y el indicador es el del
-    registro.
+    `ConciliacionMaterna`): **567 filas con la BD corregida (1+2)**, 88 CUADRA / 31 DIFERENCIA /
+    406 solo en el registro / **42 solo en el certificado** — ninguna de las dos fuentes es completa.
+    (Las cifras 460/33/36/382/9 de la versión anterior eran del estado previo a `corregir_mm_legacy`,
+    cuando el certificado solo marcaba el código 1 = 89.) El indicador es el del registro.
   - MN = defunción de 0 a 27 días de vida, con fecha de nacimiento conocida. **MN no se toca:** ya
     cuadraba (213 = 213 en 2026 con `conciliar_neonatal`).
   - `manage.py corregir_mm_legacy` sigue existiendo para el campo del certificado.
@@ -229,8 +231,9 @@ Idioma de trabajo: **responder siempre en español**.
     Lado SISV = `registros.Defuncion` con `embarazo_o_puerperio`. Dry-run por defecto, `--csv` con
     BOM, 8 pruebas. **Aquí los dos lados no son la misma definición y la diferencia es el
     resultado:** el certificado marca el embarazo en el 11,9 % de las muertes del registro.
-    - **Resultado 2009-2026:** 748 del registro contra 89 certificados; 33 CUADRA / 36 DIFERENCIA /
-      382 solo en el registro / **9 solo en el certificado** (entre ellas una violenta, 2012).
+    - **Resultado 2009-2026:** 748 del registro contra **191 certificados** (post-`corregir_mm_legacy`,
+      1+2; con solo el código 1 eran 89); 88 CUADRA / 31 DIFERENCIA /
+      406 solo en el registro / **42 solo en el certificado** (entre ellas una violenta, 2012).
       Ninguna fuente es completa; el indicador es el del registro.
     - Los certificados **sin organización no se filtran**: van al agregado. Filtrarlos por
       `organizacion_id IS NOT NULL` los borraría en silencio y daría un falso "el certificado no

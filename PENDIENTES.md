@@ -1778,6 +1778,12 @@ Lo hace en una fracción de los casos:
 | **2026** | **18** | **7** | **39 %** |
 | Total 2009–2026 | 748 | 89 | 11,9 % |
 
+> La columna «MM en el certificado» está tomada del estado **previo** a `corregir_mm_legacy`
+> (§17.20), cuando el `embarazo_o_puerperio` del certificado solo marcaba el código 1
+> (89 total / 7 en 2026). Con la corrección 1+2 el certificado marca **191** en el histórico y
+> **16 en 2026** — que es lo que el espejo directo de `sismai."CERTIFICADO"` da. La tabla ilustra el
+> subconteo original, no la cifra vigente.
+
 **El registro da 18 para 2026, que es exactamente los 17 + 1 violenta que reportó la responsable de
 Lara.** Con el indicador anterior el tablero decía 7.
 
@@ -1795,22 +1801,25 @@ capturó; lo que no se llenó fue el aviso.
   significaría "este centro no tuvo muertes maternas", que es justo lo que no se sabe. En el mirror
   de desarrollo todos los establecimientos caen al agregado porque `Organizacion` solo tiene las 6
   demo; con `asignar_organizacion_legacy` aplicado resuelve.
-- **`manage.py conciliar_mm`** (gemelo de `conciliar_neonatal`, grano año/semana/organización): 460
-  filas, 748 del registro contra 89 certificados, **33 semanas CUADRA, 36 DIFERENCIA, 382 solo en
-  el registro y 9 solo en el certificado**. La diferencia **es** el hallazgo y el comando la reporta
-  como tal en vez de esconderla.
+- **`manage.py conciliar_mm`** (gemelo de `conciliar_neonatal`, grano año/semana/organización): 567
+  filas con la BD corregida (HPRESENCIAEMBARAZO 1+2, §17.20), 748 del registro contra **191
+  certificados**, **88 semanas CUADRA, 31 DIFERENCIA, 406 solo en el registro y 42 solo en el
+  certificado**. (Las cifras de la primera versión — 460 filas, 89 certificados, 33/36/382/9 — eran
+  del estado previo a `corregir_mm_legacy`, cuando el certificado solo marcaba el código 1.) La
+  diferencia **es** el hallazgo y el comando la reporta como tal en vez de esconderla.
 - Modelo `conciliacion.ConciliacionMaterna`, migración `0004`, 8 pruebas nuevas; las de MM del
   tablero fijan el caso real (18 del registro contra 1 certificado) y que un registro vacío **no** es
   un cero. Suite: **156 pruebas** (antes 146).
 
-### 21.3 Las 9 semanas «solo en el certificado»: ninguna fuente es completa
+### 21.3 Las 42 semanas «solo en el certificado»: ninguna fuente es completa
 
-Al revés de lo temido, hay 9 semanas con muerte materna **en el certificado y no en el registro de
-investigación**, y no son ruido: las causas son *síndrome HELLP*, *otras inercias uterinas*, *choque
-hipovolémico* y *trabajo de parto prematuro espontáneo*, más **una violenta** (*agresión con disparo*,
-2012), que es el «+1» que la responsable separó del resto. O sea: el registro de
-investigación tampoco capturó todas. **El indicador es el del registro (es el que la oficina usa y
-reporta) y el certificado se reporta aparte**, no se suman.
+Al revés de lo temido, hay **42** semanas (post-corrección 1+2) con muerte materna **en el
+certificado y no en el registro de investigación**, y no son ruido: las causas son *síndrome HELLP*,
+*otras inercias uterinas*, *choque hipovolémico* y *trabajo de parto prematuro espontáneo*, más **una
+violenta** (*agresión con disparo*, 2012), que es el «+1» que la responsable separó del resto. (Con
+el certificado en su estado previo — solo código 1, 89 filas — eran 9 semanas; §21.2.) O sea: el
+registro de investigación tampoco capturó todas. **El indicador es el del registro (es el que la
+oficina usa y reporta) y el certificado se reporta aparte**, no se suman.
 
 ### 21.4 Las preguntas de §21.3 que ya no hacen falta
 
@@ -1871,15 +1880,22 @@ tabla, los eventos nunca llegaron a encolarse.
 **Regla: ningún DDL en producción hasta que exista un respaldo verificado.**
 
 - `migracion/respaldo_total.sh` (nuevo) — `exp` por esquemas `SISMAI TEMP HISTORICO INBDLAR1`.
-  **Le falta lo esencial:**
+  **Corregido el 30/09 (en casa):**
   1. **Credencial de base.** `exp` pide usuario/contraseña de Oracle, y la clave que abre el SSH del SO
      pero en la base da `ORA-01017` (probado el 30/09: `EXP-00056` → `ORA-01017` → `EXP-00030` →
-     `EXP-00000`). Las claves de `SISMAI`/`TEMP`/`HISTORICO` están en `SaludCor/ActualizaS/System.cfg`
-     del share pero **ofuscadas**, y no es seguro descifrar credenciales de producción para armar un
-     respaldo. **Hace falta que el usuario dé una clave válida o autorice crear un usuario de export.**
-  2. `INDEXES=N`/`CONSTRAINTS=N` dejan fuera índices y constraints → **no es un respaldo íntegro**.
-  3. Quitar la contraseña del parfile legible en `/home/oracle` y ponerla en un `.env` ignorado por git.
-  4. Correr los esquemas **secuencialmente**, no los 4 a la vez (el UNDO es de 1 GB, §17.7).
+     `EXP-00000`). Ahora el script **aborta sin `CLAVE_ORACLE`** (leída de `legancy_conf/credenciales.env`
+     o del entorno, nunca en duro) y usa **`USUARIO_DB`** (configurable; por defecto el mismo del SO),
+     porque la cuenta que exporta en la base puede ser distinta del usuario SSH (p. ej. `respaldo`).
+     Sigue haciendo falta que el usuario dé la clave. Las claves de `SISMAI`/`TEMP`/`HISTORICO` están en
+     `SaludCor/ActualizaS/System.cfg` del share pero **ofuscadas**, y no es seguro descifrar credenciales
+     de producción para armar un respaldo: **el usuario debe dar una clave válida o autorizar crear un
+     usuario de export.**
+  2. `INDEXES=Y`/`CONSTRAINTS=Y`/`GRANTS=Y` → el `.dmp` ya es un respaldo **íntegro**.
+  3. La contraseña ya **no queda en un parfile legible**: el parfile se escribe con `chmod 600` dentro
+     del servidor y se **borra al terminar** cada esquema.
+  4. Los esquemas corren **secuencialmente** (una exp espera a la anterior antes de arrancar), no los 4
+     a la vez (el UNDO es de 1 GB, §17.7). Quitado el `FULL=Y` que hacía que `exp` ignorara `OWNER` y
+     exportara la base completa 4 veces.
 - `migracion/espejo_csv.sh` (nuevo) — respaldo por CSV con `sqlplus / as sysdba`, que **no necesita clave
   de base** y que PostgreSQL **sí** puede leer (un `.dmp` es binario de Oracle y no se puede importar,
   §17.8). **Lo que ya quedó verificado el 30/09** (simulación + prueba real, no solo escrito):
@@ -1903,12 +1919,22 @@ tabla, los eventos nunca llegaron a encolarse.
 
 ### 22.3 Pendiente 2 — Recompilar los 16 objetos (solo tras verificar el respaldo)
 
-Script de recompilación **pendiente de escribir**; no existe aún. Con `sqlplus / as sysdba`, sobre
-`SISMAI` y `TEMP`, `ALTER … COMPILE` de la lista del §22.1 y después contar inválidos **antes y después**
-con `ALL_OBJECTS`/`ALL_ERRORS` para dejar número, no impresión. **Cambia objetos del sistema en
-producción: la autorización del usuario es explícita y solo cubre estos 16.** Si `T_CERTNACI` no existe
-porque su `CREATE` falló, hay que crearla antes (el DDL del share `crear.sql` **no se usa**: borra
-`EVENTOS_SINC`).
+**Escrito el 30/09 (en casa):** `migracion/recompilar_16_objetos.sql` (lanzable con `sqlplus / as sysdba`
+o con `migracion/recompilar_16_live.sh`, que hace el `ssh`/`sshpass` y pide confirmación), con la lista
+exacta del §22.1 y **sin importar el `crear.sql` del share**. No se ha ejecutado: **cambia objetos del
+sistema en producción, la autorización del usuario es explícita y solo cubre estos 16.** Comportamiento:
+
+- Primero comprueba que existe `TEMP.T_CERTNACI` y **aborta antes de tocar nada** si no está: como
+  `NATALIDAD` depende de ella, recompilarla sin la tabla la dejaría igual de inválida y no habría
+  servido (la vista H_DEPEN, en cambio, no se toca por omisión de tabla: está en la lista y se
+  recompila normal).
+- Recompila **solo** los 16 (función `FIDPADRE`, procedimientos `SPDOC`/`SPREGDSP`/`SPREGEPI`/`SPREGTEL`
+  y las 11 vistas). Un `ALTER ... COMPILE` que falle **no aborta el bloque**: se anota `SQLERRM` y se
+  sigue con el resto.
+- Al final cuenta inválidos **antes y después** con `ALL_OBJECTS` (en el esquema `SISMAI`) y muestra
+  `ALL_ERRORS` de lo que siga roto: número, no impresión.
+- Si `T_CERTNACI` no existe porque su `CREATE` falló, hay que crearla antes (el DDL del share
+  `crear.sql` **no se usa**: borra `EVENTOS_SINC`).
 
 ### 22.4 Pendiente 3 — Que salgan 5 archivos
 
@@ -1932,12 +1958,36 @@ EN/ISO de §17 y las conciliaciones de §18–21 no se tocan**: describen el his
 
 ### 22.6 Lo que se necesita del usuario para el 01/10
 
-1. **Clave de una cuenta Oracle con permisos de lectura** (o permiso para crear una de export). Sin esto
-   el `.dmp` clásico no sale; la vía CSV con `sysdba` funciona igual y es la que ya está encaminada.
+1. **Clave de una cuenta Oracle con permisos de lectura** (o permiso para crear una de export) y la
+   **cuenta de base** (`USUARIO_DB`, puede ser distinta del SSH). Sin esto el `.dmp` clásico no sale; la
+   vía CSV con `sysdba` funciona igual y es la que ya está encaminada. El `respaldo_total.sh` aborta con
+   mensaje claro si falten `CLAVE`/`CLAVE_ORACLE`, y `SIMULAR=1` muestra lo que haría.
 2. **Autorización explícita** para el `ALTER … COMPILE` de los 16 objetos (ya la dio el 30/09, pero
-   conviene recordarla al ejecutar).
+   conviene recordarla al ejecutar). Correr solo tras **verificar el respaldo** (que los 4 `.dmp` pesen
+   y el `.log` diga «terminado correctamente»).
 3. **Acceso al cliente Windows** que arma el paquete, o el `.bat` Weekly actual, para cerrar el punto del
    quinto archivo.
 
-_Anotado el 30/09/2026. Al ejecutar mañana, actualizar esta sección con el resultado real y mover lo que
-quede a §22.5._
+#### Checklist del 01/10 (orden de ejecución)
+
+| # | Paso | Verificación de éxito |
+| --- | --- | --- |
+| 1 | `migracion/preflight_ventana.sh` (el respaldo de hoy >13:00 ya existe) | 5 salidas verdes, `DESDE` calculado |
+| 2 | `SIMULAR=1 ./migracion/respaldo_total.sh` | Imprime los 4 comandos `exp`, no ejecuta |
+| 3 | `./migracion/respaldo_total.sh` con `CLAVE`+`CLAVE_ORACLE` (`--` SECUENCIAL) | 4 `.dmp` + 4 `.log` en `respaldo_<fecha>_<hora>`; cada log con «terminado correctamente»; SHA-256 en pantalla |
+| 4 | Respaldar también por CSV con `migracion/espejo_csv.sh` (2-4 h, se puede dejar corriendo) | Conteo de control 525 tablas = 525 `CREATE TABLE`, filas por tabla en los CSV |
+| 5 | `manage.py cargar_mm_mn_roto --directorio salida_mm_mn_<fecha>` (dry-run) | Sin duplicados por `LEG-CERT-{id}`/`LEG-RN-{id}`; organizaciones resueltas en el árbol Lara |
+| 6 | Ídem con `--ejecutar` | Conteo de registros nuevos; 0 pisados de CIE revisado |
+| 7 | ¿Existe `TEMP.T_CERTNACI`? (comprobar con el diagnóstico) | «sí» → recompilar; «no» → pedir el DDL que falta o crearla según `cr_repli_nata.sql` |
+| 8 | `migracion/recompilar_16_live.sh` (tras autorización reiterada) | «Inválidos: antes N → después 0» (o lista explícita de lo que queda + `ALL_ERRORS`) |
+| 9 | Volver a mirar la sincronización (el cliente Windows / `.bat` Weekly) | el ZIP de la semana siguiente trae **5** archivos |
+| 10 | `migracion/diagnostico_certnaci.sql` de nuevo (salida a `auditoria/`) | `EVENTOS_SINC` creciendo con `CERTIFICADO`/`CERTNACIMIENTO`, ZIP de 5, `T_CERTNACI` presente |
+| 11 | Reevaluar §22.1-§22.4 con lo observado y actualizar esta sección | Conclusiones por escrito |
+
+> Regla dorada del día: **ningún DDL** (ni `ALTER COMPILE` ni `CREATE T_CERTNACI`) hasta que el
+> respaldo del paso 3 esté verificado. El script `respaldo_total.sh` ya no exporta `FULL=Y` ni en
+> paralelo: una exp por esquema, la siguiente arranca cuando la anterior termina.
+
+_Anotado el 30/09/2026 y actualizado esa misma tarde (scripts de respaldo y recompilación corregidos y
+listos; el despliegue sigue pendiente de ejecución). Al ejecutar mañana, actualizar esta sección con el
+resultado real y mover lo que quede a §22.5._

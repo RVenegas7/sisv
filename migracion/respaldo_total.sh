@@ -28,19 +28,28 @@ set -uo pipefail
 
 HOST="${HOST:-192.168.5.200}"
 USUARIO="${USUARIO:-oracle}"
-# La clave del SO NO va con valor por defecto: se lee del entorno o de
-# legancy_conf/credenciales.env (ignorado por git). Es la clave de SSH,
-# no la de la base; para `exp` hace falta ademas CLAVE_ORACLE, que hoy
-# no se tiene (ver PENDIENTES.md 22.2).
-CLAVE_ORACLE="${CLAVE_ORACLE:-}"
+# Las claves del SO y de la BD NO van con valor por defecto: se leen del
+# entorno o de legancy_conf/credenciales.env (ignorado por git).
+#   CLAVE / SSHPASS_ORACLE : clave del SSH (abre el servidor).
+#   CLAVE_ORACLE           : clave de la cuenta de BASE para `exp`. La del
+#                            SO NO sirve (probado el 30/09: ORA-01017).
+#                            Sin ella el script ABORTA, no lo intenta.
+#                            (PENDIENTES.md 22.2.1)
 set -a
 [ -f "$(dirname "$0")/../legancy_conf/credenciales.env" ] && \
   . "$(dirname "$0")/../legancy_conf/credenciales.env"
 set +a
 CLAVE="${CLAVE:-${SSHPASS_ORACLE:-}}"
+CLAVE_ORACLE="${CLAVE_ORACLE:-}"
 if [ -z "$CLAVE" ]; then
   echo "Falta la clave SSH del usuario '$USUARIO'."
   echo "Defina CLAVE en el entorno o SSHPASS_ORACLE en legancy_conf/credenciales.env (ignorado por git)."
+  exit 1
+fi
+if [ -z "$CLAVE_ORACLE" ]; then
+  echo "Falta CLAVE_ORACLE (clave de una cuenta de BASE con permisos de lectura)."
+  echo "La clave del SO solo abre el SSH; contra Oracle da ORA-01017."
+  echo "Pida la clave al DBA o defina CLAVE_ORACLE en legancy_conf/credenciales.env (ignorado por git)."
   exit 1
 fi
 ORACLE_HOME="/opt/oracle"
@@ -48,6 +57,9 @@ ORACLE_SID="lar1"
 DESTINO_BASE="/home/oracle"
 ESQUEMAS="${ESQUEMAS:-SISMAI TEMP HISTORICO INBDLAR1}"
 SIMULAR="${SIMULAR:-0}"
+# Cuenta de BASE para `exp` (la da el DBA). La del SO no sirve. Puede ser
+# distinta del usuario SSH (p. ej. respaldo): por eso se parametriza.
+USUARIO_DB="${USUARIO_DB:-$USUARIO}"
 
 FECHA="$(date +%Y%m%d)"
 HORA="$(date +%H%M)"
@@ -89,8 +101,9 @@ echo " [ OK ]   destino en el servidor: $DIR"
 if [ "$SIMULAR" = "1" ]; then
   echo
   echo "== SIMULACION: se mostraria esto, no se ejecuta =="
+  echo "  Para cada esquema, de forma SECUENCIAL (el UNDO es de 1 GB):"
   for e in $ESQUEMAS; do
-    echo "  exp PARFILE=$DIR/exp_$e.par OWNER=$e FULL=Y LOG=$DIR/exp_$e.log"
+    echo "  exp PARFILE=$DIR/exp_$e.par OWNER=$e LOG=$DIR/exp_$e.log"
     echo "     -> $DIR/${e}_full_${FECHA}.dmp"
   done
   echo
@@ -98,48 +111,49 @@ if [ "$SIMULAR" = "1" ]; then
   exit 0
 fi
 
-# --- 1. Un exp por esquema, con bitacora ------------------------------
+# --- 1. Un exp por esquema, SECUENCIAL, con bitacora --------------------
+# §22.2.4: correr los esquemas UNO a uno (no los 4 a la vez) porque el
+# UNDO es de 1 GB y varios `exp` simultaneos lo saturan (visto el 30/09).
 echo
-echo ">> 1. Exportando"
+echo ">> 1. Exportando (secuencial)"
 for e in $ESQUEMAS; do
   PAR="$DIR/exp_$e.par"
   # USERID va dentro del PARFILE: sin TNS en el servidor, `exp` no puede
   # resolver el connect string y ademas pide usuario por stdin, que en un
   # proceso en segundo plano se lee como EOF (EXP-00030, visto el 30/09).
+  # La clave de base NUNCA va en texto plano legible: el parfile se escribe
+  # con permisos 600 y se borra al terminar (PENDIENTES.md 22.2.3).
   sxs_put "$PAR" <<PARFILE
-FULL=Y
 OWNER=$e
-USERID=$USUARIO/$CLAVE
-GRANTS=N
-INDEXES=N
-CONSTRAINTS=N
+USERID=$USUARIO_DB/$CLAVE_ORACLE
+GRANTS=Y
+INDEXES=Y
+CONSTRAINTS=Y
 CONSISTENT=Y
 DIRECT=N
 LOG=$DIR/exp_$e.log
 FILE=$DIR/${e}_full_${FECHA}.dmp
 PARFILE
+  sxs "chmod 600 $PAR" 2>/dev/null || true
   echo "   arrancando exp $e ... (log: $DIR/exp_$e.log)"
   # Se lanza en segundo plano y se espera a que el proceso termine: el
-  # `exp` puede tardar minutos y la sesion SSH no debe caerse. Se
-  #.Wait el PID en vez de un grep: el grep puede fallar justo cuando el
-  # export esta arranco y todavia no se ve.
-  sxs "export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH; nohup exp PARFILE=$PAR > $DIR/exp_$e.nohup 2>&1 & echo \$!" 2>/dev/null
-done
+  # `exp` puede tardar minutos y la sesion SSH no debe caerse. Se espera
+  # el PID en vez de un grep: el grep puede fallar justo cuando el export
+  # esta arrancando y todavia no se ve.
+  PID_EXP="$(sxs "export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH; nohup exp PARFILE=$PAR > $DIR/exp_$e.nohup 2>&1 & echo \$!" 2>/dev/null | tr -dc '0-9')"
 
-# --- 2. Esperar y verificar -------------------------------------------
-echo
-echo ">> 2. Esperando a que terminen"
-for e in $ESQUEMAS; do
-  printf "   %-10s " "$e"
+  # --- Esperar a que ESTE esquema termine antes del siguiente -----------
+  echo "   esperando a $e (pid ${PID_EXP:-?})..."
   INT=0
   while [ "$INT" -lt 120 ]; do
-    CORRIENDO="$(sxs "ps -ef | grep -E '[e]xp PARFILE=$DIR/exp_$e.par' | grep -v grep | wc -l" 2>/dev/null | tr -dc '0-9')"
-    [ "${CORRIENDO:-0}" = "0" ] && break
+    [ -z "${PID_EXP:-}" ] && break
+    VIVO="$(sxs "ps -p $PID_EXP -o pid= 2>/dev/null | wc -l" 2>/dev/null | tr -dc '0-9')"
+    [ "${VIVO:-0}" = "0" ] && break
     sleep 15
     INT=$((INT + 1))
   done
   if [ "$INT" -ge 120 ]; then
-    echo " [AVISO] sigue corriendo despues de 30 min; revisa $DIR/exp_$e.log"
+    echo " [AVISO] $e sigue corriendo despues de 30 min; revisa $DIR/exp_$e.log"
   else
     # El log del exp dice si termino bien y con que cantidad de filas.
     # Se comparan las dos fuentes porque el .log a veces no se escribe.
@@ -147,7 +161,7 @@ for e in $ESQUEMAS; do
     TAM="$(sxs "stat -c %s $DMP 2>/dev/null" 2>/dev/null | tr -dc '0-9')"
     if [ -n "${TAM:-}" ] && [ "$TAM" -gt 10000 ]; then
       if sxs "grep -q 'terminado correctamente' $DIR/exp_$e.log 2>/dev/null"; then
-        echo " OK ($(numfmt --to=iec --suffix=B "$TAM" 2>/dev/null || echo "${TAM}B"))"
+        echo "   OK ($(numfmt --to=iec --suffix=B "$TAM" 2>/dev/null || echo "${TAM}B"))"
       else
         echo " [REVISAR] dmp de $(numfmt --to=iec --suffix=B "$TAM" 2>/dev/null || echo "${TAM}B") pero el log no confirma: $DIR/exp_$e.log"
       fi
@@ -156,11 +170,13 @@ for e in $ESQUEMAS; do
       sxs "tail -5 $DIR/exp_$e.nohup 2>/dev/null" 2>/dev/null | sed 's/^/             /'
     fi
   fi
+  # El parfile tenia la clave: no queda regado en el servidor.
+  sxs "rm -f $PAR" 2>/dev/null || true
 done
 
-# --- 3. Inventario con SHA-256 ----------------------------------------
+# --- 2. Inventario con SHA-256 ----------------------------------------
 echo
-echo ">> 3. Inventario"
+echo ">> 2. Inventario"
 sxs "cd $DIR && ls -la *.dmp 2>/dev/null; echo '--- SHA256 ---'; sha256sum *.dmp 2>/dev/null" 2>/dev/null
 sxs "cd $DIR && du -sh $DIR 2>/dev/null" 2>/dev/null
 
