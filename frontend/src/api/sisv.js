@@ -284,3 +284,54 @@ export async function listarCodificacion(params = {}) {
   const r = await api.get("/registros/codificacion/", { params })
   return r.data
 }
+
+export async function listarTalonarios(params = {}) {
+  const r = await api.get("/despacho/talonarios/", { params })
+  return { items: r.data.data, count: r.data.count }
+}
+
+export async function crearTalonario(payload) {
+  const r = await api.post("/despacho/talonarios/", payload)
+  return r.data.data
+}
+
+export async function actualizarTalonario(id, payload) {
+  const r = await api.patch(`/despacho/talonarios/${id}/`, payload)
+  return r.data.data
+}
+
+export async function eliminarTalonario(id) {
+  await api.delete(`/despacho/talonarios/${id}/`)
+}
+
+export async function detalleTalonario(id) {
+  const r = await api.get(`/despacho/talonarios/${id}/certificados/`)
+  return r.data.data
+}
+
+export async function crearNovedad(payload) {
+  const r = await api.post("/despacho/novedades/", payload)
+  return r.data.data
+}
+
+export async function eliminarNovedad(id) {
+  await api.delete(`/despacho/novedades/${id}/`)
+}
+
+export async function reporteCertificados(params = {}) {
+  const r = await api.get("/despacho/reportes/certificados/", { params })
+  return r.data.data
+}
+
+export async function reportePendientes(params = {}) {
+  const r = await api.get("/despacho/reportes/pendientes/", { params })
+  return r.data.data
+}
+
+export async function exportarDespacho(ruta, params = {}) {
+  const r = await api.get(`/despacho/reportes/${ruta}/`, {
+    params: { ...params, formato: "csv" },
+    responseType: "blob",
+  })
+  return r.data
+}

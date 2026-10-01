@@ -413,6 +413,12 @@ main.contenido {
   vertical-align: middle;
 }
 
+.etiqueta.cargado { background: #2e7d32; }
+.etiqueta.sin_asignar { background: #b26a00; }
+.etiqueta.danado { background: #c62828; }
+.etiqueta.en_transito { background: #1565c0; }
+.etiqueta.devuelto { background: #6a1b9a; }
+
 .fila-editando {
   background: #fff7e6;
 }

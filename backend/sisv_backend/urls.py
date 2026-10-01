@@ -12,4 +12,5 @@ urlpatterns = [
     path("api/auth/", include("seguridad.auth_urls")),
     path("api/territorio/", include("territorio.urls")),
     path("api/vigilancia/", include("vigilancia.urls")),
+    path("api/despacho/", include("despacho.urls")),
 ]

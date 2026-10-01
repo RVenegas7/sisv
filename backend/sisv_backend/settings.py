@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     "territorio",
     "vigilancia",
     "conciliacion",
+    "despacho",
     "legacy",
 ]
 

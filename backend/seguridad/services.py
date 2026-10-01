@@ -20,6 +20,10 @@ def permisos_de(user):
         "puede_editar": escribir,
         "puede_eliminar": es_super or rol == "DIRECTOR",
         "puede_configurar": es_super or rol == "DIRECTOR",
+        # Despacho de talonarios de certificados: lo lleva el jefe de la unidad.
+        # El DIRECTOR entra porque ya tiene el resto de los permisos de configurar;
+        # el superusuario siempre.
+        "puede_despachar": es_super or rol in ("JEFE_UNIDAD", "DIRECTOR"),
     }
 
 

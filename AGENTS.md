@@ -261,6 +261,25 @@ Idioma de trabajo: **responder siempre en español**.
       registró ninguna muerte materna".
     - `DOCUMENTO."TIPO"` = 23 aquí también, por el mismo motivo que en la conciliación neonatal.
 
+- `despacho`: **control de entrega de talonarios de certificados de nacimiento y defunción** (01/10/2026).
+  El legacy **no guardó nunca el despacho** (`sismai.NUMERO_BD` y `sismai.HISTORICO_IDS` están vacías), así
+  que se captura desde cero. Modelos: `Talonario` (tipo NACIMIENTO|DEFUNCION, centro, fecha_entrega,
+  serie_desde/serie_hasta, `cantidad` calculada, responsables, observaciones) y `NovedadCertificado`
+  (excepción por certificado: DANADO|EN_TRANSITO|DEVUELTO con justificación y datos del tránsito; unique por
+  talonario+numero). El **uso** se deduce cruzando el **sufijo numérico** de `registro_numero`
+  (`DEF-2026-000003`→3) contra la serie, dentro del subárbol del centro
+  (`organizaciones_descendientes`); un `registro_numero` sin dígitos finales se ignora. `faltante` =
+  rango − usados − dañados − devueltos − en tránsito. Endpoints `/api/despacho/`: `talonarios/` (GET/POST),
+  `talonarios/<id>/` (GET/PATCH/DELETE), `talonarios/<id>/certificados/` (por certificado + resumen),
+  `novedades/` y `novedades/<id>/`, `reportes/certificados/` (nº, nombres, apellidos, fecha, centro; CSV) y
+  `reportes/pendientes/` (entregados no retornados/justificados; CSV), respetando `alcance_registros`.
+  **Rol nuevo `JEFE_UNIDAD` («Jefe de Unidad»)** en `seguridad.Perfil` y permiso `puede_despachar` en
+  `permisos_de` (superusuario / JEFE_UNIDAD / DIRECTOR) para crear/editar/eliminar; leer y reportes, cualquier
+  autenticado. Frontend `/despacho` (`Despacho.jsx`). **Nota:** el reporte de nacimientos usa el nombre de la
+  **madre** (el SISV aún no guarda el del recién nacido). Pruebas: `despacho/tests.py` (18). Pendientes:
+  registradores civiles con historial de vigencias y ampliar el certificado de nacimiento (PENDIENTES.md
+  §24.2 y §23.3).
+
 - `legacy`: **mapa de modelos del legado SISMAI** (no altera el flujo). App con `models_legacy.py`
   **generado** (modelos `managed=False`, solo lectura) para las **430 tablas/vistas** de
   `sismai`/`inbdlar1`/`legacy`/`historico`, y el inventario priorizado
@@ -439,7 +458,8 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
 - **Pruebas automatizadas (24/09/2026):** backend con `DJANGO_DB_ENGINE=sqlite manage.py test`
-  (163 pruebas a 01/10/2026: 115 de `backend/tests_sisv.py` + 33 de `conciliacion` (16 ENO +
+  (**181 pruebas a 01/10/2026**: 115 de `backend/tests_sisv.py` + 18 de `backend/despacho/tests.py`
+  + 33 de `conciliacion` (16 ENO +
   9 neonatal + 8 materna) + 9 de `registros/tests.py` (2 EV-14 y 7 de las secciones del
   certificado EV-14) + 6 de `registros/tests_recuperar_establecimiento.py`; requiere
   `__init__.py` en las

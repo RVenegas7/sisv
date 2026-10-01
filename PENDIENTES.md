@@ -2097,3 +2097,111 @@ compitiendo.
 
 **Recomendación: no construir el anexo como formulario de captura.** Construirlo como **reporte generado**
 desde nacimientos y defunciones, que es lo que el usuario necesita de verdad, y que además concilia.
+
+---
+
+## 24. [EN CURSO 01/10/2026] Despacho de certificados: el legacy no lo tiene, hay que construirlo
+
+### 24.1 Pedido del usuario (1)
+
+Módulo para controlar el **despacho de certificados de nacimiento y defunción**:
+
+- Registrar **fecha de entrega**, **centro médico**, **serie desde–hasta** de los certificados entregados y
+  la **cantidad** por centro.
+- Registrar el **responsable que recibe**.
+- **Reporte 1**: certificados de nacimiento y de defunción **por separado**, con nº de certificado,
+  nombre, apellido y fecha, **por centro médico**.
+- **Reporte 2**: los **entregados que aún no han sido retornados ni justificados**, con estatus:
+  - **Sin asignar** (entregado, todavía sin usar),
+  - **Dañado** (con acta de justificación: número y fecha),
+  - **En tránsito** (nombre, apellido y fecha en que salió del centro).
+- **Cruzar** contra la BD (Nacimientos/Defunciones ya cargados) para saber qué certificados están en uso.
+- Revisar el **legacy** para reconstruir serie/cantidad por centro y mes/año si fuera posible.
+- Mantener todo actualizado para que los reportes no mientan.
+
+### 24.2 Pedido del usuario (2): registradores civiles
+
+> **Pendiente anotado a pedido del usuario (01/10/2026):** llevar control de los **registradores civiles**.
+> Por cada registro civil / centro hay que saber **quién está a cargo y desde qué fecha**, y al cambiar
+> **dar de baja al anterior con fecha** e **ingresar el nuevo responsable con su fecha de toma de
+> posesión**. El objetivo es poder responder «¿quién firmaba en esta fecha?» de forma **retroactiva**, no
+> solo quién firma hoy. Debe modelarse como **historial con vigencias** (desde/hasta), no como un campo
+> suelto en la organización; un `Foreign` al usuario no alcanza porque el registrador civil **no tiene por
+> qué ser usuario del sistema**. Relacionado con `registro_civil_nombre` del EV-14 (§23.2) y con
+> `registrador_civil_nombres`/`cedula`.
+
+### 24.3 Hallazgo: el legacy no guarda el despacho (verificado en la BD local)
+
+El usuario sospechaba que la entrega se podía reconstruir del legacy. **No se puede**, y quedó verificado
+consultando el PostgreSQL local (`sis_salud_db`, la copia del Oracle 10g):
+
+| Tabla legacy | Qué habría guardado | Estado real |
+| --- | --- | --- |
+| `sismai.NUMERO_BD` | rango de números por establecimiento (`NATA_IDS`, `MORT_IDS`, `IDESTABLE`) | **0 filas** |
+| `sismai.HISTORICO_IDS` | consecutivo y nº de planilla (`CONSECUTIVO`, `NROPLANILLA_NUMEROMSDS`, `ANNO`, `BD`) | **0 filas** |
+| `sismai.CERTIFICADO` | el certificado cargado, con `HESTABLECIMIENTO`, `ANNOCERTIFICADO`, `NUMEROMSDS` | 173.533 filas (datos, no entrega) |
+
+Lo que sí tiene `sismai.CERTIFICADO`:
+
+- `HESTABLECIMIENTO` = el centro, pero **no es fiable como centro real**: 173.500 de 173.533 certificados
+  están bajo `67754` (el nivel central/regional). El centro verdadero se recupera por
+  `DOCUMENTO.HORIGEN` (es el mismo problema del establecimiento perdido, §17 y §19).
+- `ANNOCERTIFICADO` = año; `FECHA_M`/`FECHAELABORACION` = fechas. Sirven para agrupar **por mes/año**.
+- `NUMEROMSDS` = número **casi único** (173.471 distintos de 173.533) pero es un **contador global**: en el
+  centro 67754 va de 0 a **9.913.094.228**. **No se reinicia por centro ni por año**, así que **no define
+  una serie por establecimiento**.
+- `CERTIFICADO` y `NUMEROPARTIDA` = número de libro, pero **inservibles**: `CERTIFICADO` viene vacío en
+  18.785 filas y en `0` en 1.124, con duplicados por todas partes.
+- `CONSECUTIVO` (`000013-1031089`) = prefijo del **modelo de formulario** (161.728 comparten `000013`) +
+  consecutivo; el prefijo **no es el centro**.
+
+**Conclusión:** la entrega de talonarios (qué serie salió de la oficina, a qué centro, en qué fecha y a
+quién) **nunca vivió en el SISMAI**; se llevó en papel. El sistema nuevo tiene que **capturarla desde
+cero**. Lo único reconstruible del legacy es el **consumo** (certificados efectivamente llenados) por
+centro y mes/año, que es justamente uno de los reportes pedidos y que en el sistema nuevo sale directo de
+`registros.Nacimiento`/`registros.Defuncion`.
+
+### 24.4 Lógica de cruce propuesta
+
+- **Talonario entregado** (lo que se registra a mano): serie desde–hasta + cantidad + centro + fecha +
+  responsable.
+- **Consumo** (automático): contar los `Nacimiento`/`Defuncion` cuyo nº de certificado esté dentro de una
+  serie entregada a ese centro. El actual `registro_numero` es texto libre (`DEF-YYYY-XXXXXX`); para el
+  cruce hace falta que la serie y el `registro_numero` hablen el mismo idioma (número puro, o serie con
+  prefijo). **Es la decisión de diseño más importante y hay que tomarla con el usuario.**
+- **No retornado / sin justificar** = entregado − consumido − dañado − devuelto.
+
+### 24.5 Implementación (01/10/2026): app `despacho`
+
+Se construyó la app `backend/despacho/` (`Talonario`, `NovedadCertificado`; migración `0001_initial`).
+
+- **Rol nuevo `JEFE_UNIDAD` («Jefe de Unidad»)** en `seguridad.Perfil` (migración `seguridad.0004_alter_perfil_rol`)
+  y permiso `puede_despachar` en `seguridad/services.py::permisos_de` = superusuario o rol `JEFE_UNIDAD`/`DIRECTOR`.
+  Crear/editar/eliminar talonarios y novedades exige `puede_despachar`; leer y reportes, cualquier autenticado.
+- **`Talonario`**: tipo (NACIMIENTO/DEFUNCION), centro (FK `Organizacion`), `fecha_entrega`, `serie_desde`/`serie_hasta`,
+  `cantidad` calculada en `save()`, `responsable_recibe`/`responsable_entrega`, `observaciones`, `creado_por`/`creado_en`.
+  Restricciones: serie única por `(centro, tipo, desde, hasta)` y `serie_hasta >= serie_desde`.
+- **`NovedadCertificado`** (excepción, no una fila por certificado): `DANADO` / `EN_TRANSITO` / `DEVUELTO`, con
+  justificación (nº y fecha de acta) y datos del tránsito (nombres, apellidos, fecha de salida). Único por
+  `(talonario, numero)`.
+- **Cruce (`despacho/services.py`)**: se extrae el **sufijo numérico** del `registro_numero` (decisión del usuario:
+  «el Nº incluye el consecutivo de la serie») y se compara contra la serie del talonario, dentro del subárbol del
+  centro (`organizaciones_descendientes`). Un `registro_numero` sin dígitos finales se **ignora** (no cuenta ni como
+  usado ni como faltante). Faltante = rango − usados − dañados − devueltos − en tránsito.
+- **Endpoints** (`/api/despacho/`): `talonarios/` (GET/POST), `talonarios/<id>/` (GET/PATCH/DELETE),
+  `talonarios/<id>/certificados/` (detalle certificado por certificado + resumen), `novedades/` (GET/POST),
+  `novedades/<id>/` (PATCH/DELETE), `reportes/certificados/` (reporte 1, por centro y tipo; CSV) y
+  `reportes/pendientes/` (reporte 2, no retornados/justificados; CSV). Todos respetan `alcance_registros`.
+- **Nota**: en nacimientos el SISV **no guarda el nombre del recién nacido** (solo la madre), así que el reporte 1
+  de nacimientos identifica el certificado con el **nombre de la madre** y lo rotula (`persona: "Madre"`); se
+  resolverá al ampliar el certificado de nacimiento (§23.3).
+- **Frontend** `/despacho` (`Despacho.jsx`): formulario de talonario (con `CentroSelector`), tabla con resumen
+  (usados / sin asignar / dañados / en tránsito / devueltos), panel de detalle certificado por certificado con
+  alta/baja de novedades, y los dos reportes con exportación CSV.
+- **Pruebas**: `despacho/tests.py` (18) — permisos, cantidad calculada, serie inválida/duplicada, cruce
+  (usado/faltante/otro centro/descendiente/sin dígitos), novedades (fuera de serie/duplicada), alcance
+  (centro/regional) y reportes (JSON y CSV con BOM). Suite backend: **181 OK** (eran 163); frontend 13 OK;
+  `npm run build` OK.
+
+**Pendiente de este módulo:** registradores civiles con historial de vigencias (§24.2), ampliar el certificado
+de nacimiento (§23.3) y el registro semanal MM/MN (§23.4).

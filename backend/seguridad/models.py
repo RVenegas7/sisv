@@ -55,6 +55,7 @@ class Perfil(models.Model):
     ROL_VIGILANCIA = "VIGILANCIA"
     ROL_SECRETARIA = "SECRETARIA"
     ROL_DIRECTOR = "DIRECTOR"
+    ROL_JEFE_UNIDAD = "JEFE_UNIDAD"
     ROL_CHOICES = [
         (ROL_TRANSCRIPTOR, "Transcriptor"),
         (ROL_CODIFICADOR, "Codificador"),
@@ -62,6 +63,7 @@ class Perfil(models.Model):
         (ROL_VIGILANCIA, "Vigilancia"),
         (ROL_SECRETARIA, "Secretaría"),
         (ROL_DIRECTOR, "Director"),
+        (ROL_JEFE_UNIDAD, "Jefe de Unidad"),
     ]
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="perfil")
