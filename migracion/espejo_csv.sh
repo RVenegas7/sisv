@@ -10,9 +10,20 @@
 #      armar un respaldo. `sqlplus / as sysdba` no necesita ninguna.
 #   2. Un .dmp es binario de Oracle: PostgreSQL no lo puede leer
 #      (AGENTS.md / PENDIENTES 17.8). El CSV si.
-#   3. Con `sqlplus / as sysdba` (autenticacion del SO) no hace falta
-#      ninguna clave de base, y tampoco se toca la produccion.
+#   3. Con la cuenta del SO (`oracle`) no hace falta ninguna clave de base,
+#      y tampoco se toca la produccion.
 # El .dmp queda como pendiente para cuando el DBA entregue una clave.
+#
+# CUENTA USADA (verificado 02/10/2026): por defecto `respaldo`, NO `oracle`.
+# `oracle` es el unico del grupo dba (el que si podria `sqlplus / as sysdba`)
+# pero no tiene clave conocida; `respaldo` si abre sesion por SSH y lee los
+# datos. Lo que se pierde con `respaldo`:
+#   - `sqlplus / as sysdba` responde ORA-01031 insufficient privileges, asi
+#     que la conexion va con usuario/clave: CONEXION="respaldo/respaldo".
+#   - NO ve el esquema TEMP (las 82 T_* del sobre): no sale en ALL_TABLES.
+#     Para el espejo historico da igual, porque TEMP se recrea cada martes y
+#     no guarda nada que no se pueda volver a extraer de SISMAI.
+# Con USUARIO=oracle el script vuelve a su comportamiento original.
 #
 # Encoding: la base es WE8ISO8859P1 (verificado con
 # NLS_DATABASE_PARAMETERS el 30/09/2026, no WE8MSWIN1252 como decia
@@ -31,8 +42,8 @@
 set -uo pipefail
 
 HOST="${HOST:-192.168.5.200}"
-USUARIO="${USUARIO:-oracle}"
-# La clave del SO NO va con valor por defecto: se lee del entorno o de
+USUARIO="${USUARIO:-respaldo}"
+# La clave NO va con valor por defecto: se lee del entorno o de
 # legancy_conf/credenciales.env (ignorado por git).
 set -a
 [ -f "$(dirname "$0")/../legancy_conf/credenciales.env" ] && \
@@ -46,6 +57,14 @@ if [ -z "$CLAVE" ]; then
 fi
 ORACLE_HOME="/opt/oracle"
 ORACLE_SID="lar1"
+# Como se conecta sqlplus. El usuario SO (oracle) va con autenticacion del
+# sistema, sin clave de base; cualquier otro usuario va con usuario/clave,
+# porque `/ as sysdba` sin ser DBA da ORA-01031 (comprobado el 02/10).
+if [ "$USUARIO" = "oracle" ]; then
+  CONEXION="${CONEXION:-/ as sysdba}"
+else
+  CONEXION="${CONEXION:-$USUARIO/$CLAVE}"
+fi
 ESQUEMAS="${ESQUEMAS:-SISMAI TEMP HISTORICO INBDLAR1}"
 SIMULAR="${SIMULAR:-0}"
 # Filas por paquete: agrupa en un solo INSERT para que el spool no
@@ -59,7 +78,10 @@ SIN_CONTEO="'EVENTOS_SINC','EVENTOS_DBLINK','EVENTOS_RESP','ERRORES_SINC'"
 
 FECHA="$(date +%Y%m%d)"
 HORA="$(date +%H%M)"
-DIR="/home/oracle/espejo_csv_${FECHA}_${HORA}"
+# El destino va en el home del usuario con el que se entra, no en
+# /home/oracle: `respaldo` no puede escribir ahi (02/10). Con USUARIO=oracle
+# HOME es /home/oracle y el comportamiento es el de siempre.
+DIR="${DIR:-\$HOME/espejo_csv_${FECHA}_${HORA}}"
 LOG_LOCAL="/tmp/opencode/espejo_csv_${FECHA}_${HORA}.log"
 
 sxs() { sshpass -p "$CLAVE" ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 "$USUARIO@$HOST" "$@"; }
@@ -84,7 +106,7 @@ if [ -n "$(sxs "ps -ef | grep -E '[e]xp |[e]xpdp' | grep -v grep" 2>/dev/null)" 
 fi
 echo " [ OK ]   no hay ningun exp/expdp corriendo"
 
-if [ -d "$DIR" ]; then
+if [ -n "$(sxs "test -d $DIR && echo existe" 2>/dev/null)" ]; then
   echo " [FALLO] $DIR ya existe; no se pisa un espejo a medio hacer"
   exit 1
 fi
@@ -96,7 +118,7 @@ echo " [ OK ]   creado $DIR"
 # carga despues. Sin esto no hay forma de saber si algo se perdio.
 echo
 echo ">> 1. Volcado de control (conteo por tabla)"
-sxs "export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH NLS_LANG=AMERICAN_AMERICA.AL32UTF8; sqlplus -S / as sysdba <<'EOF'
+sxs "export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH NLS_LANG=AMERICAN_AMERICA.AL32UTF8; sqlplus -S $CONEXION <<'EOF'
 SET PAGESIZE 0 FEEDBACK OFF HEADING OFF TRIMSPOOL ON LINESIZE 300
 SPOOL $DIR/conteo_tablas.csv
 -- LAST_DDL_TIME no existe en ALL_TABLES de 10.1 (comprobado el
@@ -113,13 +135,20 @@ SPOOL OFF
 EXIT;
 EOF" 2>&1 | tail -3
 CONT="$(sxs "wc -l < $DIR/conteo_tablas.csv" 2>/dev/null | tr -dc '0-9')"
-if [ -n "${CONT:-}" ] && [ "$CONT" -ge 400 ]; then
-  echo " [ OK ]   conteo_tablas.csv con $CONT tablas"
+# El piso depende de quien entre: con `oracle` (DBA) se ven las 525 tablas de
+# los 4 esquemas; con `respaldo` NO se ve TEMP, y son 443 (SISMAI 350 +
+# INBDLAR1 83 + HISTORICO 10, contado el 02/10). El contraste que de verdad
+# importa es el del paso 2: los CREATE TABLE tienen que ser exactamente los
+# del conteo. Este piso solo esta para que un sqlplus que no se pudo
+# conectar (0 filas) no se reporte como un OK.
+MIN_CONT="${MIN_CONT:-400}"
+if [ -n "${CONT:-}" ] && [ "$CONT" -ge "$MIN_CONT" ]; then
+  echo " [ OK ]   conteo_tablas.csv con $CONT tablas (piso $MIN_CONT)"
 else
   # Un "OK" con 0 filas es peor que un fallo: el 30/09 asi se reporto un
   # sqlplus que ni se pudo conectar. Si el conteo no cuadra con las ~520
   # tablas no-system, algo fallo y hay que verlo antes de seguir.
-  echo " [FALLO] conteo_tablas.csv tiene ${CONT:-0} lineas (se esperaban ~520)."
+  echo " [FALLO] conteo_tablas.csv tiene ${CONT:-0} lineas (piso $MIN_CONT; se esperaban ~520)."
   sxs "head -3 $DIR/conteo_tablas.csv 2>/dev/null" 2>/dev/null | sed 's/^/           /'
   exit 1
 fi
@@ -127,7 +156,7 @@ fi
 # --- 2. Volcado de control: DDL --------------------------------------
 echo
 echo ">> 2. Volcado de la estructura (una vez por esquema)"
-sxs "export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH NLS_LANG=AMERICAN_AMERICA.AL32UTF8; sqlplus -S / as sysdba <<'EOF'
+sxs "export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH NLS_LANG=AMERICAN_AMERICA.AL32UTF8; sqlplus -S $CONEXION <<'EOF'
 SET LINESIZE 32767 PAGESIZE 0 LONG 100000 LONGCHUNKSIZE 32767 TRIMSPOOL ON FEEDBACK OFF HEADING OFF
 SPOOL $DIR/estructura.sql
 -- GET_DDL en un SELECT puro, sin DBMS_OUTPUT: el buffer de DBMS_OUTPUT
@@ -155,7 +184,7 @@ fi
 if [ "$SIMULAR" = "1" ]; then
   echo
   echo "== SIMULACION: no se extrae nada. Se extraerian estos CSV: =="
-  sxs "export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH NLS_LANG=AMERICAN_AMERICA.AL32UTF8; sqlplus -S / as sysdba <<'EOF'
+  sxs "export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH NLS_LANG=AMERICAN_AMERICA.AL32UTF8; sqlplus -S $CONEXION <<'EOF'
 SET PAGESIZE 0 FEEDBACK OFF HEADING OFF
 SELECT OWNER||'/'||TABLE_NAME||'.csv  (~'||NVL(NUM_ROWS,0)||' filas)'
   FROM ALL_TABLES WHERE OWNER IN ($LISTA_IN)
@@ -187,7 +216,7 @@ fi
 # EOF (ORA-00942 con el esquema literal).
 echo
 echo ">> 3. Extrayendo datos (4 sqlplus simultaneos)"
-GENERADOR="/home/oracle/gen_espejo_${HORA}.sql"
+GENERADOR="${DIR}/gen_espejo_${HORA}.sql"
 sxs "cat > $GENERADOR <<'GEN'
 SET PAGESIZE 0 FEEDBACK OFF HEADING OFF LINESIZE 32767
 SET ESCAPE ON VERIFY OFF ECHO OFF
@@ -216,7 +245,7 @@ while read -r ESQ TAB; do
   esac
   # Orden de los parametros segun los DEFINE del generador:
   # SAL=&1 (ruta del csv), ESQ=&2, TAB=&3.
-  sxs "export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH NLS_LANG=AMERICAN_AMERICA.AL32UTF8; nohup sqlplus -S / as sysdba @$GENERADOR $DIR/${ESQ}_${TAB}.csv $ESQ $TAB > $DIR/${ESQ}_${TAB}.nohup 2>&1 &" 2>/dev/null
+  sxs "export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH NLS_LANG=AMERICAN_AMERICA.AL32UTF8; nohup sqlplus -S $CONEXION @$GENERADOR $DIR/${ESQ}_${TAB}.csv $ESQ $TAB > $DIR/${ESQ}_${TAB}.nohup 2>&1 &" 2>/dev/null
   LANZADOS=$((LANZADOS + 1))
   # Con 4 a la vez: por encima de eso el UNDO de 1G se satura (§17.7
   # ya lo registro: 429.500 filas de prueba dieron "log buffer space").
@@ -224,7 +253,7 @@ while read -r ESQ TAB; do
     # Espera a que baje de 4 antes de lanzar el siguiente grupo.
     while [ "$(sxs "pgrep -c sqlplus" 2>/dev/null | tr -dc '0-9')" -ge 4 ]; do sleep 10; done
   fi
-done < <(sxs "export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH NLS_LANG=AMERICAN_AMERICA.AL32UTF8; sqlplus -S / as sysdba <<'EOF'
+done < <(sxs "export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH NLS_LANG=AMERICAN_AMERICA.AL32UTF8; sqlplus -S $CONEXION <<'EOF'
 SET PAGESIZE 0 FEEDBACK OFF HEADING OFF TRIMSPOOL ON
 SELECT OWNER||' '||TABLE_NAME FROM ALL_TABLES WHERE OWNER IN ($LISTA_IN) ORDER BY OWNER, TABLE_NAME;
 EXIT;

@@ -1846,7 +1846,9 @@ resuelto. La MM no se puede sacar del CIE mientras la codificación siga así.
 
 ---
 
-## 22. [PENDIENTE — ejecutar 01/10/2026] Respaldo total del Oracle yunque la sincronización sigue rota
+## 22. [EJECUTADO 02/10/2026 — paso 1 cerrado y verificado] Respaldo total del Oracle yunque la sincronización sigue rota
+
+> **El 02/10, en la oficina, el paso 1 se ejecutó y se verificó** (§22.7). Sigue pendiente lo demás: recompilar los 16 objetos (§22.3), que salgan 5 archivos (§22.4) y reevaluar (§22.5).
 
 **Lo que pidió el usuario el 30/09:** respaldar la base de producción, corregir lo que impide que la
 sincronización produzca los 5 archivos, y reevaluar los hallazgos después de que corra. **Alcance de esta
@@ -1993,6 +1995,84 @@ listos; el despliegue sigue pendiente de ejecución). Al ejecutar mañana, actua
 resultado real y mover lo que quede a §22.5._
 
 ---
+
+### 22.7 [HECHO 02/10/2026] El respaldo salió, se verificó con `imp`, y no hizo falta ninguna clave nueva
+
+Ejecutado desde la oficina contra `192.168.5.200`. **Copia local en `/home/program/respaldos_sismai/`**
+(permisos `600`, con `SHA256SUMS.txt`; los hashes coinciden 4/4 con los del servidor).
+
+| Esquema | `.dmp` | Objetos que lee `imp SHOW=Y` |
+| --- | --- | --- |
+| SISMAI | 1.023 MB | 350 |
+| HISTORICO | 91 MB | 10 |
+| INBDLAR1 | 2,9 MB | 83 |
+| TEMP | 16 KB | **0** |
+
+- **TEMP sale vacío** porque `respaldo` no ve ese esquema. No es un `.dmp` roto: es que la cuenta no
+  tiene permiso. Para respaldar TEMP hace falta otra cuenta.
+- **La verificación que sí importa es `imp ... SHOW=Y FROMUSER=<esquema>`**: que el `.dmp` pese y el
+  log diga «terminado» no prueba nada, porque un export cortado también pesa. `imp` recorre el archivo
+  entero sin escribir nada y avisa si está truncado. Sin `FROMUSER` responde `IMP-00031`, y el `USERID`
+  va en la línea de comandos porque si no, en segundo plano, cae a pedir el usuario por stdin.
+- `respaldo_total.sh` quedó **fusionado** entre lo escrito desde casa (secuencial por esquema, parfile
+  con `chmod 600` que se borra al final, `GRANTS`/`INDEXES`/`CONSTRAINTS=Y`) y lo corregido en la
+  oficina. Tres cosas que solo se learn en la oficina: la cuenta por defecto es `respaldo` (`oracle`
+  no tiene clave conocida), el destino va en `$HOME` (a `respaldo` no le escribe `/home/oracle`), y
+  **la espera del export no puede ser por PID** porque `exp` hace fork: el proceso que devuelve
+  `echo $!` muere mientras el hijo sigue escribiendo, y eso se midió como un `.dmp` de 351 MB de los
+  1,02 GB finales. Ahora se espera la línea de fin del log, y el éxito se acepta en inglés y en
+  español porque sale según `NLS_LANG` (buscar solo «terminado correctamente» marcó `[REVISAR]` un
+  export que sí había terminado).
+- **`espejo_csv.sh`** quedó adaptado a `respaldo` y validado (443 tablas, 443 `CREATE TABLE`), pero
+  **sin extraer datos**: es la vía para PostgreSQL, no un respaldo.
+
+**El quinto archivo tiene dueño:** el cliente Windows `192.168.5.133` tiene el cliente Oracle y
+Centuria y ejecuta `SistemaTransferencia.exe`, que vive en el share del servidor
+(`/home/salud/Aplicaciones/SISMAI/`). Desde el equipo de desarrollo responde SMB 139/445 y RPC 135,
+pero **RDP 3389 está cerrado**: hace falta habilitarlo o ir a esa máquina.
+
+### 22.8 ✅ El colapso de captura 2019-2021 es real en el ORIGEN: la pérdida es definitiva
+
+`migracion/diagnostico_hueco_2019_2021.sh` **ejecutado contra `192.168.5.200`** el 02/10/2026, solo
+lectura. Salida de referencia: `auditoria/diagnostico_hueco_2019_2021_20261002.txt`.
+
+La pregunta era binaria — ¿los certificados están en el origen y no se extrajeron, o nunca se
+capturaron? — y la respuesta es la mala: **el origen tampoco los tiene.**
+
+| Serie | Normal | Colapso | Normal de nuevo |
+| --- | --- | --- | --- |
+| Defunciones | ~1.000/mes | **2019-06 → 2020-12** (11-95/mes) | 2021-01 (1.249) |
+| Nacimientos | ~2.800/mes | **2019-09 → 2021-12** (5-398/mes) | **no se recuperó** |
+
+**Contrastado mes a mes contra el espejo PostgreSQL: cuadran.** 48 meses de defunciones, diferencias
+de 1 a 3 registros (2018-06: origen 1.165 vs espejo 1.162), que son los certificados con `FECHA_M`
+nula que el filtro de mes no cuenta en uno de los dos lados. **El importador es fiel: no hay bug que
+corregir y no hay nada que reextraer.**
+
+**Corrige una afirmación anterior:** se decía que la natalidad «se recuperaba» en 2021-12. **No se
+recuperó**: 2021-12 son **45 nacimientos**, el mes más bajo de toda la serie, después de 29 meses por
+debajo de 400. Al publicar hay que decirlo así: entre 2019-09 y 2021-12 la serie de nacimientos no
+es una caída, es un vacío de dos años y medio.
+
+**Y el alcance del problema:** en el origen hay certificados hasta el **20/09/2026** y nacimientos
+hasta el **11/09/2026**. O sea que el origen **sí sigue capturando**; lo que falta es que esos datos
+lleguen a PostgreSQL, que es el problema de §22.4, no una pérdida histórica.
+
+#### La conexión a `sqlplus` en ese servidor, y cuatro bugs del script
+
+Solo funciona **Easy Connect con el servicio `bdlar1`**:
+`sqlplus -s respaldo/respaldo@//localhost:1521/bdlar1`. Las otras tres fallan: usuario/clave a
+secas → `ORA-12162`; `@lar1` → `ORA-12154` (no hay alias TNS); `@//host:1521/lar1` → `ORA-12514`,
+porque **`lar1` es el SID y el servicio se llama `bdlar1`** (sale del `SID_LIST_LISTENER` del
+`listener.ora`; el listener está sano y `lar1` está READY). Los scripts ya usan esa cadena.
+
+Los otros tres fallos eran del script, no del servidor: `ORACLE_HOME` no viajaba al remoto (sin él
+`sqlplus` da *Error 6 initializing SQL* / *sp1<lang>.msb not found*, que parece de permisos y es
+otra cosa); el `ENV_ORACLE` iba sin `;` y bash intentaba exportar el comando entero; y **el resumen
+salía vacío con los 48 meses ahí cargados**, porque el awk usaba `-F'|'` y sqlplus en `-S` alinea
+los campos con tabulaciones (`MESES\t\t2018-01 \t\t    1172`). Con `[ \t]+` funciona. Ese
+último es el peor tipo de fallo —aparenta que no hay datos cuando sí los hay— y era el único que
+quedaba sin detectar, porque el script «terminaba bien».
 
 ## 23. [PARCIAL 01/10/2026] Los certificados oficiales: EV-14 hecho, EV de nacimiento y el registro semanal MM/MN pendientes
 

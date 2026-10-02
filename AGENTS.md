@@ -295,7 +295,34 @@ Idioma de trabajo: **responder siempre en español**.
   diagnóstico 25/09/2026, detalle en PENDIENTES.md §17. NO modificar sin autorización expresa:**
   - Acceso de solo lectura: `ssh respaldo@192.168.5.200` + `export ORACLE_HOME=/opt/oracle
     ORACLE_SID=lar1` + `sqlplus -s respaldo/respaldo` (sin alias TNS: `@lar1` da `ORA-12154`).
-    La **única** cuenta con DBA es la de SO **`oracle`** (grupo `dba`) vía `sqlplus / as sysdba`.
+    La **única** cuenta con DBA es la de SO **`oracle`** (grupo `dba`) vía `sqlplus / as sysdba`,
+    pero **no tiene clave conocida** (por llave pública da *Permission denied*): todo lo del
+    02/10/2026 se hizo con `respaldo`, que también sirve para `exp`/`imp` (`USERID=respaldo/respaldo`).
+    **`legancy_conf/credenciales.env`** (ignorado por git) tiene host, usuarios y `NLS_LANG`; los
+    scripts de `migracion/` lo leen solos. Ojo: **`NLS_LANG` sin definir hace fallar `sqlplus`** con
+    *Error 6 initializing SQL* / *sp1\<lang\>.msb not found*, que parece de permisos y no lo es
+    (la base es `WE8ISO8859P1`, hay que forzar `AL32UTF8`).
+    `respaldo` lee 443 de las 525 tablas (SISMAI 350 / INBDLAR1 83 / HISTORICO 10) y **no ve TEMP**.
+  - **Conexión a `sqlplus` en ese servidor: solo funciona Easy Connect con el SERVICIO `bdlar1`**:
+    `sqlplus -s respaldo/respaldo@//localhost:1521/bdlar1`. Las otras tres fallan (02/10):
+    usuario/clave a secas → `ORA-12162`; `@lar1` → `ORA-12154` (no hay alias TNS);
+    `@//host:1521/lar1` → `ORA-12514`, porque **`lar1` es el SID y el servicio se llama `bdlar1`**
+    (sale del `SID_LIST_LISTENER` de `/opt/oracle/network/admin/listener.ora`; el listener escucha
+    en 1521 y `lar1` está READY). Los scripts de `migracion/` ya usan esa cadena.
+  - **El colapso de captura 2019-2021 es real en el origen (02/10/2026, §22.8):** defunciones
+    ~1.000/mes → 11-95 entre 2019-06 y 2020-12; nacimientos ~2.800/mes → 5-398 entre 2019-09 y
+    2021-12 **y sin recuperarse**. PostgreSQL cuadra mes a mes con el Oracle: **no hay nada que
+    reextraer**, el importador es fiel.
+  - **Cliente Windows `192.168.5.133`** (verificado 02/10/2026, PENDIENTES.md §22.7): tiene el
+    cliente Oracle y Centuria, y **ejecuta `SistemaTransferencia.exe`**, que vive en el share del
+    servidor (`/home/salud/Aplicaciones/SISMAI/`). Desde el equipo de desarrollo responde SMB
+    139/445 y RPC 135; **RDP 3389 cerrado**. Es el que produce el quinto archivo del sobre
+    (`repllar1*.log`), y por eso **no hay ningún cron en el Linux que lo genere**.
+  - **Respaldo verificado (02/10/2026, §23):** `migracion/respaldo_total.sh` produjo los 4 `.dmp`
+    (SISMAI 1.023 MB / HISTORICO 91 MB / INBDLAR1 2,9 MB / TEMP 16 KB) con `imp SHOW=Y FROMUSER=`
+    confirmando que se leen. El parfile lleva `OWNER=` **sin** `FULL=Y` (son excluyentes:
+    `EXP-00026`), y la espera del export se hace por la **línea de fin del log**, no por PID
+    (`exp` fork-ea y `kill -0` miente).
   - **`SISMAI.EVENTOS_SINC` fue DROP+recreada el 21/09 09:08:37** (`SincFich/crear.sql`) y tiene
     **16.741 filas**; el backlog de 3,37 M **ya no existe en la cola viva** (solo en los ZIP del
     21/09, que confirman que lo capturaron pero no prueban su recepción central). PostgreSQL no lo tiene

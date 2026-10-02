@@ -43,7 +43,30 @@ USUARIO="${USUARIO:-respaldo}"
 CLAVE="${CLAVE:-respaldo}"
 ORACLE_SID="${ORACLE_SID:-lar1}"
 SQLPLUS="${SQLPLUS:-/opt/oracle/bin/sqlplus}"
+ORACLE_HOME="${ORACLE_HOME:-/opt/oracle}"
 NLS_LANG="${NLS_LANG:-SPANISH_SPAIN.AL32UTF8}"
+# El environment Oracle tiene que viajar al remoto. Sin ORACLE_HOME en el
+# entorno, `sqlplus` no encuentra ni sus propios archivos de mensajes y
+# falla con "Error 6 initializing SQL*Plus / sp1<lang>.msb not found",
+# que parece de permisos y es otra cosa (02/10).
+# Ojo: `ENV_ORACLE NLS_LANG=... $ORDEN` sin `&&` en el medio hace que bash
+# intente exportar el comando entero y falla con "not a valid identifier".
+# El `;` separa el export de la ejecucion.
+ENV_ORACLE="export ORACLE_HOME=$ORACLE_HOME PATH=$ORACLE_HOME/bin:\$PATH;"
+# Cadena de conexion de sqlplus. Es Easy Connect (nombre de SERVICIO, no
+# SID) porque es la unica forma que funciona aqui, y las tres alternativas
+# fallan, todas comprobadas el 02/10/2026:
+#   usuario/clave                -> ORA-12162 (no hay nombre de servicio)
+#   usuario/clave@lar1           -> ORA-12154 (no hay alias TNS; el
+#                                   listener advertido en AGENTS.md)
+#   usuario/clave@//host:1521/lar1-> ORA-12514 (lar1 es el SID; el
+#                                   SERVICIO se llama bdlar1, segun el
+#                                   SID_LIST_LISTENER del listener.ora)
+# El listener escucha en 1521 y `lsnrctl status` da lar1 READY. Ojo: con
+# Easy Connect el ORACLE_SID del entorno deja de hacer falta para resolver.
+SERVICIO="${SERVICIO:-bdlar1}"
+HOST_SQL="${HOST_SQL:-localhost:1521}"
+CONEXION="${SQLPLUS_CONEXION:-$USUARIO/$CLAVE@//$HOST_SQL/$SERVICIO}"
 CSV_SALIDA="salida_diagnostico_2019_2021.txt"
 
 [ -r "$SQL" ] || { echo "ERROR: no existe $SQL" >&2; exit 1; }
@@ -85,12 +108,12 @@ if [ -n "$HOST" ]; then
   # El SID va DENTRO de la cadena de conexion ('usuario/clave@lar1'): en este
   # servidor no hay alias TNS, y un '@lar1' aparte da ORA-12154. El &1/&2 del SQL
   # los rellena sqlplus con los argumentos que van al final.
-  ORDEN="$SQLPLUS -s '$USUARIO/$CLAVE@$ORACLE_SID' @$remoto_sql '$DESDE' '$HASTA'"
+  ORDEN="$SQLPLUS -s '$CONEXION' @$remoto_sql '$DESDE' '$HASTA'"
   if [ "${SIMULAR:-0}" = "1" ]; then
-    simular "ssh $USUARIO@$HOST 'cd $REMOTE_DIR && NLS_LANG=$NLS_LANG $ORDEN'"
+    simular "ssh $USUARIO@$HOST 'cd $REMOTE_DIR && $ENV_ORACLE NLS_LANG=$NLS_LANG $ORDEN'"
   else
     sshpass -e ssh -o StrictHostKeyChecking=no "$USUARIO@$HOST" \
-      "cd '$REMOTE_DIR' && NLS_LANG=$NLS_LANG $ORDEN" > "$SALIDA/$CSV_SALIDA" 2>&1 || {
+      "cd '$REMOTE_DIR' && $ENV_ORACLE NLS_LANG=$NLS_LANG $ORDEN" > "$SALIDA/$CSV_SALIDA" 2>&1 || {
       echo "ERROR: fallo sqlplus en remoto." >&2
       cat "$SALIDA/$CSV_SALIDA" >&2 || true
       echo "        No se puede distinguir un error de conexion de uno de SQL en" >&2
@@ -106,12 +129,12 @@ if [ -n "$HOST" ]; then
   fi
 else
   echo ">> 1/3 ejecutando sqlplus en local"
-  ORDEN="$SQLPLUS -s '$USUARIO/$CLAVE@$ORACLE_SID' @$SQL '$DESDE' '$HASTA'"
+  ORDEN="$SQLPLUS -s '$CONEXION' @$SQL '$DESDE' '$HASTA'"
   if [ "${SIMULAR:-0}" = "1" ]; then
     simular "cd $SALIDA && NLS_LANG=$NLS_LANG $ORDEN > $CSV_SALIDA"
   else
-    ( cd "$SALIDA" && NLS_LANG="$NLS_LANG" \
-      $SQLPLUS -s "$USUARIO/$CLAVE@$ORACLE_SID" "@$SQL" "$DESDE" "$HASTA" \
+    ( cd "$SALIDA" && ORACLE_HOME="$ORACLE_HOME" NLS_LANG="$NLS_LANG" \
+      $SQLPLUS -s "$CONEXION" "@$SQL" "$DESDE" "$HASTA" \
       > "$CSV_SALIDA" 2>&1 ) || {
       echo "ERROR: fallo sqlplus." >&2
       cat "$SALIDA/$CSV_SALIDA" >&2 || true
@@ -130,32 +153,49 @@ fi
 
 [ -s "$SALIDA/$CSV_SALIDA" ] || { echo "ERROR: no hay salida en $SALIDA/$CSV_SALIDA" >&2; exit 1; }
 
-# El SQL devuelve "bloque;mes;n". Se resume minimo/maximo por bloque para
-# responder la pregunta de un vistazo, sin obligar a abrir el archivo.
+# Se resume minimo/maximo por bloque para responder la pregunta de un
+# vistazo, sin obligar a abrir el archivo.
+#
+# OJO con el parseo: el SQL arma 'bloque|mes|n', pero sqlplus en -S no deja
+# los campos como una columna limpia, los alinea con tabulaciones y mete
+# espacios (el numero sale como "MESES\t\t2018-01 \t\t    1172"). Por eso
+# el separador de campo es [ \t]+ y no '|'. Con -F'|' el resumen salia
+# VACIO con los 48 meses bien cargados (02/10), que es lo peor que puede
+# pasar: aparenta que no hay datos.
 echo
 echo "--- resumen por bloque ---"
-awk -F'|' '
-  /^(MESES|NACIMIENTOS|ULTIMO_DEFUNCION|ULTIMO_NACIMIENTO)\|/ {
-    bloque=$1; mes=$2; n=$3
-    if (bloque ~ /^ULTIMO/) { printf "  %-22s %s\n", bloque, mes; next }
-    if (!(bloque in min) || n+0 < min[bloque]) min[bloque]=n+0
-    if (n+0 > max[bloque]) max[bloque]=n+0
-    suma[bloque]+=n+0
-    n_meses[bloque]++
-    if (!(bloque in mes_ultimo) || mes > mes_ultimo[bloque]) mes_ultimo[bloque]=mes
-    if (!(bloque in mes_minimo) || mes < mes_minimo[bloque]) mes_minimo[bloque]=mes
+# El SQL arma la cadena 'bloque|mes|n', pero sqlplus en modo -S no la deja
+# como una sola columna: alinea los campos con tabulaciones y mete espacios
+# (la columna queda ancha y la barra acaba separada del dato). Por eso el
+# resumen se parsea con una expresion regular, no con -F'|'. Con -F'|'
+# el resumen salia VACIO aunque la consulta trajera los 48 meses bien
+# (02/10), que es el peor fallo posible: parece que no hay datos.
+awk -F'[ \t]+' '
+  $1=="MESES"       { b="MESES";         mes=$2; n=$3 }
+  $1=="NACIMIENTOS" { b="NACIMIENTOS";   mes=$2; n=$3 }
+  b!="" && mes ~ /^[0-9]{4}-[0-9]{2}$/ && n ~ /^[0-9]+$/ {
+    suma[b]+=n+0; c[b]++
+    if (!(b in mn) || n+0 < mn[b]) mn[b]=n+0
+    if (n+0 > mx[b])              mx[b]=n+0
+    if (!(b in u)  || mes >  u[b]) u[b]=mes
+    if (!(b in s)  || mes <  s[b]) s[b]=mes
   }
   END {
-    for (b in suma)
+    for (k in suma)
       printf "  %-11s %s a %s · %2d meses · min %5d · max %5d · total %6d\n",
-             b, mes_minimo[b], mes_ultimo[b], n_meses[b], min[b], max[b], suma[b]
+             k, s[k], u[k], c[k], mn[k], mx[k], suma[k]
   }
 ' "$SALIDA/$CSV_SALIDA" | sort
 
 echo
-echo "--- meses por debajo de 400 en el rango (señal de colapso) ---"
-awk -F'|' '/^(MESES|NACIMIENTOS)\|/ && $3+0 < 400 { printf "  %-11s %s  %5d\n", $1, $2, $3 }' \
-  "$SALIDA/$CSV_SALIDA" || true
+echo "--- meses por debajo de 400 en el rango (senal de colapso) ---"
+awk -F'[ \t]+' '
+  $1=="MESES"       { b="MESES";       mes=$2; n=$3 }
+  $1=="NACIMIENTOS" { b="NACIMIENTOS"; mes=$2; n=$3 }
+  b!="" && mes ~ /^[0-9]{4}-[0-9]{2}$/ && n ~ /^[0-9]+$/ && n+0 < 400 {
+    printf "  %-11s %s  %5d\n", b, mes, n
+  }
+' "$SALIDA/$CSV_SALIDA" | head -60 || true
 
 echo
 echo "Interpretacion:"

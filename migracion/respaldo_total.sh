@@ -27,7 +27,7 @@
 set -uo pipefail
 
 HOST="${HOST:-192.168.5.200}"
-USUARIO="${USUARIO:-oracle}"
+USUARIO="${USUARIO:-respaldo}"
 # Las claves del SO y de la BD NO van con valor por defecto: se leen del
 # entorno o de legancy_conf/credenciales.env (ignorado por git).
 #   CLAVE / SSHPASS_ORACLE : clave del SSH (abre el servidor).
@@ -47,14 +47,15 @@ if [ -z "$CLAVE" ]; then
   exit 1
 fi
 if [ -z "$CLAVE_ORACLE" ]; then
-  echo "Falta CLAVE_ORACLE (clave de una cuenta de BASE con permisos de lectura)."
-  echo "La clave del SO solo abre el SSH; contra Oracle da ORA-01017."
-  echo "Pida la clave al DBA o defina CLAVE_ORACLE en legancy_conf/credenciales.env (ignorado por git)."
-  exit 1
+  CLAVE_ORACLE="$CLAVE"
+  echo " AVISO: sin CLAVE_ORACLE; se usa la clave del SO."
+  echo "        Solo es valido si la cuenta de base tiene la misma clave (aqui, si)."
 fi
 ORACLE_HOME="/opt/oracle"
 ORACLE_SID="lar1"
-DESTINO_BASE="/home/oracle"
+# El destino va en el home del usuario con el que se entra: `respaldo`
+# no puede escribir en /home/oracle (verificado el 02/10).
+DESTINO_BASE="${DESTINO_BASE:-\$HOME}"
 ESQUEMAS="${ESQUEMAS:-SISMAI TEMP HISTORICO INBDLAR1}"
 SIMULAR="${SIMULAR:-0}"
 # Cuenta de BASE para `exp` (la da el DBA). La del SO no sirve. Puede ser
@@ -104,7 +105,7 @@ if [ "$SIMULAR" = "1" ]; then
   echo "  Para cada esquema, de forma SECUENCIAL (el UNDO es de 1 GB):"
   for e in $ESQUEMAS; do
     echo "  exp PARFILE=$DIR/exp_$e.par OWNER=$e LOG=$DIR/exp_$e.log"
-    echo "     -> $DIR/${e}_full_${FECHA}.dmp"
+    echo "     -> $DIR/${e}_${FECHA}.dmp"
   done
   echo
   echo "== Fin de la simulacion. Quite SIMULAR=1 para ejecutar. =="
@@ -132,7 +133,7 @@ CONSTRAINTS=Y
 CONSISTENT=Y
 DIRECT=N
 LOG=$DIR/exp_$e.log
-FILE=$DIR/${e}_full_${FECHA}.dmp
+FILE=$DIR/${e}_${FECHA}.dmp
 PARFILE
   sxs "chmod 600 $PAR" 2>/dev/null || true
   echo "   arrancando exp $e ... (log: $DIR/exp_$e.log)"
@@ -145,11 +146,21 @@ PARFILE
   # --- Esperar a que ESTE esquema termine antes del siguiente -----------
   echo "   esperando a $e (pid ${PID_EXP:-?})..."
   INT=0
+  ESTABLE=0
   while [ "$INT" -lt 120 ]; do
-    [ -z "${PID_EXP:-}" ] && break
-    VIVO="$(sxs "ps -p $PID_EXP -o pid= 2>/dev/null | wc -l" 2>/dev/null | tr -dc '0-9')"
-    [ "${VIVO:-0}" = "0" ] && break
+    TERMINO="$(sxs "grep -qiE 'terminated successfully|terminado correctamente' $DIR/exp_$e.log 2>/dev/null && echo 1 || echo 0" 2>/dev/null | tr -dc '0-9')"
+    [ "$TERMINO" = "1" ] && break
+    # Sin linea de fin todavia. Si el .dmp lleva dos lecturas seguidas sin
+    # cambiar, el exp murio sin cerrarlo (se avisa abajo con el log).
+    T1="$(sxs "stat -c %s $DIR/${e}_${FECHA}.dmp 2>/dev/null" 2>/dev/null | tr -dc '0-9')"
     sleep 15
+    T2="$(sxs "stat -c %s $DIR/${e}_${FECHA}.dmp 2>/dev/null" 2>/dev/null | tr -dc '0-9')"
+    if [ -n "${T1:-}" ] && [ "$T1" = "$T2" ]; then
+      ESTABLE=$((ESTABLE + 1))
+      [ "$ESTABLE" -ge 2 ] && break
+    else
+      ESTABLE=0
+    fi
     INT=$((INT + 1))
   done
   if [ "$INT" -ge 120 ]; then
@@ -157,10 +168,10 @@ PARFILE
   else
     # El log del exp dice si termino bien y con que cantidad de filas.
     # Se comparan las dos fuentes porque el .log a veces no se escribe.
-    DMP="$DIR/${e}_full_${FECHA}.dmp"
+    DMP="$DIR/${e}_${FECHA}.dmp"
     TAM="$(sxs "stat -c %s $DMP 2>/dev/null" 2>/dev/null | tr -dc '0-9')"
     if [ -n "${TAM:-}" ] && [ "$TAM" -gt 10000 ]; then
-      if sxs "grep -q 'terminado correctamente' $DIR/exp_$e.log 2>/dev/null"; then
+      if sxs "grep -qiE 'terminated successfully|terminado correctamente' $DIR/exp_$e.log 2>/dev/null"; then
         echo "   OK ($(numfmt --to=iec --suffix=B "$TAM" 2>/dev/null || echo "${TAM}B"))"
       else
         echo " [REVISAR] dmp de $(numfmt --to=iec --suffix=B "$TAM" 2>/dev/null || echo "${TAM}B") pero el log no confirma: $DIR/exp_$e.log"
@@ -179,6 +190,33 @@ echo
 echo ">> 2. Inventario"
 sxs "cd $DIR && ls -la *.dmp 2>/dev/null; echo '--- SHA256 ---'; sha256sum *.dmp 2>/dev/null" 2>/dev/null
 sxs "cd $DIR && du -sh $DIR 2>/dev/null" 2>/dev/null
+
+# Que el .dmp exista y pese mas de 10 KB no prueba que sea restaurable: un
+# export cortado tambien pesa. `imp` con SHOW=Y recorre el archivo entero sin
+# escribir nada, asi que si esta truncado lo avisa. Es la unica comprobacion
+# que dice "este respaldo se puede usar" (02/10).
+echo
+echo ">> 3. Legibilidad de cada .dmp (imp SHOW=Y, no escribe nada)"
+for e in $ESQUEMAS; do
+  printf "   %-10s " "$e"
+  # FROMUSER es obligatorio: un .dmp por esquema no sabe de quien es, y sin
+  # esto imp responde "IMP-00031: Must specify FULL=Y or provide
+  # FROMUSER/TOUSER". USERID va en la linea de comandos porque sin TNS en el
+  # servidor imp cae a pedir el usuario por stdin, y en segundo plano eso se
+  # lee como EOF y cierra en "IMP-00000: Import terminated unsuccessfully".
+  sxs "export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH; imp USERID=$USUARIO_DB/$CLAVE_ORACLE SHOW=Y FROMUSER=$e LOG=$DIR/imp_$e.log FILE=$DIR/${e}_${FECHA}.dmp" >/dev/null 2>&1
+  # SHOW=Y emite el DDL partido en varias lineas y entre comillas, asi que
+  # contar "CREATE TABLE" no sirve. Lo que imp escribe una vez por objeto y en
+  # una sola linea es ". . skipping table"; ese numero dice cuantos objetos se
+  # leerian, y es el contraste contra ALL_TABLES del espejo.
+  TABLAS="$(sxs "grep -c 'skipping table' $DIR/imp_$e.log 2>/dev/null" 2>/dev/null | tr -dc '0-9')"
+  if sxs "grep -qiE 'terminated successfully|terminado correctamente' $DIR/imp_$e.log 2>/dev/null"; then
+    echo " OK (imp lee ${TABLAS:-?} objetos del esquema $e)"
+  else
+    echo " [REVISAR] imp no confirma la lectura; revisa $DIR/imp_$e.log"
+    sxs "tail -4 $DIR/imp_$e.log 2>/dev/null" 2>/dev/null | sed 's/^/              /'
+  fi
+done
 
 echo
 echo "=================================================================="
