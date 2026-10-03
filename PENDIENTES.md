@@ -2520,7 +2520,9 @@ consolidados EPI-12/EPI-15 sí son incrementales, pero `--borrar` actúa sobre l
 respaldo del 02/10 trae **1** (el usuario cambió de estado en producción). Ahora valida que exista y que
 `ESTATUS ∈ {1,2}`, sin fijar el dato vivo. Suite: **227 OK**.
 
-**Pendiente (opcional):** `completar_nacimiento_legacy` y `corregir_mm_legacy` no se corrieron en esta
-pasada; sirven para rellenar el EV-25 (nombres/residencia) de los 705 nacimientos nuevos y el campo de
-embarazo del certificado, respectivamente.
+**Backfills (HECHO 02/10/2026):** `completar_nacimiento_legacy --ejecutar` rellenó **705** nombres de
+recién nacido y **653** residencias maternas (parroquia) de los nacimientos nuevos; quedaron 439.223
+nacimientos con `nino_nombres` y 417.358 con parroquia de residencia. `corregir_mm_legacy --ejecutar`:
+1 marcada + 1 desmarcada; **MM totales del lote 191** (16 en 2026), consistente con la definición 1+2
+del certificado.
 
