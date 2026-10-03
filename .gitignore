@@ -40,6 +40,9 @@ auditoria/
 dumps/
 *.dump
 
+# Respaldo del Oracle de producción (dumps binarios .dmp de ~1,2 GB, no versionar)
+respaldo/
+
 # Capturas de pantalla y de certificados aportadas por el usuario: ~37 MB de JPG
 # que infrared van al repo. Se leen por OCR (rapidocr_onnxruntime en .venv); ver
 # PENDIENTES.md §23 para lo que dicen. Descomentar solo si hay que compartirlas.

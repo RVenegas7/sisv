@@ -2107,6 +2107,34 @@ los campos con tabulaciones (`MESES\t\t2018-01 \t\t    1172`). Con `[ \t]+` func
 último es el peor tipo de fallo —aparenta que no hay datos cuando sí los hay— y era el único que
 quedaba sin detectar, porque el script «terminaba bien».
 
+### 22.9 [PENDIENTE] La información de 2019-2021 que el nivel central habría cargado en otro formato
+
+> Anotado el 02/10/2026 a partir de lo que informa la oficina. **Matiza §22.8**, que dio la caída por
+> pérdida definitiva *en el origen SISMAI*: puede existir una fuente paralela del nivel central.
+
+Contexto aportado por el usuario:
+
+- **El respaldo del 02/10/2026 está al día e incluye la semana epidemiológica 38 completa y parte de
+  la 39.**
+- En **2019-2020** (pandemia; el hueco llega hasta 2021) **el estado no usó el sistema**. El **nivel
+  central cargó esa información** y, al parecer, **la pasó en otro formato** para que se pudiera
+  ubicar la información del estado.
+
+Qué queda por averiguar (no se ha hecho nada todavía):
+
+1. **Ubicar** esos datos del nivel central (¿dónde están? ¿planillas, Excel, otro sistema, otro
+   dump?).
+2. **Revisar su estructura** y decidir si se pueden **incorporar a la base de datos sin perder**
+   la información ya cargada (nacimientos/defunciones del periodo y las conciliaciones §18–§21).
+3. Determinar el **alcance**: ¿son **solo certificados de defunción**, **solo nacimientos**, o
+   ambos? ¿traen CIE, fechas y establecimiento suficientes para el ETL?
+4. Si se incorporan, **reconciliar** contra el origen y documentar el alta como una fuente nueva
+   (no como corrección del legacy).
+
+Regla: **no cargar nada de esta fuente** hasta tener el archivo y su estructura a la vista; y si se
+carga, hacerlo **aditivo** (nunca borrar ni pisar lo ya importado), igual que
+`cargar_mm_mn_roto`.
+
 ## 23. [HECHO 02/10/2026] Los certificados oficiales: EV-14, EV-25 y el registro semanal MM/MN
 
 El usuario aportó 8 capturas de los formularios reales (`capturas/certificado_nacimiento.jpg`,
@@ -2398,3 +2426,101 @@ centro y mes/año»; ya se verificó que **no es posible** (§24.3, tablas vací
 cerrado como no viable. Los registradores civiles (§24.2) ya están **con su catálogo sembrado desde el
 legacy** (3.857 personas), igual que el registro semanal MM/MN (§23.4) y el certificado de nacimiento
 EV-25 (§23.3). Queda como paso manual cargar registros civiles y designaciones (el legacy no los tiene).
+
+## 25. [HECHO 02/10/2026] Refresco offline del espejo legacy en PostgreSQL desde los `.dmp`
+
+> El Oracle de la oficina (`192.168.5.200`) **no responde desde la red de casa** (§22 notas), así que el
+> espejo `sismai`/`inbdlar1`/`historico` de `sis_salud_db` se actualizó **desde los respaldos** del
+> 02/10/2026, sin tocar producción. El pipeline original (`/tmp/opencode/legacy`) se había perdido; se
+> **reconstruyó** y quedó versionado en `migracion/`.
+
+**Ruta offline (la que se usó):** `.dmp` (`exp` clásico) → Oracle local en Docker → CSV → PostgreSQL.
+
+| Paso | Herramienta |
+| --- | --- |
+| Oracle local | contenedor `sis_oracle_legacy` (`gvenzl/oracle-xe:11.2.0.2`, host 1529→1521) |
+| Cargar `.dmp` | `imp` clásico con `parfile` (`INDEXES=N CONSTRAINTS=N GRANTS=N IGNORE=Y`) |
+| Exportar a CSV | `SYSTEM.SISV_EXPORTAR_CSV` (PL/SQL, `;`, comillas dobles, NULL vacío) |
+| Cargar en PG | `COPY ... (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '\"', NULL '')` |
+
+**Scripts versionados (reconstruidos):**
+- `migracion/actualizar_espejo_pg.sh` — orquesta los 8 pasos (contenedor → `imp` → export → `COPY` →
+  verificación de conteos Oracle vs PG). Invocar con `newgrp docker -c "bash migracion/actualizar_espejo_pg.sh"`.
+- `migracion/espejo_generar.py` — lee la lista de tablas del espejo PG y genera los `imp_*.par`, el
+  driver de exportación y los `counts_*.sql`.
+- `migracion/sisv_exportar_csv.sql` — procedimiento PL/SQL genérico de exportación.
+- `migracion/cargar_espejo_pg.py` — `TRUNCATE` + `COPY` por tabla (idempotente, dry-run por defecto).
+- `migracion/espejo_crear_usuarios.sql` — tablespaces `DATOS`/`DATOS2`/`INDICE` y usuarios del espejo.
+- (La vía directa contra el Oracle vivo sigue siendo `migracion/espejo_csv.sh`, §22.7; solo sirve con
+  la oficina accesible.)
+
+**Resultado (verificado tabla por tabla):** 348 tablas = **sismai 256 + inbdlar1 83 + historico 9**,
+conteo Oracle vs PostgreSQL **0 diferencias** (348/348). Fechas frescas:
+`sismai."CERTIFICADO"` 173.976 (máx `FECHA_M` **2026-09-20**), `sismai."NAC_RNACIDO"` 439.332
+(máx **2026-09-11**), `sismai."CERTNACIMIENTO"` 439.596 (máx **2026-10-02 12:25**),
+`sismai."RENGLONTELE"` 2.674.452.
+
+**El esquema `legacy` (82 tablas `T_*`) NO se refrescó:** no viene en `respaldos_sismai` (se originó en
+`routlar1.dmp`, que no está en este respaldo). Queda intacto.
+
+**Trampas aprendidas:**
+- `/tmp` es **tmpfs de 3,8 GB**: los ~760 MB de CSV más copias la llenan. El staging por defecto es
+  `/var/tmp/espejo` (disco raíz).
+- `python-oracledb` en modo thin **no conecta a 11.2** (`DPY-3010`); la exportación se hace con PL/SQL.
+- El procedimiento con buffer **`CLOB` era ~50× más lento** (concatena por celda); con `VARCHAR2(32767)`
+  las 348 tablas salen en ~3,5 min. Solo hay 2 columnas `LONG` (`ACTIVIDAD.DESCRIPCION`,
+  `ESTABLECIMIENTO.DESCRIPCION`), que caben en el buffer.
+- La sesión fuerza `NLS_NUMERIC_CHARACTERS='.,'`; el `LONG` puede traer saltos de línea (van entre
+  comillas y `COPY` los maneja).
+
+**Siguiente paso (HECHO 02/10/2026):** correr los ETL de la app (`importar_legacy_registros`,
+`importar_legacy_vigilancia`) para llevar las semanas nuevas del espejo a `registros`/`vigilancia`.
+Ejecutado y verificado: ver §26.
+
+## 26. [HECHO 02/10/2026] ETL de la app sobre el espejo refrescado, calidad de datos y reporte MM/MN
+
+> Cerrado el paso que §25 dejaba abierto. El espejo ya estaba al día; aquí se llevan las semanas nuevas
+> a `registros`/`vigilancia` y se deja constancia del control de calidad y del reporte semanal.
+
+**Lo que se corrió (contra `sis_salud_db`, que contiene espejo y tablas de la app):**
+
+- `manage.py importar_legacy_registros` (incremental por `legacy_id`, **sin** `--borrar`):
+  nacimientos **438.577 → 439.282** (+705, máx `2026-09-11`), defunciones **173.533 → 173.976**
+  (+443, máx `2026-09-20`). No duplica porque salta los `legacy_id` ya presentes.
+- `manage.py importar_legacy_vigilancia --borrar`: recarga limpia de los lotes legacy.
+  Fichas **LEGACY-MMI 10.756** + **LEGACY-VIOLENTA 12.409 = 23.165** (+2 MMI); `ConsolidadoSemanal`
+  **73.515**, `FilaConsolidado` **508.121**, `FilaEpi15` **556.327**.
+  `--borrar` solo elimina consolidados `legacy_tabla=RENGLONTELE/EPI-15` y fichas de lote MMI/VIOLENTA:
+  no toca consolidados hechos por usuarios.
+- `manage.py asignar_organizacion_legacy --ejecutar`: **+686** nacimientos, **+443** defunciones,
+  **+14.462** fichas. Quedan sin organización 19 nacimientos (domicilio), 70 defunciones y las fichas
+  violentas sin establecimiento (fuera del árbol Lara), igual que antes. La recarga de vigilancia
+  resetea `organizacion` de **todas** las fichas, por eso hay que reasignar después.
+
+**Por qué `--borrar` en vigilancia:** los cargadores de fichas MMI/violenta no deduplican y
+`codigo_notificacion`/`registro_numero` son `UNIQUE`; sin borrar, la recarga falla por colisión. (Los
+consolidados EPI-12/EPI-15 sí son incrementales, pero `--borrar` actúa sobre los cuatro a la vez.)
+
+**Calidad de datos (verificada por SQL):**
+- Sin caracteres de control, U+FFFD ni mojibake en `sismai.CERTIFICADO/NAC_RNACIDO/CERTNACIMIENTO/
+  CASOS_MMI/ESTABLECIMIENTO` ni en `registros_nacimiento/defuncion/fichavigilancia`.
+- Sin duplicados: todos los `ID` del espejo y `registro_numero`/`codigo_notificacion`/`legacy_id` de
+  la app son únicos (`CERTIFICADO.CERTIFICADO` con 5.907 valores en 155.183 filas es un código, no el nº).
+
+**Reporte Año/Semana** (semana epidemiológica domingo-sábado) en
+`auditoria/REPORTE_ESPEJO_2026.md` (directorio ignorado por git):
+- 2026: **MM_reg 18**, MM_cert 16, **MN_reg 233** (año epi) / 236 (calendario), MN_cert 232,
+  nacimientos **9.988** por `FECHANACIMIENTO` frente a 12.914 por `FECHACERTIFICADO`, cert. defunción
+  6.689, cert. nacimiento 12.914.
+- Contraste con la oficina: **MM 18 coincide**; **MN ~258 no se reproduce** (brecha ~22-25 por el corte
+  de captura del ~02/08, visible en la caída de `NAC_RNACIDO` y `MN_reg` desde la semana 31). El
+  certificado de nacimiento sigue contando (certificados tardíos) mientras `NAC_RNACIDO` se atrasa.
+
+**Test corregido:** `legacy.tests.test_usuarios_y_estatus_de_yasminmorb` fijaba `ESTATUS=2`, pero el
+respaldo del 02/10 trae **1** (el usuario cambió de estado en producción). Ahora valida que exista y que
+`ESTATUS ∈ {1,2}`, sin fijar el dato vivo. Suite: **227 OK**.
+
+**Pendiente (opcional):** `completar_nacimiento_legacy` y `corregir_mm_legacy` no se corrieron en esta
+pasada; sirven para rellenar el EV-25 (nombres/residencia) de los 705 nacimientos nuevos y el campo de
+embarazo del certificado, respectivamente.
+
