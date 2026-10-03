@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 
 from despacho.models import NovedadCertificado, Talonario
 from despacho.serializers import NovedadCertificadoSerializer, TalonarioSerializer
-from despacho.services import detalle_certificados, resumen_talonario
+from despacho.services import detalle_certificados, persona_registro, resumen_talonario
 from registros.models import Defuncion, Nacimiento
 from seguridad.services import alcance_registros, permisos_de
 from sisv_backend.api import error, ok
@@ -195,17 +195,14 @@ def _filas_certificados_cargados(request):
 
     filas = []
     for r in qs.iterator():
-        if tipo == Talonario.TIPO_DEFUNCION:
-            nombres, apellidos = r.fallecido_nombres or "", r.fallecido_apellidos or ""
-        else:
-            nombres, apellidos = r.madre_nombres or "", r.madre_apellidos or ""
+        nombres, apellidos, persona = persona_registro(modelo, r)
         filas.append({
             "numero": r.registro_numero,
             "nombres": nombres,
             "apellidos": apellidos,
             "fecha": str(r.fecha_evento),
             "centro": r.organizacion.nombre if r.organizacion_id else "",
-            "persona": "Fallecido" if tipo == Talonario.TIPO_DEFUNCION else "Madre",
+            "persona": persona,
         })
     return tipo, modelo, filas
 
@@ -277,8 +274,11 @@ def _csv_response(nombre, cabecera, filas):
 def _csv_certificados(tipo, filas):
     return _csv_response(
         f"certificados_{tipo.lower()}.csv",
-        ["No Certificado", "Nombres", "Apellidos", "Fecha", "Centro"],
-        [[f["numero"], f["nombres"], f["apellidos"], f["fecha"], f["centro"]] for f in filas],
+        ["No Certificado", "Persona", "Nombres", "Apellidos", "Fecha", "Centro"],
+        [
+            [f["numero"], f.get("persona", ""), f["nombres"], f["apellidos"], f["fecha"], f["centro"]]
+            for f in filas
+        ],
     )
 
 

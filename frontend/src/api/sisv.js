@@ -144,6 +144,19 @@ export async function obtenerReporteComparativo(params = {}) {
   return r.data.data
 }
 
+export async function obtenerReporteSemanalMMI(params = {}) {
+  const r = await api.get("/registros/reportes/semanal-mmi/", { params })
+  return r.data.data
+}
+
+export async function exportarReporteSemanalMMI(params = {}) {
+  const r = await api.get("/registros/reportes/semanal-mmi/", {
+    params: { ...params, formato: "csv" },
+    responseType: "blob",
+  })
+  return r.data
+}
+
 export async function exportarReportes(params = {}) {
   const r = await api.get("/registros/reportes/exportar/", { params, responseType: "blob" })
   return r.data
@@ -334,4 +347,70 @@ export async function exportarDespacho(ruta, params = {}) {
     responseType: "blob",
   })
   return r.data
+}
+
+// -- Registradores civiles (§24.2) ------------------------------------------
+
+export async function listarRegistrosCiviles(params = {}) {
+  const r = await api.get("/registradores/registros-civiles/", { params })
+  return { items: r.data.data, count: r.data.count }
+}
+
+export async function crearRegistroCivil(payload) {
+  const r = await api.post("/registradores/registros-civiles/", payload)
+  return r.data.data
+}
+
+export async function actualizarRegistroCivil(id, payload) {
+  const r = await api.patch(`/registradores/registros-civiles/${id}/`, payload)
+  return r.data.data
+}
+
+export async function eliminarRegistroCivil(id) {
+  await api.delete(`/registradores/registros-civiles/${id}/`)
+}
+
+export async function listarRegistradores(params = {}) {
+  const r = await api.get("/registradores/registradores/", { params })
+  return { items: r.data.data, count: r.data.count }
+}
+
+export async function crearRegistrador(payload) {
+  const r = await api.post("/registradores/registradores/", payload)
+  return r.data.data
+}
+
+export async function actualizarRegistrador(id, payload) {
+  const r = await api.patch(`/registradores/registradores/${id}/`, payload)
+  return r.data.data
+}
+
+export async function eliminarRegistrador(id) {
+  await api.delete(`/registradores/registradores/${id}/`)
+}
+
+export async function listarDesignaciones(params = {}) {
+  const r = await api.get("/registradores/designaciones/", { params })
+  return { items: r.data.data, count: r.data.count }
+}
+
+export async function crearDesignacion(payload) {
+  const r = await api.post("/registradores/designaciones/", payload)
+  return r.data.data
+}
+
+export async function actualizarDesignacion(id, payload) {
+  const r = await api.patch(`/registradores/designaciones/${id}/`, payload)
+  return r.data.data
+}
+
+export async function eliminarDesignacion(id) {
+  await api.delete(`/registradores/designaciones/${id}/`)
+}
+
+export async function quienFirmaba(registroCivil, fecha) {
+  const r = await api.get("/registradores/quien-firmaba/", {
+    params: { registro_civil: registroCivil, fecha },
+  })
+  return r.data.data
 }

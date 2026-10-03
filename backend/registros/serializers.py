@@ -60,6 +60,18 @@ class _OrganizacionMixin:
         return obj.organizacion.nivel if obj.organizacion_id else None
 
 
+def _ubicacion_nombres(ubicacion):
+    """Los cuatro niveles del territorio de residencia con su nombre y su código.
+
+    El frontend precarga la cascada por nombre (`SelectTerritorial` busca por `nombre`),
+    así que los ids solos no alcanzan para devolver el formulario a su estado.
+    """
+    return {
+        nivel: ({"id": nodo.id, "nombre": nodo.nombre, "codigo": nodo.codigo} if nodo else None)
+        for nivel, nodo in ubicacion.items()
+    }
+
+
 class NacimientoSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.ModelSerializer):
     cie10_detalle = serializers.SerializerMethodField()
     cie11_detalle = serializers.SerializerMethodField()
@@ -70,6 +82,15 @@ class NacimientoSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.Mod
     organizacion_nivel = serializers.SerializerMethodField()
     sexo_label = serializers.CharField(source="get_sexo_display", read_only=True)
     tipo_parto_label = serializers.CharField(source="get_tipo_parto_display", read_only=True)
+    madre_residencia_territorio = serializers.SerializerMethodField()
+    padre_residencia_territorio = serializers.SerializerMethodField()
+
+    NIVELES_RESIDENCIA = {
+        "madre_residencia_parroquia": "PARROQUIA",
+        "madre_residencia_comunidad": "COMUNIDAD",
+        "padre_residencia_parroquia": "PARROQUIA",
+        "padre_residencia_comunidad": "COMUNIDAD",
+    }
 
     class Meta:
         model = Nacimiento
@@ -79,16 +100,42 @@ class NacimientoSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.Mod
             "tipo_parto", "tipo_parto_label", "tipo_embarazo", "numero_gemelar",
             "sitio_nacimiento", "establecimiento", "estado", "municipio", "parroquia",
             "nacido_vivo", "apgar_1m", "apgar_5m",
+            "nino_nombres", "nino_apellidos", "numero_historia_clinica",
             "madre_nombres", "madre_apellidos", "madre_cedula", "madre_edad", "madre_estado_civil",
-            "padre_nombres", "padre_apellidos", "padre_cedula",
+            "madre_nacionalidad", "madre_pasaporte", "madre_residencia", "madre_residencia_pais",
+            "madre_residencia_direccion", "madre_residencia_parroquia", "madre_residencia_comunidad",
+            "madre_residencia_territorio",
+            "padre_nombres", "padre_apellidos", "padre_cedula", "padre_nacionalidad",
+            "padre_pasaporte", "padre_residencia", "padre_residencia_pais",
+            "padre_residencia_direccion", "padre_residencia_parroquia", "padre_residencia_comunidad",
+            "padre_residencia_territorio",
             "libro", "folio", "acta",
+            "fecha_emision", "numero_planilla", "tipo_numero_certificado",
+            "certificador_nombres", "certificador_cedula", "certificador_matricula_mpps",
+            "director_establecimiento",
             "version_cie", "cie10", "cie11", "cie10_detalle", "cie11_detalle", "creado_en",
             "cie10_legacy", "codificacion_pendiente", "cie11_sugerido", "cie11_sugerido_detalle",
             "organizacion", "organizacion_id", "organizacion_nombre", "organizacion_nivel",
         ]
 
+    def get_madre_residencia_territorio(self, obj):
+        return _ubicacion_nombres(obj.residencia_ubicacion("madre"))
+
+    def get_padre_residencia_territorio(self, obj):
+        return _ubicacion_nombres(obj.residencia_ubicacion("padre"))
+
     def validate(self, attrs):
         _validar_cie(attrs, getattr(self, "partial", False), getattr(self, "instance", None))
+        errores = {}
+        for campo, nivel in self.NIVELES_RESIDENCIA.items():
+            nodo = attrs.get(campo) or (
+                getattr(self, "instance", None) and getattr(self.instance, campo)
+            )
+            if nodo is not None and nodo.nivel != nivel:
+                etiqueta = "una parroquia" if nivel == "PARROQUIA" else "una comunidad"
+                errores[campo] = f"La residencia habitual se registra con {etiqueta} del territorio."
+        if errores:
+            raise serializers.ValidationError(errores)
         return attrs
 
 

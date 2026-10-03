@@ -152,9 +152,37 @@ Idioma de trabajo: **responder siempre en español**.
     Reglas: **nada nuevo es obligatorio** (el certificado mínimo se sigue creando) y **`embarazo_o_puerperio`
     no se toca** (es lo que leen el tablero y `conciliar_mm`; el bloque de la madre es respaldo, no
     reemplazo). Pruebas en `registros/tests.py::DefuncionEV14Tests`. Análisis de las capturas del usuario y
-    los dos pendientes que quedan (EV de nacimiento, registro semanal MM/MN) en `PENDIENTES.md` §23.
+    el registro semanal MM/MN ya hecho en `PENDIENTES.md` §23.
     Las capturas están en `capturas/`; para leerlas **hay que pasar por OCR** (`rapidocr_onnxruntime` en
     `.venv`, tesseract no está instalado), porque este entorno no ve imágenes.
+  - **Certificado de nacimiento = EV-25 oficial (02/10/2026, migración `0006_nacimiento_ev25`):**
+    `Nacimiento` tiene **24 campos más**, todos opcionales: **I** del recién nacido (`nino_nombres`,
+    `nino_apellidos`, `numero_historia_clinica`), **II** madre y **III** padre (nacionalidad
+    `V/E/P/I/O`, `*_pasaporte`, `*_residencia` `V/E/I`, `*_residencia_pais`,
+    `*_residencia_direccion`, `*_residencia_parroquia`/`*_residencia_comunidad` como FKs al
+    `territorio.DivisionTerritorial`), **IV** registro civil ya existente, **Responsable**
+    (`certificador_nombres`/`_cedula`/`_matricula_mpps`, `director_establecimiento`) y cabecera
+    (`fecha_emision`, `numero_planilla`, `tipo_numero_certificado` COMPLETO|HISTORICO). El **sexo**
+    cambió de etiqueta: `I` ahora se rotula **«Hermafrodita»** (el código no se toca) y se añadió
+    `N` = «Sin información»; solo 115 filas históricas tienen `I`. `clean()` y el serializer validan
+    que los FKs de residencia sean PARROQUIA/COMUNIDAD, y el serializer expone
+    `madre_residencia_territorio`/`padre_residencia_territorio` (4 niveles) para que
+    `SelectTerritorial` (props `destino`/`comunidadComoLista`) precargue la cascada. `/nacimientos`
+    (`CargaNacimientos.jsx`) se reorganizó por secciones. Reglas: **nada nuevo es obligatorio** y el
+    ETL no se toca. Pruebas en `registros/tests.py::NacimientoEV25Tests`;
+    **backfill** `manage.py completar_nacimiento_legacy` (dry-run; `--ejecutar`; `--solo nombres|residencia`)
+    recupera de `NAC_RNACIDO."NOMBRES"` (438.518) y `NAC_MADRE."HRESIDENCIA"` (416.706, por nombre
+    dentro del árbol), **solo campos vacíos** e idempotente; pruebas en
+    `registros/tests_completar_nacimiento.py`.
+  - **Registro semanal MM/MN (02/10/2026, §23.4):** el anexo del telegrama es un **reporte generado**, no
+    un formulario de captura. Endpoint `GET /api/registros/reportes/semanal-mmi/?anio=&semana=[&formato=csv]`
+    (`ReporteSemanalMMIView`) por establecimiento y semana: nacidos vivos/muertos desde
+    `Nacimiento.nacido_vivo`, MM (`registros/services.py::muerte_materna_detalle`, `mm_fuente`
+    `REGISTRO_INVESTIGACION`/`CERTIFICADO` más `mm_certificadas`), MN (0-27 d), infantil <1 año y 1-4 años
+    desde `Defuncion` + `fecha_nacimiento`. **`partos` y `abortos` no se generan** (el certificado es por
+    recién nacido, no por parto; SISV no captura abortos). CSV con BOM de tres secciones
+    RESUMEN/MATERNA/INFANTIL. Helper `vigilancia.services.rango_semana`. Frontend: sección en `/reportes`
+    (`Reportes.jsx`). Pruebas `registros/tests.py::ReporteSemanalMMITests` (7).
 - **Limpiar legacy fuera de Lara / demo (24/09/2026):** `manage.py limpiar_legacy_no_lara` (criterio
   **centro Lara + domicilio Lara**, economía del árbol DES LARA=67754/DPS LARA=3441583108; dry-run por
   defecto, `--ejecutar` aplica). Ejecutado: **Nacimientos 438.577, Defunciones 171.115, Fichas 0,
@@ -275,10 +303,31 @@ Idioma de trabajo: **responder siempre en español**.
   `reportes/pendientes/` (entregados no retornados/justificados; CSV), respetando `alcance_registros`.
   **Rol nuevo `JEFE_UNIDAD` («Jefe de Unidad»)** en `seguridad.Perfil` y permiso `puede_despachar` en
   `permisos_de` (superusuario / JEFE_UNIDAD / DIRECTOR) para crear/editar/eliminar; leer y reportes, cualquier
-  autenticado. Frontend `/despacho` (`Despacho.jsx`). **Nota:** el reporte de nacimientos usa el nombre de la
-  **madre** (el SISV aún no guarda el del recién nacido). Pruebas: `despacho/tests.py` (18). Pendientes:
-  registradores civiles con historial de vigencias y ampliar el certificado de nacimiento (PENDIENTES.md
-  §24.2 y §23.3).
+  autenticado. Frontend `/despacho` (`Despacho.jsx`). **Nota:** el reporte 1 de nacimientos usa el nombre
+  del **recién nacido** (`nino_nombres`/`nino_apellidos`, rotulado `persona: "Recién nacido"`) y cae al de
+  la **madre** (`persona: "Madre"`) cuando el registro no lo trae (importados antes del EV-25 sin backfill);
+  el CSV lleva columna **Persona**. Pruebas: `despacho/tests.py` (18). El certificado de nacimiento ya
+  se amplió al EV-25 (§23.3).
+
+- `registradores`: **control de registradores civiles con historial de vigencias** (02/10/2026, §24.2).
+  App propia porque el dominio (quién firma) no es el de los talonarios. Modelos: `RegistroCivil`
+  (oficina, `organizacion` opcional, `activo`), `RegistradorCivil` (persona: nacionalidad V/E/P/I/O,
+  cédula, nombres, contacto; **no** es `auth.User`; único por `(nacionalidad, cedula)`) y
+  `DesignacionRegistrador` (vigencia: registro civil + registrador, cargo TITULAR|SUPLENTE|ENCARGADO,
+  `desde`, `hasta` nulo = vigente, toma de posesión, acta). **«¿Quién firmaba?» retroactivo**:
+  `services.py::vigentes_en(registro_civil, fecha)`, endpoint
+  `GET /api/registradores/quien-firmaba/?registro_civil=&fecha=`. **El solape se permite** (titular y
+  suplente a la vez), por eso la consulta devuelve todos los vigentes. Endpoints `/api/registradores/`:
+  `registros-civiles/` y `/<id>/`, `registradores/` y `/<id>/`, `designaciones/` y `/<id>/` (filtros
+  `registro_civil`, `registrador`, `cargo`, `vigente=1`). Escribe quien `puede_despachar`; leer, cualquier
+  autenticado; alcance igual al despacho. **Borrado protegido** (`PROTECT` → 400) con designaciones.
+  Frontend `/registradores` (`Registradores.jsx`). Pruebas `registradores/tests.py` (22). **Catálogo
+  sembrado del legacy** con `manage.py sembrar_registradores_legacy [--ejecutar] [--limite N]` (dry-run,
+  idempotente): lee `sismai.CERTIFICADO.NOMREGISTRADOR`/`CIREGISTRADOR`/`NACREGISTRADOR` (167.447 filas,
+  12.713 variantes), agrupa por `(nacionalidad, cédula)`, elige el nombre más frecuente y ejecutado creó
+  **3.857 registradores** (3.845 V + 12 E; 11.184 sin cédula descartados). **No** crea registros civiles
+  ni designaciones (el legacy no los modela); la división nombres/apellidos es heurística (asume apellidos
+  primero) y `apellidos` quedó opcional (migración `0002`).
 
 - `legacy`: **mapa de modelos del legado SISMAI** (no altera el flujo). App con `models_legacy.py`
   **generado** (modelos `managed=False`, solo lectura) para las **430 tablas/vistas** de
@@ -420,11 +469,15 @@ de tres pasos, y el orden importa: no se carga antes de extraer, ni se concilia 
 El mes en curso nunca se marca: a mitad de mes siempre está a medias y avisar sería mentir.
 ⚠ **`meses_sin_datos` es código muerto en la práctica**: entre 2009-01 y 2026-08 no hay ni un mes
 con cero filas en nacimientos, defunciones ni fichas, así que solo se dispara por el otro lado. El
-banner funciona **únicamente** por `atraso_dias` (días sin registrar): es un control de "voy al día",
-**no** de "este período está completo". Por eso no detectó el colapso de 2019-06→2021-07 (§20), donde
-cada mes tiene decenas de registros. Marcarlo exigiría un umbral, y un umbral mal puesto inventa
-huecos falsos: **no se cambió sin decidir**. Para saber si esos certificados existen en el origen
-Oracle está `migracion/diagnostico_hueco_2019_2021.sh` (solo lectura, conteo mensual 2018-2022).
+banner también avisa por `atraso_dias` (días sin registrar). **Desde el 02/10/2026 (§20.2) detecta
+además meses *degradados*:** `_meses_degradados` marca un mes terminado si queda por debajo de
+`factor_mes_degradado` (0,40) × la mediana de los últimos `min_meses_historia` (12) meses
+*normales*, anclando la base al último nivel sano (una mediana móvil corriente se arrastraría con
+la caída). Exige 12 meses normales, ignora el mes en curso, se puede desactivar y solo reporta el
+año que se mira (mirando 2026 no avisa de la caída 2019-2021). Los 3 parámetros viven en
+`ConfiguracionGeneral` (`/api/registros/configuracion/`). El banner lo muestra en
+`cobertura.meses_degradados` (`AvisoCobertura`). Para saber si esos certificados existen en el
+origen Oracle está `migracion/diagnostico_hueco_2019_2021.sh` (solo lectura, conteo mensual 2018-2022).
 
 ## Migración Oracle 10g → PostgreSQL (crítico)
 
@@ -485,10 +538,12 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
 - **Pruebas automatizadas (24/09/2026):** backend con `DJANGO_DB_ENGINE=sqlite manage.py test`
-  (**181 pruebas a 01/10/2026**: 115 de `backend/tests_sisv.py` + 18 de `backend/despacho/tests.py`
+  (**227 pruebas a 02/10/2026**: 115 de `backend/tests_sisv.py` + 18 de `backend/despacho/tests.py`
+  + 22 de `backend/registradores/tests.py`
   + 33 de `conciliacion` (16 ENO +
-  9 neonatal + 8 materna) + 9 de `registros/tests.py` (2 EV-14 y 7 de las secciones del
-  certificado EV-14) + 6 de `registros/tests_recuperar_establecimiento.py`; requiere
+  9 neonatal + 8 materna) + 27 de `registros/tests.py` (2 EV-14, 7 de las secciones del
+  certificado EV-14, 6 del EV-25, 7 del reporte semanal MM/MN y 5 de meses degradados) + 6 de `registros/tests_recuperar_establecimiento.py`
+  + 6 de `registros/tests_completar_nacimiento.py`; requiere
   `__init__.py` en las
   apps — registros, seguridad, territorio y catalogos eran namespace packages y por eso el
   descubrimiento fallaba);

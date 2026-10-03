@@ -7,16 +7,26 @@ const MESES = [
   "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
 ]
 
+// Rótulos del sexo del recién nacido tal como los llama el certificado EV-25.
+const SEXO_NACIMIENTO = {
+  F: "femenino",
+  M: "masculino",
+  I: "hermafrodita",
+  N: "sin información",
+}
+
 // Avisa cuando la informacion del tablero esta incompleta. Sin esto, un grafico
 // con un corte de captura en medio se lee igual que uno completo y alguien se
 // lleva una conclusion equivocada. Los numeros del aviso salen de `cobertura`, que
 // el backend calcula sobre la base real: no es texto fijo.
 function AvisoCobertura({ cobertura }) {
   if (!cobertura || cobertura.completo) return null
-  const { por_modulo = {}, meses_sin_datos = [], atraso_dias = 0 } = cobertura
+  const { por_modulo = {}, meses_sin_datos = [], atraso_dias = 0, meses_degradados = {} } = cobertura
   const atrasados = Object.values(por_modulo)
     .filter((m) => m.atraso_dias != null && m.atraso_dias > 45)
     .sort((a, b) => b.atraso_dias - a.atraso_dias)
+  const degradados = Object.values(meses_degradados.por_modulo || {})
+  const umbral = Math.round((meses_degradados.factor || 0.4) * 100)
 
   return (
     <div className="aviso aviso-cobertura" role="status">
@@ -29,6 +39,18 @@ function AvisoCobertura({ cobertura }) {
         ))}
         {meses_sin_datos.length > 0 && (
           <li>Sin ningún registro en: {meses_sin_datos.join(", ")}.</li>
+        )}
+        {degradados.length > 0 && (
+          <li>
+            Meses muy por debajo de lo habitual (menos del {umbral}% de lo normal):{" "}
+            {degradados.map((m, i) => (
+              <span key={m.etiqueta}>
+                {i > 0 && "; "}
+                <b>{m.etiqueta}</b>: {m.total} {m.total === 1 ? "mes" : "meses"}{" "}
+                {m.desde === m.hasta ? `(${m.desde})` : `(${m.desde} a ${m.hasta})`}
+              </span>
+            ))}.
+          </li>
         )}
         {atraso_dias > 45 && (
           <li>
@@ -188,7 +210,13 @@ export default function Tablero() {
           <ul className="mini-filas">
             <li><span>Nacidos vivos</span><b>{datos.nacimientos_salud.nacidos_vivos}</b></li>
             {Object.entries(datos.nacimientos_salud.por_sexo).map(([s, n]) => (
-              <li key={s}><span>Sexo {s === "F" ? "femenino" : s === "M" ? "masculino" : s}</span><b>{n}</b></li>
+              <li key={s}>
+                <span>
+                  Sexo {SEXO_NACIMIENTO[s] || s.toLowerCase()}
+                  {s === "I" && <span title="Código del catálogo anterior; el certificado EV-25 lo rotula Hermafrodita"> (I)</span>}
+                </span>
+                <b>{n}</b>
+              </li>
             ))}
             {Object.entries(datos.nacimientos_salud.por_tipo_parto).map(([t, n]) => (
               <li key={t}><span>Parto {t.toLowerCase()}</span><b>{n}</b></li>

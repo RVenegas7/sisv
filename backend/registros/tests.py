@@ -11,7 +11,8 @@ from django.core.management.base import CommandError
 
 from tests_sisv import SISVBase, FECHA_CORTE
 
-from registros.models import Defuncion, Nacimiento
+from registros.models import ConfiguracionGeneral, Defuncion, Nacimiento
+from vigilancia.services import semana_epidemiologica
 
 
 class NacimientoCRUDTests(SISVBase):
@@ -610,6 +611,90 @@ class CoberturaTableroTests(SISVBase):
         self.assertTrue(cov["completo"])
 
 
+class MesesDegradadosTableroTests(SISVBase):
+    """El aviso tiene que detectar una caida sostenida, no un mes bajo suelto.
+
+    La referencia son los ultimos meses *normales*: con una mediana movil corriente,
+    a los 12 meses de caida la base ya estaria tan baja como la caida y dejaria de
+    avisar. Estas pruebas fijan esa propiedad y que el aviso solo se muestre en el
+    año que se esta mirando.
+    """
+
+    def _sembrar(self, anio, mes, total, prefijo):
+        Defuncion.objects.bulk_create([
+            Defuncion(
+                registro_numero=f"{prefijo}-{i}",
+                fecha_evento=date(anio, mes, 10),
+                organizacion=self.org_hcb,
+                fallecido_nombres="T",
+                sexo="F",
+            )
+            for i in range(total)
+        ])
+
+    def _sembrar_normales(self, meses, total=100):
+        anio, mes = 2023, 4
+        for _ in range(meses):
+            self._sembrar(anio, mes, total, f"N-{anio}{mes:02d}")
+            mes += 1
+            if mes > 12:
+                mes = 1
+                anio += 1
+
+    def _sembrar_colapso(self):
+        self._sembrar_normales(14)
+        self._sembrar(2024, 6, 5, "COLLAPSE")
+
+    def _cobertura(self, anio=2024):
+        self.login(self.u_admin)
+        return self.client.get(f"/api/registros/dashboard/?anio={anio}").json()["data"]["cobertura"]
+
+    def test_detecta_caida_sostenida(self):
+        self._sembrar_colapso()
+        cov = self._cobertura(2024)
+        self.assertFalse(cov["completo"])
+        detalle = cov["meses_degradados"]["por_modulo"]["defunciones"]
+        self.assertIn("junio de 2024", detalle["meses"])
+        self.assertEqual(detalle["desde"], "junio de 2024")
+
+    def test_solo_reporta_el_anio_que_se_mira(self):
+        self._sembrar_colapso()
+        cov = self._cobertura(2026)
+        self.assertEqual(cov["meses_degradados"]["por_modulo"], {})
+
+    def test_se_puede_desactivar(self):
+        self._sembrar_colapso()
+        cfg = ConfiguracionGeneral.obtener()
+        cfg.detectar_meses_degradados = False
+        cfg.save()
+        cov = self._cobertura(2024)
+        self.assertFalse(cov["meses_degradados"]["activo"])
+        self.assertEqual(cov["meses_degradados"]["por_modulo"], {})
+
+    def test_un_mes_bajo_suelto_no_se_marca(self):
+        # Una variacion normal (55 contra 100) no llega al 40 %: no es una caida.
+        self._sembrar_normales(14)
+        self._sembrar(2024, 6, 55, "BAJO")
+        cov = self._cobertura(2024)
+        self.assertEqual(cov["meses_degradados"]["por_modulo"], {})
+
+    def test_configuracion_valida_los_parametros(self):
+        self.login(self.u_dire_hcb)
+        invalidos = (
+            {"factor_mes_degradado": 1.5},
+            {"factor_mes_degradado": "x"},
+            {"min_meses_historia": 1},
+        )
+        for payload in invalidos:
+            r = self.client.put(
+                "/api/registros/configuracion/", payload, content_type="application/json"
+            )
+            self.assertEqual(r.status_code, 400, payload)
+        r = self.client.get("/api/registros/configuracion/")
+        self.assertIn("factor_mes_degradado", r.json()["data"])
+        self.assertIn("detectar_meses_degradados", r.json()["data"])
+
+
 # --------------------------------------------------------------------------- #
 # Cargador de la recuperacion MM/MN (PENDIENTES 17.17/17.24)                        #
 # --------------------------------------------------------------------------- #
@@ -883,3 +968,201 @@ class CargarMMMNTests(SISVBase):
         d = self._montar(rnacidos=[(3003, "", "BEBE", 1, "2026-08-13", 0, 0, 1, 1, 2, 39)])
         call_command("cargar_mm_mn_roto", directorio=d, ejecutar=True)
         self.assertTrue(Nacimiento.objects.filter(registro_numero="LEG-RN-3003").exists())
+
+
+class NacimientoEV25Tests(SISVBase):
+    """El formulario de nacimiento sigue el certificado oficial EV-25.
+
+    El EV-25 agrega identificación del recién nacido, nacionalidad y residencia
+    habitual de la madre y del padre (por parroquia o comunidad del territorio) y los
+    datos del responsable de la certificación. Nada de esto es obligatorio: el
+    certificado mínimo se sigue creando igual que antes.
+    """
+
+    def _post(self, **extra):
+        datos = self.datos_nacimiento("N-EV25", **extra)
+        return self.client.post(
+            "/api/registros/nacimientos/", datos, content_type="application/json"
+        )
+
+    def test_certificado_minimo_sigue_creandose(self):
+        self.login(self.u_trans_hcb)
+        r = self._post()
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertEqual(r.json()["data"]["nino_nombres"], "")
+
+    def test_cabecera_y_recien_nacido(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(
+            nino_nombres="Anne Sofía", nino_apellidos="Pérez Rojas",
+            numero_historia_clinica="HC-2026-001",
+            fecha_emision="2026-02-01", numero_planilla="PL-0001",
+            tipo_numero_certificado="COMPLETO",
+            certificador_nombres="Dr. José Mora", certificador_cedula="V-9876543",
+            certificador_matricula_mpps="MSDS-123", director_establecimiento="Dra. Rojas",
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        d = r.json()["data"]
+        self.assertEqual(d["nino_nombres"], "Anne Sofía")
+        self.assertEqual(d["numero_historia_clinica"], "HC-2026-001")
+        self.assertEqual(d["tipo_numero_certificado"], "COMPLETO")
+        self.assertEqual(d["certificador_matricula_mpps"], "MSDS-123")
+        self.assertEqual(d["director_establecimiento"], "Dra. Rojas")
+
+    def test_sexo_hermafrodita_y_sin_informacion(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(sexo="I")
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertEqual(r.json()["data"]["sexo_label"], "Hermafrodita")
+        r = self._post(registro_numero="N-EV25-N", sexo="N")
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertEqual(r.json()["data"]["sexo_label"], "Sin información")
+
+    def test_residencia_madre_por_parroquia(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(
+            madre_nacionalidad="V", madre_residencia="V",
+            madre_residencia_direccion="Calle 5 con carrera 3",
+            madre_residencia_parroquia=self.par_parroquia.pk,
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        d = r.json()["data"]
+        self.assertEqual(d["madre_nacionalidad"], "V")
+        self.assertEqual(d["madre_residencia_territorio"]["parroquia"]["nombre"], "Santa Rosa")
+        self.assertEqual(d["madre_residencia_territorio"]["estado"]["nombre"], "Lara")
+        self.assertIsNone(d["madre_residencia_territorio"]["comunidad"])
+
+    def test_residencia_padre_por_comunidad(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(padre_residencia="V", padre_residencia_comunidad=self.par_comunidad.pk)
+        self.assertEqual(r.status_code, 201, r.content)
+        d = r.json()["data"]
+        self.assertEqual(d["padre_residencia_territorio"]["comunidad"]["nombre"], "La Mata")
+        self.assertEqual(d["padre_residencia_territorio"]["parroquia"]["nombre"], "Santa Rosa")
+
+    def test_residencia_con_nivel_equivocado_da_400(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(madre_residencia_parroquia=self.par_comunidad.pk)
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("madre_residencia_parroquia", r.json()["errors"])
+
+
+class ReporteSemanalMMITests(SISVBase):
+    """Anexo semanal de mortalidad materna e infantil (reporte generado).
+
+    El reporte se arma con los certificados (`Nacimiento`/`Defuncion`) y con el registro
+    de investigación de MM cuando está disponible. Con la fuente legacy ausente (sqlite)
+    cae al certificado y lo declara, igual que el tablero.
+    """
+
+    def setUp(self):
+        self.fecha = date(2023, 5, 3)  # miércoles; la semana abre el domingo 30-04
+        _, self.semana = semana_epidemiologica(self.fecha)
+
+    def _url(self, **extra):
+        params = {"anio": 2023, "semana": self.semana, **extra}
+        qs = "&".join(f"{k}={v}" for k, v in params.items())
+        return f"/api/registros/reportes/semanal-mmi/?{qs}"
+
+    def _nac(self, uid, vivo=True, org=None):
+        return Nacimiento.objects.create(
+            registro_numero=uid, fecha_evento=self.fecha, organizacion=org or self.org_hcb,
+            sexo="F", nacido_vivo=vivo, madre_nombres="Ana", madre_apellidos="Pérez",
+            madre_cedula="V-1", madre_edad=25,
+        )
+
+    def _def(self, uid, fecha_nacimiento, org=None, embarazo=False, sexo="M"):
+        return Defuncion.objects.create(
+            registro_numero=uid, fecha_evento=self.fecha, organizacion=org or self.org_hcb,
+            fallecido_nombres="Test", fallecido_apellidos="Uno", sexo=sexo,
+            fecha_nacimiento=fecha_nacimiento, embarazo_o_puerperio=embarazo,
+        )
+
+    def _centro(self, data, org):
+        return next(c for c in data["centros"] if c["organizacion_id"] == org.pk)
+
+    def test_resumen_por_centro(self):
+        self._nac("RN-1")
+        self._nac("RN-2")
+        self._nac("RN-3", vivo=False)
+        self._def("D-NEO", self.fecha - timedelta(days=3))
+        self._def("D-INF", self.fecha - timedelta(days=100))
+        self._def("D-4", self.fecha - timedelta(days=3 * 365))
+        self._def("D-NO", self.fecha - timedelta(days=40 * 365))
+        self.login(self.u_admin)
+        r = self.client.get(self._url())
+        self.assertEqual(r.status_code, 200)
+        d = r.json()["data"]
+        self.assertEqual(d["semana"], self.semana)
+        self.assertEqual(d["desde"], "2023-04-30")
+        self.assertEqual(d["hasta"], "2023-05-06")
+        c = self._centro(d, self.org_hcb)
+        self.assertEqual(c["nacimientos"], 3)
+        self.assertEqual(c["nacidos_vivos"], 2)
+        self.assertEqual(c["nacidos_muertos"], 1)
+        self.assertEqual(c["muertes_neonatales"], 1)
+        self.assertEqual(c["muertes_infantiles"], 2)  # neonatal + 28-364 días
+        self.assertEqual(c["muertes_1_4"], 1)
+        self.assertEqual(len(c["detalle_infantil"]), 3)
+
+    def test_mm_sin_registro_legacy_cae_al_certificado(self):
+        self._def("MM-1", None, embarazo=True)
+        self._def("MM-2", None, embarazo=True)
+        self._def("NO-MM", None)
+        self.login(self.u_admin)
+        with self.assertLogs("registros.services", level="WARNING"):
+            d = self.client.get(self._url()).json()["data"]
+        c = self._centro(d, self.org_hcb)
+        self.assertEqual(c["mm_fuente"], "CERTIFICADO")
+        self.assertEqual(c["muertes_maternas"], 2)
+        self.assertEqual(c["mm_certificadas"], 2)
+
+    def test_mm_del_registro_de_investigacion(self):
+        self._def("MM-CERT", None, embarazo=False)
+        caso = {
+            "legacy_id": 1, "organizacion_id": self.org_hcb.pk, "fecha": "2023-05-02",
+            "nacionalidad": "V", "cedula": "12345678", "nombres": "Ana",
+            "apellidos": "Díaz", "edad": 27, "unidad_edad": "", "sexo": 2,
+            "residencia": "Barrio X", "residencia_ubicacion": "País VENEZUELA, Estado LARA",
+            "residencia_pais": None,
+        }
+        self.login(self.u_admin)
+        with patch("registros.views.muerte_materna_por_organizacion",
+                   return_value={self.org_hcb.pk: {self.semana: 1}}), \
+                patch("registros.views.muerte_materna_detalle", return_value=[caso]):
+            d = self.client.get(self._url()).json()["data"]
+        c = self._centro(d, self.org_hcb)
+        self.assertEqual(c["mm_fuente"], "REGISTRO_INVESTIGACION")
+        self.assertEqual(c["muertes_maternas"], 1)
+        self.assertEqual(c["detalle_materna"][0]["cedula"], "12345678")
+        self.assertEqual(c["detalle_materna"][0]["unidad_edad"], "A")
+
+    def test_alcance_centro_solo_su_centro(self):
+        self._nac("RN-HCB")
+        self._nac("RN-CAB", org=self.org_cabudare)
+        self.login(self.u_trans_hcb)
+        d = self.client.get(self._url()).json()["data"]
+        self.assertEqual({c["organizacion_id"] for c in d["centros"]}, {self.org_hcb.pk})
+
+    def test_centro_sin_datos_aparece_en_ceros(self):
+        self.login(self.u_trans_cabudare)
+        d = self.client.get(self._url()).json()["data"]
+        self.assertEqual(len(d["centros"]), 1)
+        self.assertEqual(d["centros"][0]["organizacion_id"], self.org_cabudare.pk)
+        self.assertEqual(d["centros"][0]["nacimientos"], 0)
+
+    def test_csv_tiene_resumen_y_secciones(self):
+        self._nac("RN-1")
+        self._def("D-NEO", self.fecha - timedelta(days=3))
+        self.login(self.u_admin)
+        r = self.client.get(self._url(formato="csv"))
+        self.assertTrue(r["Content-Type"].startswith("text/csv"))
+        texto = b"".join(r.streaming_content).decode("utf-8-sig")
+        self.assertTrue(texto.startswith("seccion,establecimiento"))
+        self.assertIn("RESUMEN", texto)
+        self.assertIn("INFANTIL", texto)
+
+    def test_semana_obligatoria(self):
+        self.login(self.u_admin)
+        r = self.client.get("/api/registros/reportes/semanal-mmi/?anio=2023")
+        self.assertEqual(r.status_code, 400)

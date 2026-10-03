@@ -27,6 +27,24 @@ SQL_MM_LEGADO = """
     GROUP BY 1, 2
 """
 
+# Detalle caso a caso de las muertes maternas del registro de investigación, para el
+# anexo semanal. `DISTINCT ON (c."ID")` porque `RENGLON_CASOSMM` tiene una fila por
+# (persona, causa) y aquí se quiere una por persona: es la misma deduplicación que
+# `count(DISTINCT r."HCASOSMMI")` del conteo.
+SQL_MM_DETALLE = """
+    SELECT DISTINCT ON (c."ID")
+           c."ID"::bigint, c."FECHAOCURRENCIA"::date, d."HORIGEN"::bigint,
+           c."NACIONALIDAD", c."CEDULA", c."NOMBRE", c."APELLIDO",
+           c."EDAD", c."UNIDAD_EDAD", c."HSEXO",
+           c."HRESIDENCIA_PAIS", g."DES_REGION", g."NOMBRELARGO"
+    FROM sismai."RENGLON_CASOSMM" r
+    JOIN sismai."CASOS_MMI" c ON c."ID" = r."HCASOSMMI"
+    JOIN sismai."DOCUMENTO" d ON d."ID" = c."HDOCUMENTO"
+    LEFT JOIN sismai."ORG_GEOGRAFICA" g ON g."NUM_REGION" = c."HRESIDENCIA"
+    WHERE c."FECHAOCURRENCIA" >= %s AND c."FECHAOCURRENCIA" <= %s
+    ORDER BY c."ID"
+"""
+
 SQL_NOMBRES_ESTABLECIMIENTO = 'SELECT "ID"::bigint, "NOMBRE" FROM sismai."ESTABLECIMIENTO"'
 
 
@@ -102,6 +120,54 @@ def muerte_materna_por_semana(fecha_desde, fecha_hasta, organizaciones=None):
     for por_semana_org in por_org.values():
         total.update(por_semana_org)
     return {int(se): n for se, n in total.items()}
+
+
+def muerte_materna_detalle(fecha_desde, fecha_hasta, organizaciones=None):
+    """Casos de muerte materna del registro de investigación, uno por persona.
+
+    Devuelve una lista de dicts con los campos que pide el anexo (identificación, edad,
+    residencia y ocurrencia), ordenada por organización y fecha. ``None`` si la fuente
+    legacy no está disponible, igual que `muerte_materna_por_organizacion`, para no
+    confundir "no se pudo leer" con "no hubo casos".
+    """
+    if not fecha_desde or not fecha_hasta:
+        return None
+    try:
+        with connection.cursor() as cur:
+            cur.execute(SQL_MM_DETALLE, [fecha_desde, fecha_hasta])
+            filas = cur.fetchall()
+        org_de_establecimiento = _resolver_organizaciones()
+    except Exception:  # noqa: BLE001 - la fuente legacy puede no existir (sqlite, espejo parcial)
+        logger.warning("No se pudo leer el detalle de sismai.RENGLON_CASOSMM.", exc_info=True)
+        return None
+
+    if organizaciones is not None:
+        organizaciones = set(organizaciones)
+
+    detalle = []
+    for (cid, fecha, est_id, nacion, cedula, nombres, apellidos, edad,
+         unidad, sexo, pais, residencia, ubicacion) in filas:
+        org_id = org_de_establecimiento.get(int(est_id)) if est_id is not None else None
+        org_id = org_id or 0
+        if organizaciones is not None and org_id not in organizaciones:
+            continue
+        detalle.append({
+            "legacy_id": int(cid),
+            "organizacion_id": org_id,
+            "fecha": fecha.isoformat() if fecha else "",
+            "nacionalidad": (nacion or "").strip(),
+            "cedula": (cedula or "").strip(),
+            "nombres": (nombres or "").strip(),
+            "apellidos": (apellidos or "").strip(),
+            "edad": int(edad) if edad not in (None, "") else None,
+            "unidad_edad": (unidad or "").strip(),
+            "sexo": int(sexo) if sexo not in (None, "") else None,
+            "residencia": (residencia or "").strip(),
+            "residencia_ubicacion": (ubicacion or "").strip(),
+            "residencia_pais": int(pais) if pais not in (None, "") else None,
+        })
+    detalle.sort(key=lambda x: (x["organizacion_id"], x["fecha"]))
+    return detalle
 
 
 def version_cie_por_fecha(fecha_evento):

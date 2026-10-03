@@ -15,6 +15,7 @@ import Configuracion from "./pages/Configuracion"
 import Seguridad from "./pages/Seguridad"
 import Asic from "./pages/Asic"
 import Despacho from "./pages/Despacho"
+import Registradores from "./pages/Registradores"
 import Login from "./pages/Login"
 
 const NAVEGACION = [
@@ -35,6 +36,7 @@ const NAVEGACION = [
     grupo: "Certificados",
     items: [
       { enlace: "/despacho", rotulo: "Despacho de certificados" },
+      { enlace: "/registradores", rotulo: "Registradores civiles" },
     ],
   },
   {
@@ -175,6 +177,7 @@ export default function App() {
           <Route path="/vigilancia/fichas" element={<CargaFichasVigilancia usuario={usuario} multicentro={esMulticentro} />} />
           <Route path="/reportes" element={<Reportes />} />
           <Route path="/despacho" element={<Despacho usuario={usuario} />} />
+          <Route path="/registradores" element={<Registradores usuario={usuario} />} />
           <Route path="/mapeos" element={<Mapeos />} />
           <Route path="/configuracion" element={<Configuracion usuario={usuario} />} />
           <Route path="/seguridad" element={<Seguridad usuario={usuario} />} />

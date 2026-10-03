@@ -34,15 +34,20 @@ def _ids_organizaciones(centro):
     return [o.id for o in organizaciones_descendientes(centro)]
 
 
-def _persona(modelo, registro):
-    """Nombre y apellidos para identificar el certificado.
+def persona_registro(modelo, registro):
+    """Nombre y apellidos para identificar el certificado, y de quién son.
 
-    En defunción son del fallecido. En nacimiento el SISV no guarda el nombre del
-    recién nacido (ver PENDIENTES.md §23.3), así que se usa el de la madre.
+    En defunción son del fallecido. En nacimiento es del recién nacido; mientras el
+    certificado cargado no traiga su nombre (los que importationó el legacy, anteriores
+    al EV-25) se recurre al de la madre y así se dice en la etiqueta, porque un
+    certificado identificado por el nombre de la madre parece de otra persona.
     """
     if modelo is Defuncion:
-        return registro.fallecido_nombres or "", registro.fallecido_apellidos or ""
-    return registro.madre_nombres or "", registro.madre_apellidos or ""
+        return registro.fallecido_nombres or "", registro.fallecido_apellidos or "", "Fallecido"
+    nombres = registro.nino_nombres or registro.madre_nombres or ""
+    apellidos = registro.nino_apellidos or registro.madre_apellidos or ""
+    etiqueta = "Recién nacido" if registro.nino_nombres else "Madre"
+    return nombres, apellidos, etiqueta
 
 
 def certificados_usados(talonario):
@@ -110,12 +115,13 @@ def detalle_certificados(talonario, usados=None):
         registro = usados.get(numero)
         novedad = novedades.get(numero)
         if registro is not None:
-            nombres, apellidos = _persona(modelo, registro)
+            nombres, apellidos, persona = persona_registro(modelo, registro)
             filas.append({
                 "numero": numero,
                 "estatus": "CARGADO",
                 "nombres": nombres,
                 "apellidos": apellidos,
+                "persona": persona,
                 "fecha": str(registro.fecha_evento),
                 "registro_id": registro.id,
                 "registro_numero": registro.registro_numero,

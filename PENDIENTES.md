@@ -246,7 +246,12 @@
     stats a ancho completo, jerarquía tipográfica del título y acciones de jerarquía sin flotar.
 - Verificación: `npm run build` (vite) sin errores.
 
-## 14. [EN CURSO] Trabajo del 24/09/2026 — codificación pendiente, solo-Lara y sin demo
+## 14. [COMPLETADO] Trabajo del 24/09/2026 — codificación pendiente, solo-Lara y sin demo
+
+> **Cierre (02/10/2026):** todo lo de esta tanda está en el código. Lo que aquí figuraba como
+> «pendiente (próxima sesión)» lo cerraron §15 (ASIC↔comunidades y comparativo anual), §17
+> (diagnóstico del servidor) y las secciones siguientes. Solo queda el paso manual de actualizar
+> el repositorio, que no es trabajo de esta lista.
 
 - **Roles nuevos:** `ROL_VIGILANCIA` (escribe: crear/editar registros, como
   TRANSCRIPTOR/CODIFICADOR/DIRECTOR) y `ROL_SECRETARIA` (solo lectura, no escribe/edita/elimina/configura)
@@ -319,7 +324,7 @@
   roles VIGILANCIA/SECRETARIA, exportación de BDs, ASIC↔comunidades y reporte comparativo ya están en el
   código; pendiente solo **actualizar el repositorio** y (opcional) la corrida completa del ETL de vigilancia.
 
-## 16. [EN CURSO] Punto crítico EVENTOS_SINC y verificación MM/MN (24/09/2026)
+## 16. [SUPERADO POR §17 Y §22] Punto crítico EVENTOS_SINC y verificación MM/MN (24/09/2026)
 
 > ⚠ **DATO DESACTUALIZADO (25/09/2026):** el «espejo `SISMAI.EVENTOS_SINC` con 3.372.065 filas
 > estancadas desde 27/08» de este punto ya **no describe la cola viva**. Verificado en el servidor
@@ -463,7 +468,7 @@
 
 ---
 
-## 17. [EN CURSO] Diagnóstico en vivo del servidor SISMAI (25/09/2026)
+## 17. [DIAGNÓSTICO CERRADO — el seguimiento vive en §22] Diagnóstico en vivo del servidor SISMAI (25/09/2026)
 
 Trabajo realizado **en el servidor real** `192.168.5.200` (Oracle 10.1.0.3.0, SID `lar1`), con
 acceso SSH de solo lectura. **No se ejecutó ningún DDL ni DML en producción.** Continúa y
@@ -1653,7 +1658,7 @@ a 100–140 por año). 6 pruebas nuevas; suite completa **137 OK**.
 
 ---
 
-## 20. [PARCIAL] Fase C — MM/MN por semana, y dos caídas de captura que nadie había visto (28/09/2026)
+## 20. [COMPLETADO] Fase C — MM/MN por semana, y dos caídas de captura que nadie había visto (28/09/2026)
 
 Al contrastar el MN de SISV (`Defuncion`, 0–27 días entre `fecha_nacimiento` y `fecha_evento`)
 contra el registro materno-infantil de la oficina (`sismai."CASOS_MMI"`, 10.737 casos 2009-2026,
@@ -1685,7 +1690,7 @@ Comprobado: entre 2009-01 y 2026-08 **no hay ni un solo mes con cero filas** en 
 defunciones ni fichas, así que `meses_sin_datos` no se dispara nunca y el banner solo funciona
 por `atraso_dias` (días sin registrar). Es un control de "voy al día", no de "este período está
 completo". Detectar una caída exige umbrales, y un umbral mal puesto inventa huecos falsos; por
-eso **no se cambió nada sin decidir**.
+eso **no se cambió nada sin decidir** (ya resuelto, ver §20.2).
 
 Para responder si esos certificados existen en el Oracle de origen (que es lo que decide si la
 pérdida es recuperable o definitiva) está `migracion/diagnostico_hueco_2019_2021.sh`: solo
@@ -1694,6 +1699,10 @@ local o por ssh (`HOST=192.168.5.200`, `SIMULAR=1` para ver qué haría sin corr
 podido ejecutar**: `192.168.5.200` no responde desde la red de trabajo actual. En el espejo los
 números del colapso son los mismos en `sismai."CERTIFICADO"` que en `registros_defuncion`
 (51/36/83/34...), o sea que el importador es fiel: si falta, falta en el origen.
+
+> ⚠ **Superado por §21 (CERRADO 29/09/2026):** la definición quedó resuelta sin preguntar a la
+> oficina — la muerte materna son las filas que enlazan con `RENGLON_CASOSMM`, y el indicador del
+> tablero ya sale de ahí. Lo que sigue es el registro de la duda original, a modo de historial.
 
 **MM sigue bloqueado por una definición, no por un bug:** `CASOS_MMI` no distingue la muerte
 materna de la infantil. En el grupo de edad «años» hay 708 personas de 12-50 años con
@@ -1737,6 +1746,30 @@ Dos trampas del legacy que hubo que esquivar:
 
 ⚠ El lado SISV solo cuenta defunciones **con fecha de nacimiento** (104 sin ella en 2026): es un
 mínimo, y las que no la tienen pueden ser neonatos que se quedan fuera.
+
+### 20.2 Detección de meses degradados (HECHO 02/10/2026)
+
+Lo que el §20 dejó pendiente («no se cambió nada sin decidir») ya está hecho. `ConfiguracionGeneral`
+ganó tres campos (migración `registros.0007`): `detectar_meses_degradados` (bool, por defecto
+`True`), `factor_mes_degradado` (float, `0.40`) y `min_meses_historia` (entero, `12`), expuestos
+por `GET/PUT /api/registros/configuracion/` (escribe quien `puede_configurar`) y persistidos en la
+BD; no hay UI de configuración.
+
+`DashboardView._meses_degradados(series, cfg, rango)` recorre los meses terminados de cada serie
+(en alcance) y marca un mes cuando su total cae por debajo de `factor × mediana` de los últimos
+`min_meses_historia` meses **normales** (los no marcados). La base se ancla así al último nivel
+sano: con una mediana móvil corriente, a los 12 meses de caída la referencia ya estaría tan baja
+como la caída y dejaría de avisar. Es conservador: exige 12 meses normales antes de marcar,
+ignora el mes en curso (a mitad de mes siempre está a medias) y se puede desactivar. El rango
+solo filtra lo **reportado**, no la base: mirando 2026 no avisa de la caída 2019-2021; mirando
+2019/2020/2021 sí. `_cobertura` lo entrega como `meses_degradados` y `completo` pasa a ser falso
+si hay alguno; `AvisoCobertura` (Tablero.jsx) lo muestra bajo «Meses muy por debajo de lo
+habitual».
+
+Verificado contra la BD real: con `factor` 0,40 y 12 meses de historia, 2020 marca **14 meses de
+nacimientos** (dic 2019–ene 2021) y **13 de defunciones** (dic 2019–dic 2020), justo las caídas
+descritas arriba; 2026 marca **1** en cada serie (agosto de 2026, el corte del 02/08). 5 pruebas
+nuevas (`MesesDegradadosTableroTests`), suite **227 OK**.
 
 ---
 
@@ -1846,7 +1879,7 @@ resuelto. La MM no se puede sacar del CIE mientras la codificación siga así.
 
 ---
 
-## 22. [EJECUTADO 02/10/2026 — paso 1 cerrado y verificado] Respaldo total del Oracle yunque la sincronización sigue rota
+## 22. [EJECUTADO 02/10/2026 — paso 1 cerrado y verificado] Respaldo total del Oracle y, aunque la sincronización sigue rota
 
 > **El 02/10, en la oficina, el paso 1 se ejecutó y se verificó** (§22.7). Sigue pendiente lo demás: recompilar los 16 objetos (§22.3), que salgan 5 archivos (§22.4) y reevaluar (§22.5).
 
@@ -2074,7 +2107,7 @@ los campos con tabulaciones (`MESES\t\t2018-01 \t\t    1172`). Con `[ \t]+` func
 último es el peor tipo de fallo —aparenta que no hay datos cuando sí los hay— y era el único que
 quedaba sin detectar, porque el script «terminaba bien».
 
-## 23. [PARCIAL 01/10/2026] Los certificados oficiales: EV-14 hecho, EV de nacimiento y el registro semanal MM/MN pendientes
+## 23. [HECHO 02/10/2026] Los certificados oficiales: EV-14, EV-25 y el registro semanal MM/MN
 
 El usuario aportó 8 capturas de los formularios reales (`capturas/certificado_nacimiento.jpg`,
 `certificado_defuncion.jpg`, `pantalla1_mm.jpg` … `pantalla6_mm.jpg`; los números de certificado están
@@ -2132,55 +2165,94 @@ Pruebas: `registros/tests.py::DefuncionEV14Tests` (7) — una por sección, una 
 y una de que una elección inválida se rechaza. **Suite completa 163 OK** (156 → 163), frontend 13 OK,
 `npm run build` OK.
 
-### 23.3 PENDIENTE: el certificado de nacimiento (EV)
+### 23.3 HECHO (02/10/2026): el certificado de nacimiento ahora sigue el EV-25
 
-`CargaNacimientos.jsx` cubre hoy tipo de parto, pesos, gemelar y padres, pero le faltan campos que el
-formulario nuevo sí pide:
+`CargaNacimientos.jsx` cubría tipo de parto, pesos, gemelar y padres, pero le faltaban los campos que
+el certificado pide. Se amplió `registros.Nacimiento` (migración `0006_nacimiento_ev25`) con **24 campos
+nuevos**, todos opcionales, y el frontend se reorganizó por secciones del EV-25:
 
-- **Sexo `Hermafrodita`**: el modelo usa `I = Indeterminado`. Es el mismo dato con otro nombre en el
-  certificado; lo correcto es renombrar la etiqueta a "Hermafrodita" (o aceptar ambos valores) **sin
-  cambiar el código en BD**, porque hay cientos de miles de nacimientos con `I` y 17 años de histórico.
-- **Nacionalidad y nº de pasaporte/documento** de madre y de padre (hoy solo hay `madre_cedula`).
-- **Residencia habitual de madre y de padre**: dirección, código de comunidad, **Venezuela / Exterior** y
-  **país**. Hoy el territorio registrado es el del establecimiento, no el de la madre.
-- **Nro de historia clínica** del recién nacido (aparece en la sección I).
-- **Responsable de la certificación**: nombre, cargo y "director del establecimiento". Nota: el SISV tiene
-  el `organizacion` del certificado, pero **no** tiene la persona que firma; eso es un dato nuevo.
-- **Fecha de emisión / nº de planilla** del certificado.
+| Sección | Campos agregados |
+| --- | --- |
+| **Cabecera** | `fecha_emision`, `numero_planilla`, `tipo_numero_certificado` (Completo / Histórico) |
+| **I — Datos del nacimiento** | `nino_nombres`, `nino_apellidos`, `numero_historia_clinica` |
+| **II — Madre** | `madre_nacionalidad`, `madre_pasaporte`, `madre_residencia`, `madre_residencia_pais`, `madre_residencia_direccion`, `madre_residencia_parroquia` (FK), `madre_residencia_comunidad` (FK) |
+| **III — Padre** | `padre_nacionalidad`, `padre_pasaporte`, `padre_residencia`, `padre_residencia_pais`, `padre_residencia_direccion`, `padre_residencia_parroquia` (FK), `padre_residencia_comunidad` (FK) |
+| **Responsable** | `certificador_nombres`, `certificador_cedula`, `certificador_matricula_mpps`, `director_establecimiento` |
 
-Mismo criterio que en §23.2: campos opcionales, migración aparte, sin tocar lo cargado.
+Decisiones que conviene no perder:
 
-### 23.4 PENDIENTE: el Registro Semanal de Mortalidad Materna e Infantil (Anexo del Telegrama)
+- **Sexo `Hermafrodita`.** El modelo usaba `I = Indeterminado`; el certificado lo llama Hermafrodita. Se
+  **cambió solo la etiqueta** (`I` → "Hermafrodita") y se añadió `N` = "Sin información" (el certificado
+  tiene cuatro opciones: Sin Información / Masculino / Femenino / Hermafrodita, y M/F/I no alcanzaban).
+  El **código `I` no se tocó**: hay 115 nacimientos con `I` de 438.477 (M 225.544, F 212.918) y el
+  histórico no se reinterpreta. `Tablero.jsx` rotula `I` y `N` con el mismo texto.
+- **Nada se volvió obligatorio**, igual que en §23.2: el certificado mínimo se sigue creando
+  (`test_certificado_minimo_sigue_creandose`).
+- **La residencia habitual se ancla al territorio del EV-25**, no al del establecimiento. Los cuatro FKs
+  se validan en `Nacimiento.clean()` y en `NacimientoSerializer.validate()` (nivel PARROQUIA / COMUNIDAD);
+  el serializer devuelve `madre_residencia_territorio` / `padre_residencia_territorio` con los cuatro
+  niveles para que `SelectTerritorial` precargue la cascada (`destino` + `comunidadComoLista`).
+- **El ETL no se toca.** `importar_legacy_registros` leía `NAC_RNACIDO."NOMBRES"` y
+  `NAC_MADRE."HRESIDENCIA"` pero no había dónde guardarlos; los sigue ignorando.
+- **Backfill (`manage.py completar_nacimiento_legacy`):** recupera lo que el ETL descartó. Rellena
+  `nino_nombres` desde `NAC_RNACIDO."NOMBRES"` (438.518 recuperables) y `madre_residencia_parroquia`
+  desde `NAC_MADRE."HRESIDENCIA"` → `ORG_GEOGRAFICA` → parroquia del árbol (416.706 recuperables; el
+  nombre legacy no siempre coincide con el INE, por eso no son todas). Es un `UPDATE` por bloque,
+  **solo campos vacíos**, idempotente y dry-run por defecto (`--ejecutar` aplica, `--solo nombres|residencia`
+  limita). El nombre del padre ya lo importaba el ETL, así que no se toca.
 
-Esto **no** es el consolidado semanal de ENO (`vigilancia.ConsolidadoSemanal`, EPI-12/EPI-14) ni el
-EPI-15 de morbilidad (`Epi15.jsx`). Es otro formulario, con otro grano: **un registro por establecimiento
-y por semana**, con conteos agregados y detalle caso por caso. No existe en SISV.
+Pruebas: `registros/tests.py::NacimientoEV25Tests` (6: mínimo intacto, cabecera/RN, sexo I/N, residencia
+madre por parroquia, padre por comunidad, nivel inválido → 400) y
+`registros/tests_completar_nacimiento.py` (6). **Suite backend 193 OK** (181 → 193), frontend 13 OK,
+`npm run build` OK.
 
-Lo que habría que construir:
+### 23.4 HECHO (02/10/2026): el Registro Semanal de Mortalidad Materna e Infantil, como reporte generado
 
-1. Modelo nuevo, grano **(establecimiento, semana ISO)**: código del establecimiento, año, periodo, fechas,
-   y los agregados `partos`, `nacidos_vivos`, `nacidos_muertos`, `abortos`.
-2. Detalle de **mortalidad materna** (una fila por muerte): tipo de identificación, cédula, edad,
-   apellidos, nombres, fecha, residencia en Venezuela/fuera del país, lugar de ocurrencia.
-3. Detalle de **mortalidad infantil y 1-4 años**: apellidos, nombres, fecha, sexo, edad, unidad, peso,
-   control prenatal (nº de consultas), edad gestacional, código y nombre de residencia, ocurrencia.
-4. API + pantalla, con la autorización de envío que ya tiene el consolidado (`BORRADOR/ENVIADO/CERRADO`).
+El anexo del telegrama **no** es el consolidado semanal de ENO (`vigilancia.ConsolidadoSemanal`,
+EPI-12/EPI-14) ni el EPI-15 de morbilidad (`Epi15.jsx`). Es otro formulario, con otro grano: **un registro
+por establecimiento y por semana**, con conteos agregados y detalle caso por caso.
 
-**Antes de construirlo hay que resolver una pregunta de origen, y es la importante:** los conteos de este
-formulario se llenan a mano en el centro y se envían por telegrama. **¿Esa misma información ya está en
-`registros.Nacimiento` y `registros.Defuncion`?** Si sí, el anexo se puede **generar** desde el modelo de
-hechos en vez de tecerse a mano, que es lo que el resto del SISV ya hace. Y si sí, se abre una consecuencia
-de alcance: el tablero mide MM y MN por semana y por centro (§20, §21) contra **fuentes distintas** —
-el consolidado de ENO, el registro de investigación y este anexo—, que es exactamente el problema que
-§21 ya documentó para la muerte materna. Habría que decidir cuál manda antes de tener un cuarto número
-compitiendo.
+**No se construyó como formulario de captura sino como reporte generado** desde
+`registros.Nacimiento`/`registros.Defuncion` y el registro de investigación de MM, que es lo que el usuario
+necesita y además concilia. Se verificó antes qué casillas salen de la BD local y cuáles no:
 
-**Recomendación: no construir el anexo como formulario de captura.** Construirlo como **reporte generado**
-desde nacimientos y defunciones, que es lo que el usuario necesita de verdad, y que además concilia.
+| Casilla del anexo | Origen en SISV | ¿Se genera? |
+| --- | --- | --- |
+| Nacidos vivos | `Nacimiento.nacido_vivo=True` del centro y la semana | Sí |
+| Nacidos muertos | `Nacimiento.nacido_vivo=False` | Sí |
+| No. de partos | — | **No**: el certificado es por recién nacido, no por parto (un gemelar son dos filas); no se inventa |
+| Abortos | — | **No**: SISV no captura abortos; no se inventa |
+| Mortalidad materna | `sismai."RENGLON_CASOSMM"` → `CASOS_MMI` (respaldo: `Defuncion.embarazo_o_puerperio`) | Sí |
+| Mortalidad infantil y 1-4 años | `Defuncion` con `fecha_nacimiento` (0-27 d = neonatal, <1 año = infantil, 1-4 años) | Sí |
+
+Del detalle del anexo se genera el materno completo (identificación, cédula, edad, fecha, residencia y
+ocurrencia). Del infantil se generan nombres, sexo, edad, fecha, residencia y ocurrencia; **peso, control
+prenatal y edad gestacional no se generan** porque no están en `Defuncion` (quedan para cuando se capturen).
+
+Implementación:
+
+- `vigilancia/services.py::rango_semana(anio, semana)` → `(domingo, sábado)` de la semana epidemiológica.
+- `registros/services.py::muerte_materna_detalle(desde, hasta, organizaciones)` → un caso de MM por
+  persona (`DISTINCT ON c."ID"`, la misma dedupe que el conteo), con residencia por `ORG_GEOGRAFICA`.
+- Endpoint `GET /api/registros/reportes/semanal-mmi/?anio=&semana=[&formato=csv]`: por centro dentro del
+  alcance (`_organizaciones_del_alcance`), nacidos vivos/muertos, MM (`mm_fuente` =
+  `REGISTRO_INVESTIGACION`/`CERTIFICADO`, más `mm_certificadas` para conciliar), MN, infantil <1 año,
+  1-4 años y los dos detalles. Con `formato=csv` descarga un CSV con BOM de tres secciones
+  (RESUMEN / MATERNA / INFANTIL). Con alcance de centro, su centro aparece en ceros aunque no tenga
+  actividad.
+- Frontend: sección **«Registro semanal de mortalidad materna e infantil»** en `/reportes`
+  (`Reportes.jsx`) con año/semana, tabla por centro, detalles plegables y exportación CSV.
+- Pruebas: `registros/tests.py::ReporteSemanalMMITests` (7) — resumen por centro, caída al certificado
+  sin legacy, MM del registro de investigación, alcance de centro, centro sin datos, CSV y validación.
+
+**Nota de alcance:** siguen existiendo fuentes distintas de MM/MN (§20, §21 y el consolidado ENO). Este
+anexo no agrega un número nuevo que compita: es una vista semanal por establecimiento de las mismas
+fuentes del tablero, y la marca `*` en el frontend avisa cuándo el MM de ese centro salió del certificado
+porque el registro de investigación no estaba disponible.
 
 ---
 
-## 24. [EN CURSO 01/10/2026] Despacho de certificados: el legacy no lo tiene, hay que construirlo
+## 24. [HECHO 02/10/2026] Despacho de certificados y registradores civiles: el legacy no los tiene, hay que construirlos
 
 ### 24.1 Pedido del usuario (1)
 
@@ -2199,16 +2271,53 @@ Módulo para controlar el **despacho de certificados de nacimiento y defunción*
 - Revisar el **legacy** para reconstruir serie/cantidad por centro y mes/año si fuera posible.
 - Mantener todo actualizado para que los reportes no mientan.
 
-### 24.2 Pedido del usuario (2): registradores civiles
+### 24.2 Pedido del usuario (2): registradores civiles [HECHO 02/10/2026]
 
-> **Pendiente anotado a pedido del usuario (01/10/2026):** llevar control de los **registradores civiles**.
-> Por cada registro civil / centro hay que saber **quién está a cargo y desde qué fecha**, y al cambiar
-> **dar de baja al anterior con fecha** e **ingresar el nuevo responsable con su fecha de toma de
-> posesión**. El objetivo es poder responder «¿quién firmaba en esta fecha?» de forma **retroactiva**, no
-> solo quién firma hoy. Debe modelarse como **historial con vigencias** (desde/hasta), no como un campo
-> suelto en la organización; un `Foreign` al usuario no alcanza porque el registrador civil **no tiene por
-> qué ser usuario del sistema**. Relacionado con `registro_civil_nombre` del EV-14 (§23.2) y con
-> `registrador_civil_nombres`/`cedula`.
+> **Pedido original (01/10/2026):** llevar control de los **registradores civiles**. Por cada registro
+> civil / centro hay que saber **quién está a cargo y desde qué fecha**, y al cambiar **dar de baja al
+> anterior con fecha** e **ingresar el nuevo responsable con su fecha de toma de posesión**. El objetivo
+> es responder «¿quién firmaba en esta fecha?» de forma **retroactiva**. Debe modelarse como **historial
+> con vigencias** (desde/hasta), no como un campo suelto en la organización; un `Foreign` al usuario no
+> alcanza porque el registrador civil **no tiene por qué ser usuario del sistema**.
+
+**Implementado** como app propia `backend/registradores/` (no se metió en `despacho` porque el dominio
+—quién firma— es distinto al de los talonarios —qué serie se entregó—, aunque se comparte el permiso):
+
+| Modelo | Rol |
+| --- | --- |
+| `RegistroCivil` | La oficina (`nombre` único), `organizacion` opcional (centro), `estado`/`municipio`/`parroquia`, `activo`. |
+| `RegistradorCivil` | La persona: `nacionalidad` (V/E/P/I/O), `cedula`, `nombres`, `apellidos`, contacto, `activo`. Único por `(nacionalidad, cedula)`. **No** es `auth.User`. |
+| `DesignacionRegistrador` | La vigencia: FK a registro civil y registrador, `cargo` (TITULAR/SUPLENTE/ENCARGADO), `desde`, `hasta` (**nulo = vigente**), `fecha_toma_posesion`, `acta_nombramiento`. |
+
+- **«¿Quién firmaba?» retroactivo:** `registradores/services.py::vigentes_en(registro_civil, fecha)` =
+  `desde <= fecha` y (`hasta` nulo o `>= fecha`). Endpoint `GET /api/registradores/quien-firmaba/?registro_civil=&fecha=`.
+- **Se permite el solape** (titular y suplente a la vez) a propósito, por eso no hay restricción de
+  no-solape; la consulta devuelve **todos** los vigentes ordenados por cargo.
+- **Endpoints** `/api/registradores/`: `registros-civiles/` y `/<id>/`, `registradores/` y `/<id>/`,
+  `designaciones/` y `/<id>/` (filtros `registro_civil`, `registrador`, `cargo`, `vigente=1`),
+  `quien-firmaba/`. Escribe quien `puede_despachar` (Jefe de Unidad / Director / superusuario); leer,
+  cualquier autenticado. El alcance replica el del despacho (CENTRO ve su centro, REGIONAL su estado).
+- **Borrado protegido:** no se elimina un registro civil ni un registrador con designaciones
+  (`on_delete=PROTECT` → 400 con mensaje claro); se desactiva o se cierra la vigencia.
+- **Frontend** `/registradores` (`Registradores.jsx`): tres formularios + tablas (registros civiles,
+  registradores, historial de designaciones) y un bloque «¿Quién firmaba en una fecha?».
+- **Pruebas** `registradores/tests.py` (22).
+
+**Catálogo sembrado desde el legacy (02/10/2026):** `sismai.CERTIFICADO` guarda
+`NOMREGISTRADOR`/`CIREGISTRADOR`/`NACREGISTRADOR` por certificado de defunción (**167.447 de 173.533**,
+9.603 nombres distintos con muchas variantes de la misma cédula). Comando
+`manage.py sembrar_registradores_legacy [--ejecutar] [--limite N]` (dry-run por defecto, idempotente):
+agrupa por `(nacionalidad, cédula)`, elige el nombre más frecuente como canónico (a igualdad, el más
+largo) y divide `nombres`/`apellidos` asumiendo que el legacy escribe **apellidos primero**.
+- **Ejecutado: 3.857 registradores** (3.845 V + 12 E) a partir de 167.447 filas y 12.713 variantes.
+  Se descartaron **11.184 certificados con nombre pero sin cédula** (no se pueden deduplicar); 0 con
+  nombre inválido.
+- **No crea `RegistroCivil` ni `DesignacionRegistrador`**: el legacy no modela la oficina ni la vigencia.
+  Esas se cargan a mano.
+- La división de nombres es **heurística** (el orden del legacy varía: `"ESPINOZA NELIDA"` domina a
+  `"NELIDA ESPINOZA"`); el catálogo se corrige desde `/registradores`. `apellidos` quedó opcional
+  (migración `0002`) para los pocos nombres de un solo token.
+
 
 ### 24.3 Hallazgo: el legacy no guarda el despacho (verificado en la BD local)
 
@@ -2272,9 +2381,10 @@ Se construyó la app `backend/despacho/` (`Talonario`, `NovedadCertificado`; mig
   `talonarios/<id>/certificados/` (detalle certificado por certificado + resumen), `novedades/` (GET/POST),
   `novedades/<id>/` (PATCH/DELETE), `reportes/certificados/` (reporte 1, por centro y tipo; CSV) y
   `reportes/pendientes/` (reporte 2, no retornados/justificados; CSV). Todos respetan `alcance_registros`.
-- **Nota**: en nacimientos el SISV **no guarda el nombre del recién nacido** (solo la madre), así que el reporte 1
-  de nacimientos identifica el certificado con el **nombre de la madre** y lo rotula (`persona: "Madre"`); se
-  resolverá al ampliar el certificado de nacimiento (§23.3).
+- **Nota (resuelta el 02/10/2026 con el EV-25, §23.3):** en nacimientos el reporte 1 usa el **nombre del
+  recién nacido** (`nino_nombres`/`nino_apellidos`) y lo rotula `persona: "Recién nacido"`; si el registro
+  no lo trae (los importados antes del EV-25 y aún sin backfill) cae al de la madre y lo rotula
+  `persona: "Madre"`. El CSV del reporte 1 ahora lleva una columna **Persona** para que no se confundan.
 - **Frontend** `/despacho` (`Despacho.jsx`): formulario de talonario (con `CentroSelector`), tabla con resumen
   (usados / sin asignar / dañados / en tránsito / devueltos), panel de detalle certificado por certificado con
   alta/baja de novedades, y los dos reportes con exportación CSV.
@@ -2283,5 +2393,8 @@ Se construyó la app `backend/despacho/` (`Talonario`, `NovedadCertificado`; mig
   (centro/regional) y reportes (JSON y CSV con BOM). Suite backend: **181 OK** (eran 163); frontend 13 OK;
   `npm run build` OK.
 
-**Pendiente de este módulo:** registradores civiles con historial de vigencias (§24.2), ampliar el certificado
-de nacimiento (§23.3) y el registro semanal MM/MN (§23.4).
+**Pendiente de este módulo:** el §24.1 pedía «revisar el legacy para reconstruir serie/cantidad por
+centro y mes/año»; ya se verificó que **no es posible** (§24.3, tablas vacías), así que ese punto queda
+cerrado como no viable. Los registradores civiles (§24.2) ya están **con su catálogo sembrado desde el
+legacy** (3.857 personas), igual que el registro semanal MM/MN (§23.4) y el certificado de nacimiento
+EV-25 (§23.3). Queda como paso manual cargar registros civiles y designaciones (el legacy no los tiene).

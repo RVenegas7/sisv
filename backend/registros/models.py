@@ -72,7 +72,34 @@ class RegistroConCIE(models.Model):
 
 
 class Nacimiento(RegistroConCIE):
-    SEXO = [("M", "Masculino"), ("F", "Femenino"), ("I", "Indeterminado")]
+    # El certificado de nacimiento EV-25 ofrece cuatro opciones de sexo: masculino,
+    # femenino, hermafrodita y sin información. El histórico solo tenía tres códigos
+    # (M/F/I) y hay 115 filas con 'I' que venía de 'NAC_RNACIDO.HSEXO' 0/3, es decir
+    # «indeterminado» del catálogo legacy. No se reinterpretan: 'I' conserva el código y
+    # ahora se rotula como lo rotula el certificado, y 'N' es el código nuevo para
+    # «sin información», que antes no tenía dónde guardarse.
+    SEXO = [
+        ("M", "Masculino"),
+        ("F", "Femenino"),
+        ("I", "Hermafrodita"),
+        ("N", "Sin información"),
+    ]
+    NACIONALIDAD = [
+        ("V", "Venezolana"),
+        ("E", "Extranjera"),
+        ("P", "Pasaporte"),
+        ("I", "Sin información"),
+        ("O", "Otra identificación"),
+    ]
+    RESIDENCIA = [
+        ("V", "Venezuela"),
+        ("E", "Exterior"),
+        ("I", "Sin información"),
+    ]
+    TIPO_NUMERO_CERTIFICADO = [
+        ("COMPLETO", "Completo"),
+        ("HISTORICO", "Histórico"),
+    ]
     TIPO_PARTO = [
         ("VAGINAL", "Vaginal"),
         ("CESAREA", "Cesárea"),
@@ -120,16 +147,85 @@ class Nacimiento(RegistroConCIE):
     apgar_1m = models.PositiveSmallIntegerField("Apgar 1 min", null=True, blank=True)
     apgar_5m = models.PositiveSmallIntegerField("Apgar 5 min", null=True, blank=True)
 
+    # --- Sección I: datos del recién nacido ---
+    nino_nombres = models.CharField("Nombres del recién nacido", max_length=150, blank=True)
+    nino_apellidos = models.CharField("Apellidos del recién nacido", max_length=150, blank=True)
+    numero_historia_clinica = models.CharField("Nº de historia clínica", max_length=30, blank=True)
+
+    # --- Sección II: datos de la madre ---
     madre_nombres = models.CharField("Nombres de la madre", max_length=150)
     madre_apellidos = models.CharField("Apellidos de la madre", max_length=150)
     madre_cedula = models.CharField("Cédula de la madre", max_length=20)
     madre_edad = models.PositiveSmallIntegerField("Edad de la madre")
     madre_estado_civil = models.CharField("Estado civil", max_length=15, choices=ESTADO_CIVIL, default="SOLTERA")
+    madre_nacionalidad = models.CharField(
+        "Nacionalidad de la madre", max_length=1, choices=NACIONALIDAD, blank=True
+    )
+    madre_pasaporte = models.CharField(
+        "Nº de pasaporte u otra identificación de la madre", max_length=20, blank=True
+    )
+    # La residencia habitual es el territorio de la madre, que no es el del establecimiento.
+    madre_residencia = models.CharField(
+        "Residencia habitual de la madre", max_length=1, choices=RESIDENCIA, blank=True
+    )
+    madre_residencia_pais = models.CharField("País de residencia de la madre", max_length=80, blank=True)
+    madre_residencia_direccion = models.CharField(
+        "Dirección de residencia de la madre", max_length=250, blank=True
+    )
+    madre_residencia_parroquia = models.ForeignKey(
+        "territorio.DivisionTerritorial", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="nacimientos_madre_parroquia", verbose_name="Parroquia de residencia de la madre",
+        help_text="Nivel PARROQUIA. Es el territorio de la madre, no el del establecimiento.",
+    )
+    madre_residencia_comunidad = models.ForeignKey(
+        "territorio.DivisionTerritorial", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="nacimientos_madre_comunidad", verbose_name="Comunidad de residencia de la madre",
+        help_text="Nivel COMUNIDAD. Es el territorio de la madre, no el del establecimiento.",
+    )
 
+    # --- Sección III: datos del padre ---
     padre_nombres = models.CharField("Nombres del padre", max_length=150, blank=True)
     padre_apellidos = models.CharField("Apellidos del padre", max_length=150, blank=True)
     padre_cedula = models.CharField("Cédula del padre", max_length=20, blank=True)
+    padre_nacionalidad = models.CharField(
+        "Nacionalidad del padre", max_length=1, choices=NACIONALIDAD, blank=True
+    )
+    padre_pasaporte = models.CharField(
+        "Nº de pasaporte u otra identificación del padre", max_length=20, blank=True
+    )
+    padre_residencia = models.CharField(
+        "Residencia habitual del padre", max_length=1, choices=RESIDENCIA, blank=True
+    )
+    padre_residencia_pais = models.CharField("País de residencia del padre", max_length=80, blank=True)
+    padre_residencia_direccion = models.CharField(
+        "Dirección de residencia del padre", max_length=250, blank=True
+    )
+    padre_residencia_parroquia = models.ForeignKey(
+        "territorio.DivisionTerritorial", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="nacimientos_padre_parroquia", verbose_name="Parroquia de residencia del padre",
+    )
+    padre_residencia_comunidad = models.ForeignKey(
+        "territorio.DivisionTerritorial", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="nacimientos_padre_comunidad", verbose_name="Comunidad de residencia del padre",
+    )
 
+    # --- Cabecera del certificado ---
+    fecha_emision = models.DateField("Fecha de emisión", null=True, blank=True)
+    numero_planilla = models.CharField("Nº de la planilla impresa", max_length=30, blank=True)
+    tipo_numero_certificado = models.CharField(
+        "Tipo del nº en el certificado", max_length=10, choices=TIPO_NUMERO_CERTIFICADO, blank=True,
+        help_text="El formulario ofrece un número Completo u Histórico en el certificado impreso.",
+    )
+
+    # --- Responsable de la certificación ---
+    certificador_nombres = models.CharField(
+        "Nombre del responsable de la certificación", max_length=200, blank=True
+    )
+    certificador_cedula = models.CharField("Cédula del responsable de la certificación", max_length=20, blank=True)
+    certificador_matricula_mpps = models.CharField("Nº MSDS del responsable", max_length=30, blank=True)
+    director_establecimiento = models.CharField("Director del establecimiento", max_length=200, blank=True)
+
+    # --- Sección IV: registro civil ---
     libro = models.CharField("Libro de registro civil", max_length=20, blank=True)
     folio = models.PositiveIntegerField("Folio", null=True, blank=True)
     acta = models.PositiveIntegerField("Acta", null=True, blank=True)
@@ -138,6 +234,42 @@ class Nacimiento(RegistroConCIE):
         verbose_name = "Nacimiento"
         verbose_name_plural = "Nacimientos"
         ordering = ["-fecha_evento"]
+
+    def clean(self):
+        super().clean()
+        for campo, nivel in (
+            ("madre_residencia_parroquia", "PARROQUIA"),
+            ("madre_residencia_comunidad", "COMUNIDAD"),
+            ("padre_residencia_parroquia", "PARROQUIA"),
+            ("padre_residencia_comunidad", "COMUNIDAD"),
+        ):
+            nodo = getattr(self, f"{campo}_id", None) and getattr(self, campo)
+            if nodo is not None and nodo.nivel != nivel:
+                raise ValidationError({campo: f"La residencia debe registrar una {nivel.lower()}."})
+
+    def residencia_ubicacion(self, quien):
+        """Territorio de residencia habitual de la madre o del padre, de arriba hacia abajo.
+
+        Devuelve los cuatro niveles con nombre, que es lo que la cascada del formulario
+        necesita para dejarse precargar; el nivel más fino informado es el que se guardó.
+        """
+        comunidad = getattr(self, f"{quien}_residencia_comunidad", None)
+        parroquia = getattr(self, f"{quien}_residencia_parroquia", None)
+        if comunidad is not None:
+            return {
+                "estado": comunidad.subir_hasta("ESTADO"),
+                "municipio": comunidad.subir_hasta("MUNICIPIO"),
+                "parroquia": comunidad.subir_hasta("PARROQUIA"),
+                "comunidad": comunidad,
+            }
+        if parroquia is None:
+            return {"estado": None, "municipio": None, "parroquia": None, "comunidad": None}
+        return {
+            "estado": parroquia.subir_hasta("ESTADO"),
+            "municipio": parroquia.subir_hasta("MUNICIPIO"),
+            "parroquia": parroquia,
+            "comunidad": None,
+        }
 
 
 class Defuncion(RegistroConCIE):
@@ -320,6 +452,18 @@ class ConfiguracionGeneral(models.Model):
         on_delete=models.SET_NULL,
         related_name="+",
         verbose_name="Organización activa",
+    )
+    detectar_meses_degradados = models.BooleanField(
+        "Detectar meses degradados", default=True,
+        help_text="Avisa cuando un mes tiene muchos menos registros de lo normal.",
+    )
+    factor_mes_degradado = models.FloatField(
+        "Factor de mes degradado", default=0.40,
+        help_text="Cuánto del nivel normal puede bajar un mes antes de avisar (0 a 1).",
+    )
+    min_meses_historia = models.PositiveSmallIntegerField(
+        "Meses de historia para la mediana", default=12,
+        help_text="Meses normales que se usan como referencia para comparar.",
     )
     actualizado_en = models.DateTimeField("Actualizado en", auto_now=True)
 

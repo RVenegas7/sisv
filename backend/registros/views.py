@@ -1,7 +1,8 @@
 import csv
 import io
 from collections import Counter
-from datetime import date
+from datetime import date, timedelta
+from statistics import median
 
 from django.db.models import Q, Count, Max
 from django.db.models.functions import TruncMonth, ExtractYear, ExtractMonth
@@ -13,7 +14,11 @@ from sisv_backend.api import error, ok
 
 from .models import ConfiguracionGeneral, Defuncion, FichaVigilancia, Nacimiento
 from .serializers import DefuncionSerializer, FichaVigilanciaSerializer, NacimientoSerializer
-from .services import muerte_materna_por_semana
+from .services import (
+    muerte_materna_detalle,
+    muerte_materna_por_organizacion,
+    muerte_materna_por_semana,
+)
 from catalogos.models import MapeoCIE
 from seguridad.models import Organizacion
 from vigilancia.models import ConsolidadoSemanal
@@ -22,7 +27,11 @@ MESES_ES = [
     "enero", "febrero", "marzo", "abril", "mayo", "junio",
     "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ]
-from vigilancia.services import rango_anio_epidemiologico, semana_epidemiologica
+from vigilancia.services import (
+    rango_anio_epidemiologico,
+    rango_semana,
+    semana_epidemiologica,
+)
 from seguridad.services import (
     alcance_registros,
     organizacion_por_defecto,
@@ -349,9 +358,13 @@ class _RegistroAPI(APIView):
     serializer = None
     etiqueta = "registro"
     buscar = []
+    relaciones = ()
 
     def _qs(self, request):
-        return _por_alcance(self.modelo.objects.all(), request)
+        qs = self.modelo.objects.all()
+        if self.relaciones:
+            qs = qs.select_related(*self.relaciones)
+        return _por_alcance(qs, request)
 
     def _obtener(self, request, pk):
         try:
@@ -531,7 +544,16 @@ class NacimientoView(_RegistroAPI):
     modelo = Nacimiento
     serializer = NacimientoSerializer
     etiqueta = "nacimiento"
-    buscar = ["registro_numero", "madre_nombres", "madre_apellidos"]
+    buscar = ["registro_numero", "madre_nombres", "madre_apellidos", "nino_nombres"]
+    # La residencia habitual de la madre y del padre son cuatro FKs al árbol territorial
+    # (EV-25 §23.3); sin esto el listado hace cuatro consultas más por fila.
+    relaciones = (
+        "organizacion",
+        "madre_residencia_parroquia",
+        "madre_residencia_comunidad",
+        "padre_residencia_parroquia",
+        "padre_residencia_comunidad",
+    )
 
 
 class DefuncionView(_RegistroAPI):
@@ -550,7 +572,7 @@ class FichaVigilanciaView(_RegistroAPI):
 
 class DashboardView(APIView):
     @staticmethod
-    def _cobertura(request, series):
+    def _cobertura(request, series, degradados=None):
         """Dice hasta donde llegan los datos y si falta algun mes.
 
         El tablero se lee como si la informacion fuera completa. Durante la
@@ -601,12 +623,92 @@ class DashboardView(APIView):
 
         atrasos = {v["atraso_dias"] for v in por_modulo.values() if v["atraso_dias"] is not None}
         peor = max(atrasos) if atrasos else 0
+        degradados = degradados or {"por_modulo": {}}
         return {
             "por_modulo": por_modulo,
             "meses_sin_datos": huecos,
+            "meses_degradados": degradados,
             "atraso_dias": peor,
-            "completo": not huecos and peor <= 45,
+            "completo": not huecos and peor <= 45 and not degradados["por_modulo"],
         }
+
+    @staticmethod
+    def _en_rango(anio, mes, rango):
+        """¿El mes cae dentro del rango (desde, hasta) que se está mirando?"""
+        if not rango:
+            return True
+        desde, hasta = rango
+        inicio = date(anio, mes, 1)
+        fin = (date(anio + 1, 1, 1) if mes == 12 else date(anio, mes + 1, 1)) - timedelta(days=1)
+        return not (fin < desde or inicio > hasta)
+
+    @staticmethod
+    def _meses_degradados(series, cfg, rango=None):
+        """Marca los meses terminados que caen muy por debajo de lo normal.
+
+        Compara cada mes contra la mediana de los ultimos ``min_meses_historia``
+        meses *normales* (los que no cayeron bajo el umbral). Asi una caida
+        sostenida no arrastra la referencia hacia abajo y deja de detectarse: la
+        base queda anclada al ultimo nivel sano conocido. Un mes se marca como
+        degradado si su total queda por debajo de ``factor`` veces esa mediana.
+
+        La referencia se calcula con **toda** la historia en alcance, pero solo se
+        reportan los meses que caen dentro de ``rango`` (el año que se esta
+        mirando); igual que ``meses_sin_datos``. Es conservador: exige al menos
+        ``min_meses_historia`` meses normales antes de marcar nada, ignora el mes
+        en curso (siempre va a medias) y se puede desactivar desde
+        ``ConfiguracionGeneral``.
+        """
+        activo = bool(cfg.detectar_meses_degradados)
+        factor = float(cfg.factor_mes_degradado or 0.40)
+        min_meses = int(cfg.min_meses_historia or 12)
+        salida = {
+            "activo": activo,
+            "factor": factor,
+            "min_meses": min_meses,
+            "por_modulo": {},
+        }
+        if not activo:
+            return salida
+
+        hoy = date.today()
+        for clave, etiqueta, qs in series:
+            filas = (
+                qs.annotate(a=ExtractYear("fecha_evento"), m=ExtractMonth("fecha_evento"))
+                  .values("a", "m").annotate(c=Count("id"))
+            )
+            conteos = {(f["a"], f["m"]): f["c"] for f in filas if f["a"] and f["m"]}
+            if not conteos:
+                continue
+
+            normales = []
+            meses = []
+            anio, mes = min(conteos)
+            ultimo = max(conteos)
+            while (anio, mes) <= ultimo:
+                # El mes en curso no se marca: a mitad de mes siempre esta a medias.
+                if (anio, mes) != (hoy.year, hoy.month):
+                    total = conteos.get((anio, mes), 0)
+                    if len(normales) >= min_meses and total < factor * median(normales[-min_meses:]):
+                        if DashboardView._en_rango(anio, mes, rango):
+                            etiqueta_mes = MESES_ES[mes - 1] if 1 <= mes <= 12 else str(mes)
+                            meses.append(f"{etiqueta_mes} de {anio}")
+                    else:
+                        normales.append(total)
+                mes += 1
+                if mes > 12:
+                    mes = 1
+                    anio += 1
+
+            if meses:
+                salida["por_modulo"][clave] = {
+                    "etiqueta": etiqueta,
+                    "meses": meses,
+                    "desde": meses[0],
+                    "hasta": meses[-1],
+                    "total": len(meses),
+                }
+        return salida
 
     def get(self, request):
         anio_raw = (request.query_params.get("anio") or "").strip()
@@ -676,7 +778,21 @@ class DashboardView(APIView):
                 a for a in qs_ref.annotate(y=ExtractYear("fecha_evento")).values_list("y", flat=True).distinct() if a
             )
 
-        cobertura = self._cobertura(request, (("nacimientos", qs_nac), ("defunciones", qs_def), ("fichas", qs_fic)))
+        cfg = ConfiguracionGeneral.obtener()
+        degradados = self._meses_degradados(
+            (
+                ("nacimientos", "Nacimientos", _por_alcance(Nacimiento.objects.all(), request)),
+                ("defunciones", "Defunciones", _por_alcance(Defuncion.objects.all(), request)),
+                ("fichas", "Vigilancia", _por_alcance(FichaVigilancia.objects.all(), request)),
+            ),
+            cfg,
+            None if todos else _rango_epidemiologico(anio_activo),
+        )
+        cobertura = self._cobertura(
+            request,
+            (("nacimientos", qs_nac), ("defunciones", qs_def), ("fichas", qs_fic)),
+            degradados,
+        )
 
         return ok(
             {
@@ -840,6 +956,251 @@ class ReporteComparativoView(APIView):
         )
 
 
+def _grupo_edad_anexo(fecha_evento, fecha_nacimiento):
+    """Grupo del anexo para una defunción, calculado desde las fechas reales.
+
+    `Defuncion` no guarda la edad: se deriva de `fecha_evento - fecha_nacimiento`. Los
+    cortes son los del anexo: neonatal 0-27 días, infantil 28-364 días (menor de un año)
+    y 1 a 4 años. Fuera de eso devuelve `None` y la muerte no entra al registro.
+    """
+    if not fecha_evento or not fecha_nacimiento:
+        return None
+    dias = (fecha_evento - fecha_nacimiento).days
+    if dias < 0:
+        return None
+    if dias <= 27:
+        return "neonatal"
+    if dias < 365:
+        return "infantil"
+    if dias < 5 * 365:
+        return "1_4"
+    return None
+
+
+def _edad_unidad_anexo(fecha_evento, fecha_nacimiento):
+    """`(edad, unidad)` para la columna Edad del anexo: D=días, M=meses, A=años."""
+    if not fecha_evento or not fecha_nacimiento:
+        return None, ""
+    dias = (fecha_evento - fecha_nacimiento).days
+    if dias < 0:
+        return None, ""
+    if dias <= 27:
+        return dias, "D"
+    if dias < 365:
+        return max(dias // 30, 1), "M"
+    return dias // 365, "A"
+
+
+class ReporteSemanalMMIView(APIView):
+    """Registro Semanal de Mortalidad Materna e Infantil (anexo del telegrama).
+
+    Es un **reporte generado**, no un formulario: se arma solo con los certificados de
+    nacimiento/defunción y con el registro de investigación de muerte materna. ⚠ El SISV
+    no captura el número de partos ni de abortos del servicio de obstetricia (el
+    certificado de nacimiento es por recién nacido, no por parto): esas casillas del anexo
+    quedan vacías en vez de inventarse.
+    """
+
+    NOTA_PARTOS_ABORTOS = (
+        "El SISV no registra el número de partos ni de abortos del servicio de obstetricia "
+        "(el certificado de nacimiento es por recién nacido, no por parto): esas casillas "
+        "del anexo van vacías."
+    )
+
+    COLUMNAS = [
+        "seccion", "establecimiento", "anio", "semana", "grupo",
+        "cedula", "nombres", "apellidos", "edad", "unidad_edad", "sexo",
+        "fecha", "residencia", "ocurrencia",
+        "nacidos_vivos", "nacidos_muertos", "muertes_maternas",
+        "muertes_neonatales", "muertes_infantiles", "muertes_1_4",
+    ]
+
+    def get(self, request):
+        try:
+            anio = int(request.query_params.get("anio") or date.today().year)
+            semana = int(request.query_params.get("semana") or "")
+        except (TypeError, ValueError):
+            return error("Indique año y semana epidemiológica válidos.", status=400)
+        if semana < 1:
+            return error("Falta la semana epidemiológica.", status=400)
+
+        desde, hasta = rango_semana(anio, semana)
+        datos = self._construir(request, anio, semana, desde, hasta)
+        if request.query_params.get("formato") == "csv":
+            return self._csv(datos)
+        return ok(datos)
+
+    def _construir(self, request, anio, semana, desde, hasta):
+        organizaciones = _organizaciones_del_alcance(request)
+        nombres_org = dict(Organizacion.objects.values_list("id", "nombre"))
+        filas = {}
+
+        def fila(org_id):
+            clave = org_id or 0
+            return filas.setdefault(clave, {
+                "organizacion_id": org_id or None,
+                "organizacion_nombre": nombres_org.get(org_id, "Sin establecimiento identificado"),
+                "nacimientos": 0, "nacidos_vivos": 0, "nacidos_muertos": 0,
+                "muertes_maternas": 0, "mm_fuente": "REGISTRO_INVESTIGACION",
+                "mm_certificadas": 0,
+                "muertes_neonatales": 0, "muertes_infantiles": 0, "muertes_1_4": 0,
+                "detalle_materna": [], "detalle_infantil": [],
+            })
+
+        nac = _por_alcance(
+            Nacimiento.objects.filter(fecha_evento__gte=desde, fecha_evento__lte=hasta), request)
+        for org_id, total, vivos in (
+            nac.values("organizacion_id")
+            .annotate(total=Count("id"), vivos=Count("id", filter=Q(nacido_vivo=True)))
+            .values_list("organizacion_id", "total", "vivos")
+        ):
+            f = fila(org_id)
+            f["nacimientos"] += total
+            f["nacidos_vivos"] += vivos
+            f["nacidos_muertos"] += total - vivos
+
+        defs = _por_alcance(
+            Defuncion.objects.filter(fecha_evento__gte=desde, fecha_evento__lte=hasta), request)
+        for d in defs.values(
+            "organizacion_id", "fecha_evento", "fecha_nacimiento",
+            "fallecido_nombres", "fallecido_apellidos", "sexo",
+            "estado", "municipio", "parroquia",
+        ):
+            grupo = _grupo_edad_anexo(d["fecha_evento"], d["fecha_nacimiento"])
+            if grupo is None:
+                continue
+            f = fila(d["organizacion_id"])
+            if grupo == "neonatal":
+                f["muertes_neonatales"] += 1
+            if grupo in ("neonatal", "infantil"):
+                f["muertes_infantiles"] += 1
+            else:
+                f["muertes_1_4"] += 1
+            edad, unidad = _edad_unidad_anexo(d["fecha_evento"], d["fecha_nacimiento"])
+            f["detalle_infantil"].append({
+                "grupo": grupo,
+                "nombres": (d["fallecido_nombres"] or "").strip(),
+                "apellidos": (d["fallecido_apellidos"] or "").strip(),
+                "fecha": d["fecha_evento"].isoformat() if d["fecha_evento"] else "",
+                "sexo": d["sexo"],
+                "edad": edad,
+                "unidad_edad": unidad,
+                "residencia": ", ".join(
+                    x for x in [d["parroquia"], d["municipio"], d["estado"]] if x),
+                "ocurrencia": f["organizacion_nombre"],
+            })
+
+        # MM del certificado, siempre: sirve para conciliar aunque el indicador salga del
+        # registro de investigación.
+        for org_id, n in (
+            defs.filter(embarazo_o_puerperio=True)
+            .values("organizacion_id").annotate(n=Count("id"))
+            .values_list("organizacion_id", "n")
+        ):
+            fila(org_id)["mm_certificadas"] = n
+
+        registro = muerte_materna_por_organizacion(desde, hasta, organizaciones)
+        if registro is None:
+            for f in filas.values():
+                f["mm_fuente"] = "CERTIFICADO"
+                f["muertes_maternas"] = f["mm_certificadas"]
+        else:
+            for org_id, por_semana in registro.items():
+                cantidad = por_semana.get(semana, 0)
+                if cantidad:
+                    fila(org_id)["muertes_maternas"] = cantidad
+            for caso in muerte_materna_detalle(desde, hasta, organizaciones) or []:
+                f = fila(caso["organizacion_id"])
+                f["detalle_materna"].append({
+                    "nacionalidad": caso["nacionalidad"],
+                    "cedula": caso["cedula"],
+                    "nombres": caso["nombres"],
+                    "apellidos": caso["apellidos"],
+                    "edad": caso["edad"],
+                    "unidad_edad": caso["unidad_edad"] or "A",
+                    "fecha": caso["fecha"],
+                    "residencia": caso["residencia"],
+                    "residencia_ubicacion": caso["residencia_ubicacion"],
+                    "residencia_pais": caso["residencia_pais"] or 0,
+                    "ocurrencia": f["organizacion_nombre"],
+                })
+
+        alc = alcance_registros(request.user)
+        if isinstance(alc, dict) and alc["tipo"] == "CENTRO":
+            fila(alc["organizacion_id"])
+
+        centros = sorted(
+            filas.values(),
+            key=lambda f: (f["organizacion_id"] is None, f["organizacion_nombre"]),
+        )
+        campos = ["nacimientos", "nacidos_vivos", "nacidos_muertos", "muertes_maternas",
+                  "muertes_neonatales", "muertes_infantiles", "muertes_1_4"]
+        totales = {campo: sum(c[campo] for c in centros) for campo in campos}
+        totales["mm_certificadas"] = sum(c["mm_certificadas"] for c in centros)
+
+        return {
+            "anio": anio,
+            "semana": semana,
+            "desde": desde.isoformat(),
+            "hasta": hasta.isoformat(),
+            "nota_partos_abortos": self.NOTA_PARTOS_ABORTOS,
+            "centros": centros,
+            "totales": totales,
+        }
+
+    def _csv(self, datos):
+        def generar():
+            buffer = io.StringIO()
+            escritor = csv.DictWriter(buffer, fieldnames=self.COLUMNAS)
+            escritor.writeheader()
+            yield "\ufeff" + buffer.getvalue()
+            buffer.seek(0)
+            buffer.truncate(0)
+            resumen = {
+                "seccion": "RESUMEN",
+                "anio": datos["anio"], "semana": datos["semana"],
+            }
+            for c in datos["centros"]:
+                escritor.writerow({
+                    **resumen,
+                    "establecimiento": c["organizacion_nombre"],
+                    "nacidos_vivos": c["nacidos_vivos"],
+                    "nacidos_muertos": c["nacidos_muertos"],
+                    "muertes_maternas": c["muertes_maternas"],
+                    "muertes_neonatales": c["muertes_neonatales"],
+                    "muertes_infantiles": c["muertes_infantiles"],
+                    "muertes_1_4": c["muertes_1_4"],
+                })
+            for c in datos["centros"]:
+                for d in c["detalle_materna"]:
+                    escritor.writerow({
+                        **resumen, "seccion": "MATERNA",
+                        "establecimiento": c["organizacion_nombre"],
+                        "cedula": d["cedula"], "nombres": d["nombres"],
+                        "apellidos": d["apellidos"], "edad": d["edad"],
+                        "unidad_edad": d["unidad_edad"], "fecha": d["fecha"],
+                        "residencia": d["residencia"], "ocurrencia": d["ocurrencia"],
+                    })
+            for c in datos["centros"]:
+                for d in c["detalle_infantil"]:
+                    escritor.writerow({
+                        **resumen, "seccion": "INFANTIL",
+                        "establecimiento": c["organizacion_nombre"],
+                        "grupo": d["grupo"], "nombres": d["nombres"],
+                        "apellidos": d["apellidos"], "edad": d["edad"],
+                        "unidad_edad": d["unidad_edad"], "sexo": d["sexo"],
+                        "fecha": d["fecha"], "residencia": d["residencia"],
+                        "ocurrencia": d["ocurrencia"],
+                    })
+            if buffer.tell():
+                yield buffer.getvalue()
+
+        nombre = f"anexo_mmi_{datos['anio']}_{datos['semana']}.csv"
+        respuesta = StreamingHttpResponse(generar(), content_type="text/csv; charset=utf-8")
+        respuesta["Content-Disposition"] = f'attachment; filename="{nombre}"'
+        return respuesta
+
+
 class ReportesExportView(APIView):
     COLUMNAS = [
         "modulo", "numero", "fecha_evento", "version_cie", "codigo_cie", "capitulo_cie11", "sexo",
@@ -911,6 +1272,9 @@ class ConfiguracionView(APIView):
                 "establecimiento": cfg.establecimiento,
                 "fecha_corte_cie11": cfg.fecha_corte_cie11.isoformat(),
                 "organizacion_activa": cfg.organizacion_activa_id,
+                "detectar_meses_degradados": cfg.detectar_meses_degradados,
+                "factor_mes_degradado": cfg.factor_mes_degradado,
+                "min_meses_historia": cfg.min_meses_historia,
                 "actualizado_en": cfg.actualizado_en.isoformat() if cfg.actualizado_en else None,
             }
         )
@@ -927,6 +1291,24 @@ class ConfiguracionView(APIView):
             cfg.fecha_corte_cie11 = date.fromisoformat(str(datos["fecha_corte_cie11"])[:10])
         if datos.get("organizacion_activa") not in (None, ""):
             cfg.organizacion_activa_id = int(datos["organizacion_activa"])
+        if "detectar_meses_degradados" in datos and datos["detectar_meses_degradados"] is not None:
+            cfg.detectar_meses_degradados = bool(datos["detectar_meses_degradados"])
+        if datos.get("factor_mes_degradado") not in (None, ""):
+            try:
+                factor = float(datos["factor_mes_degradado"])
+            except (TypeError, ValueError):
+                return error("factor_mes_degradado debe ser un número", status=400)
+            if not 0 < factor <= 1:
+                return error("factor_mes_degradado debe estar entre 0 y 1", status=400)
+            cfg.factor_mes_degradado = factor
+        if datos.get("min_meses_historia") not in (None, ""):
+            try:
+                min_meses = int(datos["min_meses_historia"])
+            except (TypeError, ValueError):
+                return error("min_meses_historia debe ser un número entero", status=400)
+            if min_meses < 3:
+                return error("min_meses_historia debe ser al menos 3", status=400)
+            cfg.min_meses_historia = min_meses
         cfg.save()
         return ok(
             {
@@ -936,6 +1318,9 @@ class ConfiguracionView(APIView):
                 "establecimiento": cfg.establecimiento,
                 "fecha_corte_cie11": cfg.fecha_corte_cie11.isoformat(),
                 "organizacion_activa": cfg.organizacion_activa_id,
+                "detectar_meses_degradados": cfg.detectar_meses_degradados,
+                "factor_mes_degradado": cfg.factor_mes_degradado,
+                "min_meses_historia": cfg.min_meses_historia,
             },
             message="Configuración actualizada",
         )

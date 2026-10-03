@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react"
-import { exportarReportes, obtenerReporteComparativo, obtenerReportes, obtenerResidentesOtrosEstados } from "../api/sisv"
+import {
+  exportarReporteSemanalMMI,
+  exportarReportes,
+  obtenerReporteComparativo,
+  obtenerReporteSemanalMMI,
+  obtenerReportes,
+  obtenerResidentesOtrosEstados,
+} from "../api/sisv"
 import { Boton, Campo, Input, Select } from "../components/ui"
 
 const MODULOS = [
@@ -25,6 +32,37 @@ export default function Reportes() {
   const [verResidentes, setVerResidentes] = useState(false)
   const [datosResidentes, setDatosResidentes] = useState(null)
   const [cargandoResidentes, setCargandoResidentes] = useState(false)
+  const [semanaFiltros, setSemanaFiltros] = useState({ anio: new Date().getFullYear(), semana: "" })
+  const [semanal, setSemanal] = useState(null)
+  const [cargandoSemanal, setCargandoSemanal] = useState(false)
+
+  async function correrSemanal() {
+    setCargandoSemanal(true)
+    setAviso("")
+    try {
+      const d = await obtenerReporteSemanalMMI(semanaFiltros)
+      setSemanal(d)
+    } catch (e) {
+      setAviso(e.message)
+      setSemanal(null)
+    } finally {
+      setCargandoSemanal(false)
+    }
+  }
+
+  async function exportarSemanal() {
+    try {
+      const blob = await exportarReporteSemanalMMI(semanaFiltros)
+      const url = URL.createObjectURL(blob)
+      const enlace = document.createElement("a")
+      enlace.href = url
+      enlace.download = `anexo_mmi_${semanaFiltros.anio}_${semanaFiltros.semana}.csv`
+      enlace.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      setAviso("No se pudo exportar el anexo semanal.")
+    }
+  }
 
   async function cargarResidentes(mostrar) {
     setVerResidentes(mostrar)
@@ -305,6 +343,176 @@ export default function Reportes() {
           )}
         </>
       )}
+
+      <section className="lista">
+        <h2>Registro semanal de mortalidad materna e infantil</h2>
+        <p className="ayuda">
+          Anexo del telegrama por establecimiento y semana epidemiológica (domingo a sábado). Se
+          genera con los certificados de nacimiento/defunción y con el registro de investigación de
+          muerte materna (MM). La marca * en MM indica que ese establecimiento cayó al conteo del
+          certificado porque el registro de investigación no estaba disponible.
+        </p>
+        <form
+          className="filtros"
+          onSubmit={(e) => {
+            e.preventDefault()
+            correrSemanal()
+          }}
+        >
+          <Campo label="Año">
+            <Select
+              opciones={anosComparativos.map((a) => [String(a), String(a)])}
+              value={semanaFiltros.anio}
+              onChange={(e) => setSemanaFiltros({ ...semanaFiltros, anio: e.target.value })}
+            />
+          </Campo>
+          <Campo label="Semana">
+            <Input
+              type="number"
+              min="1"
+              max="53"
+              value={semanaFiltros.semana}
+              onChange={(e) => setSemanaFiltros({ ...semanaFiltros, semana: e.target.value })}
+            />
+          </Campo>
+          <div className="filtro-action">
+            <Boton>Generar</Boton>
+            <button
+              type="button"
+              className="boton"
+              onClick={exportarSemanal}
+              disabled={!semanaFiltros.semana}
+            >
+              Exportar CSV
+            </button>
+          </div>
+        </form>
+
+        {cargandoSemanal && <div className="aviso aviso-info">Generando anexo…</div>}
+
+        {semanal && !cargandoSemanal && (
+          <>
+            <p className="ayuda">
+              Semana {semanal.semana} de {semanal.anio}: del {semanal.desde} al {semanal.hasta}.{" "}
+              {semanal.nota_partos_abortos}
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Establecimiento</th>
+                  <th>Nac. vivos</th>
+                  <th>Nac. muertos</th>
+                  <th>MM</th>
+                  <th>MN (0-27 d)</th>
+                  <th>Infantil &lt;1 año</th>
+                  <th>1-4 años</th>
+                </tr>
+              </thead>
+              <tbody>
+                {semanal.centros.map((c) => (
+                  <tr key={c.organizacion_id || "sin-centro"}>
+                    <td>{c.organizacion_nombre}</td>
+                    <td>{c.nacidos_vivos}</td>
+                    <td>{c.nacidos_muertos}</td>
+                    <td>
+                      {c.muertes_maternas}
+                      {c.mm_fuente === "CERTIFICADO" ? " *" : ""}
+                    </td>
+                    <td>{c.muertes_neonatales}</td>
+                    <td>{c.muertes_infantiles}</td>
+                    <td>{c.muertes_1_4}</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td>
+                    <strong>Total</strong>
+                  </td>
+                  <td>{semanal.totales.nacidos_vivos}</td>
+                  <td>{semanal.totales.nacidos_muertos}</td>
+                  <td>{semanal.totales.muertes_maternas}</td>
+                  <td>{semanal.totales.muertes_neonatales}</td>
+                  <td>{semanal.totales.muertes_infantiles}</td>
+                  <td>{semanal.totales.muertes_1_4}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            {semanal.centros.some((c) => c.detalle_materna.length > 0) && (
+              <details>
+                <summary>Muertes maternas (detalle)</summary>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Establecimiento</th>
+                      <th>Cédula</th>
+                      <th>Nombres y apellidos</th>
+                      <th>Edad</th>
+                      <th>Fecha</th>
+                      <th>Residencia</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {semanal.centros.flatMap((c) =>
+                      c.detalle_materna.map((d, i) => (
+                        <tr key={`${c.organizacion_id}-m-${i}`}>
+                          <td>{c.organizacion_nombre}</td>
+                          <td>
+                            {d.nacionalidad}-{d.cedula}
+                          </td>
+                          <td>
+                            {d.apellidos}, {d.nombres}
+                          </td>
+                          <td>
+                            {d.edad} {d.unidad_edad}
+                          </td>
+                          <td>{d.fecha}</td>
+                          <td>{d.residencia}</td>
+                        </tr>
+                      )),
+                    )}
+                  </tbody>
+                </table>
+              </details>
+            )}
+
+            {semanal.centros.some((c) => c.detalle_infantil.length > 0) && (
+              <details>
+                <summary>Mortalidad infantil y de 1 a 4 años (detalle)</summary>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Establecimiento</th>
+                      <th>Nombres y apellidos</th>
+                      <th>Sexo</th>
+                      <th>Edad</th>
+                      <th>Fecha</th>
+                      <th>Residencia</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {semanal.centros.flatMap((c) =>
+                      c.detalle_infantil.map((d, i) => (
+                        <tr key={`${c.organizacion_id}-i-${i}`}>
+                          <td>{c.organizacion_nombre}</td>
+                          <td>
+                            {d.apellidos}, {d.nombres}
+                          </td>
+                          <td>{d.sexo}</td>
+                          <td>
+                            {d.edad} {d.unidad_edad}
+                          </td>
+                          <td>{d.fecha}</td>
+                          <td>{d.residencia}</td>
+                        </tr>
+                      )),
+                    )}
+                  </tbody>
+                </table>
+              </details>
+            )}
+          </>
+        )}
+      </section>
 
       <section className="lista comparativo">
         <h2>Comparativo anual por semana epidemiológica</h2>

@@ -526,6 +526,7 @@ export default function Despacho({ usuario }) {
             <thead>
               <tr>
                 <th>Nº Certificado</th>
+                <th>Persona</th>
                 <th>Nombres</th>
                 <th>Apellidos</th>
                 <th>Fecha</th>
@@ -536,6 +537,7 @@ export default function Despacho({ usuario }) {
               {filasCert.map((f, i) => (
                 <tr key={`${f.numero}-${i}`}>
                   <td>{f.numero}</td>
+                  <td>{f.persona || "—"}</td>
                   <td>{f.nombres}</td>
                   <td>{f.apellidos}</td>
                   <td>{f.fecha}</td>

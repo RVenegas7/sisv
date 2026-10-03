@@ -38,6 +38,17 @@ def rango_anio_epidemiologico(anio):
     return inicio_anio_epidemiologico(anio), inicio_anio_epidemiologico(anio + 1) - timedelta(days=1)
 
 
+def rango_semana(anio, semana):
+    """(domingo, sábado) inclusive de la semana epidemiológica ``semana`` de ``anio``.
+
+    La semana 1 arranca en ``inicio_anio_epidemiologico(anio)``; la semana ``n`` empieza
+    ``7 * (n - 1)`` días después. No se valida el rango: la oficina consolida hasta la
+    semana en curso, así que pedir la 53 de 2026 devuelve un rango vacío, no un error.
+    """
+    inicio = inicio_anio_epidemiologico(anio) + timedelta(days=7 * (int(semana) - 1))
+    return inicio, inicio + timedelta(days=6)
+
+
 def semana_epidemiologica(fecha):
     """(año, semana 1..53) de la semana epidemiológica venezolana.
 
