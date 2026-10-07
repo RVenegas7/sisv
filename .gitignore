@@ -51,3 +51,6 @@ capturas/
 # Exportaciones de análisis con datos personales (cedulas/nombres del personal legacy)
 candidatos_usuarios_desactivados.csv
 centros_lara_status_I.csv
+# Extracciones de respaldo con datos personales (certificados legacy: nombres/cédulas)
+salida_mm_mn_*/
+lara_2019_2020.xlsx

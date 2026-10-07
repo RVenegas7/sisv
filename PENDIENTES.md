@@ -2526,3 +2526,263 @@ nacimientos con `nino_nombres` y 417.358 con parroquia de residencia. `corregir_
 1 marcada + 1 desmarcada; **MM totales del lote 191** (16 en 2026), consistente con la definición 1+2
 del certificado.
 
+## 27. [HECHO 05/10/2026] Recuperación del hueco MM/MN de agosto–septiembre de 2026
+
+> Cierra el paso 2 y 3 de "Recuperación del hueco MM/MN" (§22). La captura se cortó el
+> 02/08/2026: el centro siguió generando los sobres semanales, así que los datos **sí estaban
+> en el Oracle** y faltaban en PostgreSQL. Recuperados, atribuidos a su centro y conciliados.
+
+### 27.1 Preflight: se siguió adelante con 4 desviaciones
+
+`migracion/preflight_ventana.sh` (solo lectura) reportó 4 fallos, todos evaluados:
+
+| Preflight | Veredicto |
+| --- | --- |
+| No hay dump del 05/10 | No bloquea: la extracción es `SELECT`+`SPOOL` y **no había `exp`/`expdp` corriendo** (leer la base a medio respaldar es el error clásico, y no lo había). El respaldo del 02/10 está verificado (§27.5). |
+| El ZIP trae 4 archivos, no 5 | No aplica: se extrajo del Oracle, no del sobre. El quinto archivo (`repllar1*.log`) es el orquestador del cliente Windows (§22.7). |
+| `TEMP.T_CERTNACI` no existe | No bloquea el MM/MN (afecta a la vista `NATALIDAD`, no a los certificados). Sí bloquea el item 2 (§27.6). |
+| No es martes | Irrelevante: el día de la semana solo importa para predecir el próximo sobre, no para leer datos ya presentes. |
+
+Se conservó `DESDE=01/08/2026` (inicio del hueco) en vez del recomendado 20/08, para que la
+carga sea reproducible y comparable con la caída de agosto.
+
+### 27.2 Extracción (solo lectura) — `salida_mm_mn_20261005_1528`
+
+`migracion/extraer_mm_mn_roto.sh` + `.sql` (ambos corregidos: credenciales desde
+`legancy_conf/credenciales.env`, `ORACLE_HOME=/opt/oracle`, servicio `//localhost:1521/bdlar1`,
+`DEFINE` con comillas preservadas, `HORAMUERTE` como `VARCHAR2` —trae `HHMMSS` y no es fecha—,
+fuera `ESTABLECIMIENTO.DESCRIPCION` que es `LONG` y rompía el CSV, `WHENEVER SQLERROR EXIT`
+para no dejar archivos truncados, y manifiesto con descartadas).
+
+**12 CSV, 0 filas descartadas:** `muerte` 616, `nacimiento` 500, `nac_madre` 500,
+`nac_rnacido` 500, `casosmmi` 67, `renglon_casosmi` 66, `renglon_casosmm` 1,
+`establecimiento` 21.148, `cie10_legacy` 16.664, `org_geografica` 58.960,
+`nacimiento_tardio` 1.811, `causa_m` **0**.
+
+- `causa_m` sale vacía y **no es un fallo del script**: el último certificado con causa enlazada
+  es de **2023-03-19** (§20.1). De las 616 defunciones, solo 3 traen `HCAUSABASICA`.
+- Fechas máximas en el origen: defunción **2026-09-20**, nacimiento **2026-09-16**, MMI **2026-10-03**.
+
+### 27.3 Carga en PostgreSQL — 594 defunciones y 477 nacimientos
+
+`manage.py cargar_mm_mn_roto --directorio salida_mm_mn_20261005_1528 --ejecutar`
+
+| | Nuevos | Actualizados | Pendientes de codificación |
+| --- | --- | --- | --- |
+| Defunciones | **594** | 22 | **594** |
+| Nacimientos | **477** | 23 | — |
+
+Del lote: **1 muerte materna** y **37 neonatales**. Segunda corrida en dry-run: 616 defunciones y
+500 nacimientos `sin_cambio` → **idempotente**.
+
+**Las 594 quedan con `codificacion_pendiente=True`** (cambio deliberado del cargador): en el
+certificado sin causa no hay nada que codificar, y marcarlas como «ya revisadas» las sacaría de la
+bandeja sin que nadie las viera. Con eso la cola de codificación quedó en **49.755**.
+
+Semana a semana, el hueco se cerró (defunciones / nacimientos, semana domingo–sábado):
+
+| Semana | 27/07 | 03/08 | 10/08 | 17/08 | 24/08 | 31/08 | 07/09 | 14/09 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Antes | 9 | 8 | 2 | 3 | 0 | 0 | 0 | 0 |
+| Ahora | 162 | 147 | 148 | 151 | 98 | 26 | 6 | 5 |
+
+### 27.4 La atribución por centro se había perdido (y por qué)
+
+Al verificar los efectos secundarios apareció que **86.258 defunciones y 438.573 nacimientos tenían
+`establecimiento` pero `organizacion = NULL`**: eran invisibles para cualquier usuario con alcance
+de centro, y la columna «Centro» salía vacía.
+
+**Causa raíz:** §25/§26 refrescaron el espejo y re-ejecutaron `importar_legacy_registros`. Ese
+comando **nunca asigna `organizacion`** (solo carga datos), así que cualquier recarga con `--borrar`
+borra la atribución y hay que reasignar después. §26 lo documentó para las fichas de vigilancia,
+no para nacimientos/defunciones.
+
+```bash
+./.venv/bin/python backend/manage.py asignar_organizacion_legacy            # 438.554 + 86.203 por asignar
+./.venv/bin/python backend/manage.py asignar_organizacion_legacy --ejecutar # 438.554 nac + 86.203 def
+```
+
+**Orgs creadas=0, reutilizadas=596**: los 991 centros `LEGCSV-*` que creó el cargador cuelgan del
+regional Lara, así que la atribución los reutilizó por nombre normalizado y **no duplicó** centros.
+
+**Pendiente de negocio:** los centros del legacy (`LEGCSV-*`) son organizaciones **distintas** de
+las 6 demo (`LARA-HCB` = Hospital Central de Barquisimeto). Un usuario `CENTRO` con perfil sobre
+una demo ve 2 registros, no el histórico; con perfil sobre un centro real sí lo ve. Fusionar
+«HOSP. CENTRAL UNIV. DR. ANTONIO MARIA PINEDA» con «Hospital Central de Barquisimeto» es una
+decisión de negocio (alias), no un ETL.
+
+### 27.5 Conciliación (paso 3)
+
+`manage.py conciliar_neonatal --anio 2026` (dry-run, no escribe):
+
+```
+Filas: 86 · legacy 231 · SISV 236 · diferencia -5   (-2,1 %)
+  CUADRA=53 · DIFERENCIA=22 · SOLO_CRUDO=5 · SOLO_SISV=6
+```
+
+El registro de investigación (legacy) y `registros.Defuncion` coinciden en el **97,9 %** tras la
+recuperación: los 29 neonatales de las semanas 31–35 ya salen de los sobres.
+
+`manage.py conciliar_mm --anio 2026`: **registro 18 / certificados 7**. El registro coincide con
+lo que reporta la oficina (18) y confirma §21: el certificado marca el embarazo en el 38,9 %.
+
+**Restore point verificado** (condición previa a cualquier escritura en Oracle):
+`/home/respaldo/respaldo_20261002_1408` — 4 `.dmp` (SISMAI 1.072.316.416 B), los 4 logs con
+«terminated successfully», `imp SHOW=Y` lee 350 objetos de SISMAI, SHA-256 en
+`/home/program/respaldos_sismai/SHA256SUMS.txt`.
+
+### 27.6 Item 2 — recompilar los 16 objetos: **falta acceso DBA**
+
+Los 16 `INVALID` de SISMAI siguen ahí. Para recompilarlos hace falta `/ as sysdba`, y:
+
+- `oracle` (uid 1002, grupo `dba`) no acepta nuestra llave: `Permission denied (publickey,keyboard-interactive)`,
+  `/home/oracle/.ssh` no es accesible y no hay clave conocida.
+- `respaldo` **sí entra**, pero sus únicos privilegios son `ALTER ANY INDEX`, `RESTRICTED SESSION`
+  y `UNLIMITED TABLESPACE`: no puede recompilar objetos ajenos. Tampoco ve `ALL_ERRORS` de SISMAI,
+  así que el diagnóstico por objeto solo lo puede hacer el DBA.
+
+**Dejado listo** (`migracion/recompilar_16_live.sh` reescrito: no hardcodea claves, valida el
+respaldo por logs antes de escribir, y por defecto **no escribe**):
+
+```bash
+./migracion/recompilar_16_live.sh --preparar     # verifica respaldo + sube el SQL  (ya corrido)
+```
+
+El SQL ya está en el servidor (`/home/respaldo/recompilar_16_objetos.sql`). En la **consola**,
+como `oracle`:
+
+```bash
+su - oracle
+export ORACLE_HOME=/opt/oracle ORACLE_SID=lar1 NLS_LANG=SPANISH_SPAIN.AL32UTF8
+cp /home/respaldo/recompilar_16_objetos.sql /tmp/
+/opt/oracle/bin/sqlplus -s / as sysdba @/tmp/recompilar_16_objetos.sql | tee ~/recompilar_16_$(date +%Y%m%d_%H%M).log
+```
+
+El veredicto es la sección `[5]` del log (**0 inválidos** = éxito). Corrección al alcance: el SQL
+**no aborta** si falta `TEMP.T_CERTNACI`; avisa en `[1]`, recompila los otros 15 y deja `NATALIDAD`
+inválida por dependencia — que es justo lo que hay que ver antes de ir a crear esa tabla.
+
+### 27.7 Lo que sigue abierto
+
+1. **El origen se quedó sin datos desde el 20/09**: aunque se recuperó agosto, en el Oracle **no
+   hay ni una defunción posterior al 20/09/2026** (ni nacimientos después del 16/09). El anexo del
+   martes sigue llegando pero con fecha de-certified vieja, o la captura del centro se detuvo: hay
+   que confirmarlo con la oficina antes de prometer el mes cerrado.
+2. **`TEMP.T_CERTNACI`**: sin ella `NATALIDAD` no recompila. El `crear.sql` del share **no se puede
+   usar** (hace `DROP`+`CREATE` de `EVENTOS_SINC`, §22.1). Necesitamos el DDL de esa tabla del
+   cliente Windows (`192.168.5.133`) o del central.
+3. **Item 2**: ejecutar el comando de §27.6 con acceso a la consola, o dar acceso (llave/clave) a
+   una cuenta con DBA para poder correrlo remoto.
+4. **Alias de centros** legacy↔demo (§27.4), si se quiere que los usuarios demo vean el histórico.
+
+### 27.8 `lara_2019_2020.xlsx`: solo mortalidad, **NO cargado**
+
+Análisis delegado (el archivo está en la raíz y **no** se importó a la BD):
+
+- 2 hojas de datos (**2019**: 11.810 filas, **2020**: 10.337) + `Diccionario` (EV-14 de 2012).
+  220 columnas; fila 1 título, fila 2 encabezados, fila 3 en adelante.
+- Es **persona por persona**, no agregado, y **no cubre 2021**.
+- **Sin diagnóstico**: 418 casos en 2020 frente a 2 en 2019. El patrón (concentrado oct–dic 2020,
+  componente respiratorio `J189`+`J960`) es **compatible con COVID, pero no lo demuestra**: hace
+  falta la confirmación molecular o el código de la prueba en la fuente.
+- **No trae establecimiento utilizable** (el campo viene vacío; solo localidad/municipio), así que
+  **no se puede atribuir por centro** sin un cruce con el padrón.
+- Contraste con SISV: 5.291 defunciones de 2019 y 427 de 2020, o sea que el archivo complementaría
+  huecos. **No verificado** contra la BD antes de cualquier carga.
+
+**Recomendación:** no cargarlo a ciegas. Antes: (a) confirmar con la oficina si trae el código de
+COVID/neumonía, (b) decidir la fuente de verdad para 2019-2020 (¿el archivo pisa al certificado?),
+(c) como no trae establecimiento, emparejar el centro por localidad solo para construir un *mapa* de
+atribución, nunca como dato original.
+
+### 27.9 Refresco del espejo, resincronización y verificación de semanas 39-40 (06/10/2026)
+
+**Delimitador del espejo: `\x01` (SOH), no coma.** Con coma, cualquier texto con coma embebida
+parte el registro. El bug que costó entender: dentro de `sxs "..."`, el heredoc remoto del
+generador tenía que ir `<<'GEN'` (entrecomillado); con `<<GEN` el shell remoto rehace la expansión
+de `COLSEP_VAL` y **se come el byte `\x01`**, dejando `SET COLSEP` vacío → separador por defecto
+(espacios). Con `HEADING OFF` no hay cabeceras, así que se carga con `--formato text
+--sin-encabezado` (no hay línea que borrar). `HEADER` es solo de `FORMAT csv` en PostgreSQL.
+
+**Espejo 100 % sincronizado con el origen** (12/12 tablas, contraconteo exacto), incluidas las 4 de
+apoyo que estaban desfasadas (`CAUSA_M` +27, `CIE10` +37, `NAC_MADRE` +723, `ORG_GEOGRAFICA` +21):
+
+```bash
+./migracion/espejo_csv.sh                      # en el servidor, COLSEP_VAL=$'\x01'
+./.venv/bin/python migracion/cargar_espejo_pg.py --directorio /var/tmp/espejo_20261006 \
+    --esquema sismai --formato text --sin-encabezado --recortar-campos \
+    --delimitador $'\x01' --ejecutar           # 11 tablas, 59 s
+```
+
+| Tabla | Origen | Espejo | | Tabla | Origen | Espejo |
+|---|---:|---:|---|---|---:|---:|
+| CERTIFICADO | 174.095 | 174.095 | | CAUSA_M | 211.285 | 211.285 |
+| CERTNACIMIENTO | 439.790 | 439.790 | | CIE10 | 16.664 | 16.664 |
+| NAC_RNACIDO | 439.476 | 439.476 | | ORG_GEOGRAFICA | 58.960 | 58.960 |
+| NAC_MADRE | 439.809 | 439.809 | | ESTABLECIMIENTO | 21.148 | 21.148 |
+| DOCUMENTO | 140.309 | 140.309 | | CASOS_MMI | 10.762 | 10.762 |
+| RENGLON_CASOSMI | 10.011 | 10.011 | | RENGLON_CASOSMM | 749 | 749 |
+
+**El origen sigue recibiendo certificados retroactivos**: de las filas que faltaban, 57 defunciones
+y 41 nacimientos tienen `FECHAOPERACION = 06/10/2026`, y 305 nacimientos entraron en una tanda del
+17-23/09 con fecha de nacimiento repartida por todo el año (por eso el ETL del hueco, que solo
+miraba agosto en adelante, no los vio). **El espejo hay que refrescarlo periódicamente**, no una
+vez: los certificados se cargan tarde con fecha vieja.
+
+**Resincronización (2 registros perdidos en importaciones anteriores):**
+
+| Comando | Resultado |
+|---|---|
+| `importar_legacy_registros` | **403 nacimientos + 110 defunciones** creados (84 quedaron `codificacion_pendiente`) |
+| `recuperar_establecimiento_defuncion --ejecutar` | **87.111** defunciones recuperadas desde `CERTIFICADO` |
+| `asignar_organizacion_legacy --ejecutar` | 403 + 110 + **87.096** asignados; 0 orgs creadas, 596 reutilizadas |
+
+Tras esto SISV vuelve al estado documentado en §17: **70 defunciones y 19 nacimientos sin
+organización** (establecimientos fuera del árbol Lara, a propósito) y **1 defunción sin
+establecimiento**. Los 87.111 recuperados apuntan a `HESTABLECIMIENTO = 67754` = **DES LARA**
+(en el árbol): el origen trae `HESTABLECIMIENTO_OCUR` nulo en 87.420 certificados y
+`HESTABLECIMIENTO` **nunca** nulo (0 de 174.095), así que el fallback del importador es correcto y
+lo que faltaba era el *backfill* de lo ya importado.
+
+**`limpiar_legacy_no_lara` NO se ejecutó** (decisión del usuario, 06/10): preferimos no borrar.
+El dry-run proponía 2.277 defunciones (56 por establecimiento fuera del árbol + 2.221 **sin
+establecimiento** con residencia Yaracuy 483 / Portuguesa 406 / Zulia 156 / …). Ojo: el **orden**
+cambia el resultado — si se recupera el establecimiento primero, esas 2.221 dejan de cumplir el
+criterio «sin establecimiento y residencia ≠ Lara» y se conservan; solo se caerían 71.
+
+**Verificación de semanas epidemiológicas (domingo–sábado; semana 1 de 2026 = dom 04/01/2026,
+NO ISO — `vigilancia.services.semana_epidemiologica`):**
+
+| Sem. | Rango | Def. espejo | Def. SISV | Nac. espejo | Nac. SISV | MM | MN |
+|---|---|---:|---:|---:|---:|---:|---:|
+| 36 | 06–12/09 | 7 | 7 | 18 | 16 | 0 | 4 |
+| 37 | 13–19/09 | 4 | 4 | 1 | 1 | 0 | 3 |
+| 38 | 20–26/09 | 1 | 1 | 0 | 0 | 0 | 0 |
+| **39** | 27/09–03/10 | **0** | **0** | **0** | **0** | **0** | **0** |
+| **40** | 04–10/10 | **0** | **0** | **0** | **0** | **0** | **0** |
+
+**Las semanas 39 y 40 están vacías en los dos sistemas** y coinciden: no hay nada que conciliar.
+Lo confirmado en §27.7.1 se mantiene — el origen no tiene defunciones después del 20/09 ni
+nacimientos después del 16/09, aunque **sí** sigue llegando documentación con fecha vieja.
+
+**Totales oficiales — MM cuadra, MN no y es de definición:**
+
+| Fuente | MM 2026 | MN 2026 |
+|---|---:|---:|
+| **Oficina** | **18** | **235** |
+| SISV tablero (año **epidemiológico** 2026 = 04/01/26–02/01/27) | **18** ✓ | **233** |
+| SISV año **calendario** 2026 | 7 (certificados) | **236** |
+| Legado `CASOS_MMI` (área Lara), epi / calendario | — | 236 / 239 |
+
+- **MM = 18 ✓ exacto**: sale de `RENGLON_CASOSMM`→`CASOS_MMI` (registro de investigación), que es
+  lo que reporta la oficina. El certificado (`embarazo_o_puerperio`) solo marca 7.
+- **MN no calza con ninguna ventana**: el tablero da **233** (año epidemiológico, la definición que
+  usa `_filtro_anio`) y el año calendario **236**; la oficina dice **235** y el legado da 236 (epi)
+  o 239 (calendario). Las 3 muertes del 01–03/01/2026 caen en la semana 53 de 2025 y por eso
+  separan 233 de 236. **Hay que preguntar a la oficina con qué ventana cuentan** antes de dar un
+  número por bueno; ninguna de las cuatro combinaciones da 235.
+- Sin duplicados, sin `es_muerte_fetal`, sin fechas invertidas en los 236; el lado legacy tiene
+  **+3** sobre SISV en *ambas* ventanas (7 SOLO_CRUDO / 3 SOLO_SISV por celda en
+  `conciliar_neonatal --anio 2026`).
+
+**Estado de la suite:** 227 tests OK (`DJANGO_DB_ENGINE=sqlite manage.py test` desde `backend/`).

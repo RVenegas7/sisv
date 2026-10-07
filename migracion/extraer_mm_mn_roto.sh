@@ -27,14 +27,39 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SQL="$SCRIPT_DIR/extraer_mm_mn_roto.sql"
 
+# Las claves NO van con valor por defecto: se leen del entorno o de
+# legancy_conf/credenciales.env (ignorado por git), igual que respaldo_total.sh.
+set -a
+[ -f "$SCRIPT_DIR/../legancy_conf/credenciales.env" ] && \
+  . "$SCRIPT_DIR/../legancy_conf/credenciales.env"
+set +a
+HOST="${HOST:-${SISV_SSH_HOST:-}}"
+USUARIO="${USUARIO:-${SISV_SSH_USUARIO:-}}"
+CLAVE="${CLAVE:-${SISV_SSH_CLAVE:-${SSHPASS_ORACLE:-}}}"
+
 DESDE="${DESDE:-01/08/2026}"
 SALIDA="${SALIDA:-$SCRIPT_DIR/../salida_mm_mn_$(date +%Y%m%d_%H%M)}"
-HOST="${HOST:-}"
-USUARIO="${USUARIO:-respaldo}"
-CLAVE="${CLAVE:-respaldo}"
+ORACLE_HOME="${ORACLE_HOME:-/opt/oracle}"
 ORACLE_SID="${ORACLE_SID:-lar1}"
 SQLPLUS="${SQLPLUS:-/opt/oracle/bin/sqlplus}"
 NLS_LANG="${NLS_LANG:-SPANISH_SPAIN.AL32UTF8}"
+
+# OJO, 05/10/2026 (PENDIENTES §22, "Conexión a sqlplus"): en ese servidor NO hay
+# alias TNS, y `lar1` es el SID, no el nombre de servicio. Easy Connect solo
+# funciona con el SERVICIO `bdlar1` (sale del SID_LIST_LISTENER del listener.ora):
+#   usuario/clave a secas  -> ORA-12162
+#   @lar1                  -> ORA-12154
+#   @//host:1521/lar1     -> ORA-12514
+#   @//localhost:1521/bdlar1 -> funciona (02/10/2026)
+CONEXION="${CONEXION:-//localhost:1521/bdlar1}"
+
+if [ -z "$HOST" ]; then
+  : # modo local: corre en el propio servidor, no hace falta host
+elif [ -z "$CLAVE" ]; then
+  echo "ERROR: falta la clave de '$USUARIO' (CLAVE / SISV_SSH_CLAVE en" >&2
+  echo "       legancy_conf/credenciales.env). Sin ella no hay modo remoto." >&2
+  exit 1
+fi
 
 [ -r "$SQL" ] || { echo "ERROR: no existe $SQL" >&2; exit 1; }
 command -v awk >/dev/null 2>&1 || { echo "ERROR: falta awk" >&2; exit 1; }
@@ -69,10 +94,15 @@ fi
 # en el servidor, o el temporal del servidor si se corre desde casa por ssh.
 TMP_SQL="$(mktemp)"
 trap 'rm -f "$TMP_SQL"' EXIT
-sed -e "s|DEFINE DESDE = '01/08/2026'|DEFINE DESDE = '$DESDE'|" \
+# OJO, 05/10/2026: el DEFINE del SQL trae las comillas DENTRO de la cadena
+# ("""01/08/2026"""), porque SQL*Plus se las quita al sustituir. Si el sed no
+# encuentra la linea, aborta: seguir con un DEFINE sin comillas produce
+# ORA-01858 y, peor, un CSV con el error adentro que parece bueno.
+sed -e "s|DEFINE DESDE = \"'01/08/2026'\"|DEFINE DESDE = \"'$DESDE'\"|" \
     -e "s|__SALIDA__|$DIR_SALIDA_SQL|g" "$SQL" > "$TMP_SQL"
-if ! grep -q "DEFINE DESDE = '$DESDE'" "$TMP_SQL"; then
-  echo "ERROR: no se pudo fijar DESDE=$DESDE en el SQL. Revisa la linea DEFINE." >&2
+if ! grep -q "DEFINE DESDE = \"'$DESDE'\"" "$TMP_SQL"; then
+  echo "ERROR: no se pudo fijar DESDE=$DESDE en el SQL. Revisa la linea DEFINE" >&2
+  echo "       (debe ser  DEFINE DESDE = \"'01/08/2026'\")." >&2
   exit 1
 fi
 if grep -q '__SALIDA__' "$TMP_SQL"; then
@@ -123,13 +153,37 @@ run_remote() {
       "cat > '$remoto_sql'" < "$TMP_SQL"
   fi
 
-  echo ">> 3/4 ejecutando sqlplus en $USUARIO@$HOST (SID $ORACLE_SID)"
-  # OJO: el SPOOL usa $REMOTE_DIR porque el SQL se genero con ese token.
+  echo ">> 3/4 ejecutando sqlplus en $USUARIO@$HOST (servicio $CONEXION)"
+  # ORACLE_HOME tiene que VIAJAR al remoto: sin el, sqlplus aborta con
+  # "Error 6 initializing SQL*Plus / sp1<lang>.msb not found", que parece un
+  # problema de permisos y en realidad es que no encuentra el software (05/10).
+  # El TNS no existe en el servidor, por eso la conexion va por Easy Connect.
   if [ "${SIMULAR:-0}" = "1" ]; then
-    simular "ssh $USUARIO@$HOST '$SQLPLUS -s $USUARIO/\$CLAVE@$ORACLE_SID @$remoto_sql'"
+    simular "ssh $USUARIO@$HOST 'export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID; $SQLPLUS -s $USUARIO/\$CLAVE@$CONEXION @$remoto_sql'"
   else
-    sshpass -e ssh -o StrictHostKeyChecking=no "$USUARIO@$HOST" \
-      "cd '$REMOTE_DIR' && NLS_LANG=$NLS_LANG $SQLPLUS -s '$USUARIO/$CLAVE@$ORACLE_SID' @$remoto_sql"
+    # OJO, 05/10/2026: el fallo de sqlplus se COMPRUEBA aqui y no se espera del
+    # "if ! {...} | tee" de mas abajo. Ese patron tiene dos defectos que juntos
+    # hacen que un fallo parezca una extraccion buena:
+    #   * con `set -e` + tuberia, el codigo que sale es el de tee (0);
+    #   * `set -e` NO actua dentro de un `if`, asi que run_remote seguia de largo
+    #     (traia los CSV igual y borraba el remoto) tras el fallo de sqlplus.
+    # Por eso el sqlplus va en un `if !` explicito: si falla, se aborta aqui y no
+    # se baja nada.
+    if ! sshpass -e ssh -o StrictHostKeyChecking=no "$USUARIO@$HOST" \
+      "cd '$REMOTE_DIR' && export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH NLS_LANG=$NLS_LANG && $SQLPLUS -s '$USUARIO/$CLAVE@$CONEXION' @$remoto_sql"; then
+      echo ">> sqlplus fallo en el servidor. No se baja nada." >&2
+      # SQL*Plus escribe el error DENTRO del archivo spoolado, no en la consola
+      # (TERM/OFF), asi que sin esto el operador solo ve "fallo" y nada mas. Se
+      # buscan los CSV con error y se muestran las primeras lineas.
+      echo "---- error(es) en el servidor ----" >&2
+      sshpass -e ssh -o StrictHostKeyChecking=no "$USUARIO@$HOST" \
+        "for f in $REMOTE_DIR/*.csv; do
+           if grep -qiE 'ORA-[0-9]{5}|ERROR at line|rows selected' \"\$f\" 2>/dev/null; then
+             echo \"### \$(basename \$f)\"; head -8 \"\$f\"
+           fi
+         done" >&2 || true
+      return 1
+    fi
   fi
 
   echo ">> 4/4 trayendo los CSV"
@@ -152,13 +206,24 @@ run_remote() {
 BITACORA="$SALIDA/Extraccion_$(date +%Y%m%d_%H%M).log"
 
 # El SQL aborta con WHENEVER SQLERROR EXIT, asi que un fallo a mitad de consulta
-# deja CSVs a medio escribir. Con pipefail el pipeline devuelve el fallo de
-# sqlplus, y aqui se borran los parciales: es preferible quedarse sin nada que
-# quedarse con un archivo truncado que el manifiesto daria por bueno.
-if ! { if [ -n "$HOST" ]; then run_remote; else run_local; fi; } 2>&1 | tee "$BITACORA"; then
+# deja CSVs a medio escribir. run_remote/run_local ya devuelven el fallo de sqlplus
+# (dentro de un `if !` explicito, porque `set -e` no actua en la condicion de un
+# `if` y el codigo de un pipeline con tee es el de tee). Aca se recoge ese codigo
+# para borrar los parciales: es preferible quedarse sin nada que quedarse con un
+# archivo truncado que el manifiesto daria por bueno.
+FALLO=0
+# `set +e` alrededor del pipeline: con errexit activo, un pipeline que devuelve
+# distinto de 0 aborta el script ANTES de llegar al chequeo de abajo.
+set +e
+{ if [ -n "$HOST" ]; then run_remote; else run_local; fi; } 2>&1 | tee "$BITACORA"
+# PIPESTATUS[0] es el del primer comando del pipeline (run_remote/run_local), no el
+# de tee. Sin esto, el fallo se pierde y el manifiesto da por buena la extraccion.
+FALLO="${PIPESTATUS[0]}"
+set -e
+if [ "$FALLO" != "0" ]; then
   echo
-  echo "ERROR: sqlplus fallo. Se borran los CSV parciales para no dar por buena" >&2
-  echo "       una extraccion incompleta. Ver $BITACORA" >&2
+  echo "ERROR: sqlplus fallo (codigo $FALLO). Se borran los CSV parciales para no" >&2
+  echo "       dar por buena una extraccion incompleta. Ver $BITACORA" >&2
   rm -f "$SALIDA"/*.csv
   if [ -n "$HOST" ] && [ "${SIMULAR:-0}" != "1" ]; then
     sshpass -e ssh -o StrictHostKeyChecking=no "$USUARIO@$HOST" "rm -rf '$REMOTE_DIR'" || true
@@ -180,13 +245,40 @@ if ! ls "$SALIDA"/*.csv >/dev/null 2>&1; then
   echo "       servidor. Revisar $BITACORA antes de reintentar." >&2
   exit 1
 fi
+
+# Red de seguridad (05/10/2026): SQL*Plus escribe sus mensajes de error y de
+# "N rows selected." DENTRO del archivo spoolado, asi que un CSV puede traer un
+# ORA-01858 y aun asi existir y "tener filas". El manifiesto solo contaria esas
+# lineas como si fueran datos. Se busca el texto de error en cada CSV antes de
+# declarar la extraccion buena.
+for f in "$SALIDA"/*.csv; do
+  if grep -qiE 'ORA-[0-9]{5}|^ERROR at line|rows selected\.$' "$f"; then
+    echo "ERROR: $(basename "$f") contiene un error de SQL*Plus dentro del CSV." >&2
+    echo "       No es un CSV de datos; se descarta todo para no cargarlo." >&2
+    echo "       Primeras lineas:" >&2
+    head -5 "$f" | sed 's/^/         /' >&2
+    rm -f "$SALIDA"/*.csv
+    exit 1
+  fi
+done
+echo " [ OK ]   ningun CSV contiene errores de SQL*Plus"
 {
   echo "# Manifiesto fase 1 - generado $(date '+%Y-%m-%d %H:%M:%S')"
   echo "# Rango: FECHA >= $DESDE"
-  echo "# Archivo|filas"
+  echo "# Archivo|filas|descartadas"
   for f in "$SALIDA"/*.csv; do
     n=$(awk 'END{print NR}' "$f")
-    printf '%s|%s\n' "$(basename "$f")" "$n"
+    # "descartadas" son las lineas cuyo numero de columnas no coincide con el
+    # encabezado: SPOOL no pone comillas, asi que un texto con salto de linea
+    # parte la fila y el cargador la descarta. Contarlas aqui evita que el
+    # manifiesto diga "todo bien" mientras se pierde gente.
+    cols=$(head -1 "$f" | awk -F';' '{print NF}')
+    malas=$(awk -F';' -v n="$cols" 'NR>1 && NF!=n {c++} END {print c+0}' "$f")
+    printf '%s|%s|%s\n' "$(basename "$f")" "$n" "$malas"
+    if [ "$malas" != "0" ]; then
+      echo "# AVISO: $(basename "$f") tiene $malas lineas con $cols columnas distintas"
+      echo "#       del encabezado; el cargador las va a descartar."
+    fi
   done
 } | tee "$MANIFESTO"
 

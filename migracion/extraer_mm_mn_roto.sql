@@ -25,7 +25,7 @@
 -- =============================================================================
 
 SET PAGESIZE 0
-SET FEEDBACK ON
+SET FEEDBACK OFF
 SET ECHO OFF
 -- Si una consulta falla a la mitad, SQL*Plus por defecto sigue y deja un CSV
 -- truncado que el conteo del manifiesto daria por bueno. Con esto se aborta y el
@@ -37,13 +37,24 @@ SET HEADING OFF
 SET TERMOUT OFF
 SET COLSEP ';'
 SET LINESIZE 32767
+-- FEEDBACK OFF y VERIFY OFF (05/10/2026, verificado en vivo): con FEEDBACK ON el
+-- "N rows selected." y con VERIFY ON el eco old/new de &DESDE se escriben DENTRO
+-- del CSV spoolado, y el CSV deja de ser un CSV. El conteo de filas lo da el
+-- manifiesto del driver, que mira el archivo.
+SET VERIFY OFF
 -- NLS_LANG NO va aqui: es variable de entorno del cliente, no un comando SET de
 -- SQL*Plus. La exporta el driver. Se pone AL32UTF8 a proposito para que el SPOOL
 -- escriba UTF-8 aunque la base sea WE8MSWIN1252: asi el CSV entra directo en
 -- PostgreSQL sin transcribir acentos.
 
 -- Oracle las dobles comillas harian identificador y TO_DATE reventaria.
-DEFINE DESDE = '01/08/2026'
+--
+-- Las comillas van ADEMAS dentro de la cadena (05/10/2026, verificado en vivo):
+-- SQL*Plus se las quita al sustituir, asi que con
+--   DEFINE DESDE = '01/08/2026'     ->  &DESDE se expande a  01/08/2026
+-- y TO_DATE(01/08/2026,'DD/MM/YYYY') da ORA-01858. Con las comillas dentro:
+--   DEFINE DESDE = "'01/08/2026'"   ->  &DESDE se expande a '01/08/2026'
+DEFINE DESDE = "'01/08/2026'"
 
 -- OJO: NO filtrar por "STATUS IS NULL". En este esquema STATUS es 1/0 y nunca es NULL
 -- (173.533/173.533 con valor), asi que ese filtro devuelve CERO filas. Se baja el
@@ -66,7 +77,10 @@ SELECT  c."ID",
         c."EDAD",
         c."TIPOEDAD",
         TO_CHAR(c."FECHA_N",'YYYY-MM-DD') AS FECHA_N,
-        TO_CHAR(c."HORAMUERTE",'YYYY-MM-DD HH24:MI:SS') AS HORAMUERTE,
+        -- HORAMUERTE es VARCHAR2(20), NO es DATE (05/10/2026, verificado con
+        -- DUMP: Typ=1, '04:00  PM'). Aplicarle TO_CHAR da ORA-01722 y tumbaba
+        -- toda la extraccion. Se baja tal cual, con el AM/PM que trae.
+        c."HORAMUERTE",
         c."HESTADOCIVIL",
         c."HSITIO_M",
         c."HESTABLECIMIENTO",
@@ -249,9 +263,15 @@ SPOOL OFF
 
 -- Resolucion de establecimiento (todo el catalogo, son pocas filas).
 -- La PK es "ID" (no IDESTABLECIMIENTO: esa no existe en ESTABLECIMIENTO).
+--
+-- OJO, 05/10/2026: NO se baja "DESCRIPCION". Es un LONG y trae saltos de linea
+-- dentro, que SPOOL escribe tal cual (sin comillas): cada uno parte la fila en
+-- dos lineas fisicas y el cargador descarta las que no tienen el mismo numero de
+-- columnas que el encabezado. Se perdian ~9 establecimientos del catalogo sin que
+-- nada lo dijera. El cargador solo usa ID/NOMBRE/PADRE.
 SPOOL __SALIDA__/establecimiento.csv
-SELECT 'ID;CODIGO;NOMBRE;PADRE;DESCRIPCION;HTIPO;HLOCALIDAD;STATUS' FROM DUAL;
-SELECT e."ID", e."CODIGO", e."NOMBRE", e."PADRE", e."DESCRIPCION", e."HTIPO", e."HLOCALIDAD", e."STATUS"
+SELECT 'ID;CODIGO;NOMBRE;PADRE;HTIPO;HLOCALIDAD;STATUS' FROM DUAL;
+SELECT e."ID", e."CODIGO", e."NOMBRE", e."PADRE", e."HTIPO", e."HLOCALIDAD", e."STATUS"
 FROM SISMAI."ESTABLECIMIENTO" e;
 SPOOL OFF
 

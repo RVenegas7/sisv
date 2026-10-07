@@ -66,6 +66,12 @@ else
   CONEXION="${CONEXION:-$USUARIO/$CLAVE}"
 fi
 ESQUEMAS="${ESQUEMAS:-SISMAI TEMP HISTORICO INBDLAR1}"
+# Filtro opcional por tabla (05/10/2026). Extraer los 443 esquemas completos
+# tarda horas y son GB; para conciliar MM/MN solo hacen falta 8 tablas.
+#   TABLAS="CASOS_MMI RENGLON_CASOSMM" ./migracion/espejo_csv.sh
+# Con este filtro el piso de tablas se ajusta al numero pedido, asi que el
+# control de calidad sigue detectando un sqlplus que no se pudo conectar.
+TABLAS="${TABLAS:-}"
 SIMULAR="${SIMULAR:-0}"
 # Filas por paquete: agrupa en un solo INSERT para que el spool no
 # crezca de forma absurda. 5000 es el mismo corte que usa el propio
@@ -90,6 +96,15 @@ sxs() { sshpass -p "$CLAVE" ssh -o StrictHostKeyChecking=accept-new -o ConnectTi
 # esquemas tiene que ser la coma de SQL, no un espacio: por eso no se
 # puede pasar $ESQUEMAS crudo dentro del IN (...).
 LISTA_IN="$(echo $ESQUEMAS | sed "s/\([A-Z0-9_]\{1,\}\)/'\1'/g; s/ /,/g")"
+
+# "CASOS_MMI RENGLON_CASOSMI" -> "('CASOS_MMI','RENGLON_CASOSMI')"
+TABLAS_IN=""
+if [ -n "$TABLAS" ]; then
+  TABLAS_IN="$(echo $TABLAS | sed "s/\([A-Z0-9_]\{1,\}\)/'\1'/g; s/ /,/g")"
+fi
+# Filtro reutilizable: se inyecta tal cual en el WHERE de cada consulta.
+FILTRO_TABLAS=""
+[ -n "$TABLAS_IN" ] && FILTRO_TABLAS="AND TABLE_NAME IN ($TABLAS_IN)"
 
 echo "=================================================================="
 echo " Espejo Oracle -> CSV — $FECHA $HORA"
@@ -129,7 +144,7 @@ SELECT T.OWNER||'|'||T.TABLE_NAME||'|'||NVL(TO_CHAR(T.NUM_ROWS),'?')||'|'||
   LEFT JOIN ALL_OBJECTS O
     ON O.OWNER = T.OWNER AND O.OBJECT_NAME = T.TABLE_NAME
    AND O.OBJECT_TYPE = 'TABLE'
- WHERE T.OWNER IN ($LISTA_IN)
+ WHERE T.OWNER IN ($LISTA_IN) $FILTRO_TABLAS
  ORDER BY T.OWNER, T.TABLE_NAME;
 SPOOL OFF
 EXIT;
@@ -141,7 +156,11 @@ CONT="$(sxs "wc -l < $DIR/conteo_tablas.csv" 2>/dev/null | tr -dc '0-9')"
 # importa es el del paso 2: los CREATE TABLE tienen que ser exactamente los
 # del conteo. Este piso solo esta para que un sqlplus que no se pudo
 # conectar (0 filas) no se reporte como un OK.
-MIN_CONT="${MIN_CONT:-400}"
+if [ -n "$TABLAS_IN" ]; then
+  MIN_CONT="${MIN_CONT:-$(echo $TABLAS | wc -w)}"
+else
+  MIN_CONT="${MIN_CONT:-400}"
+fi
 if [ -n "${CONT:-}" ] && [ "$CONT" -ge "$MIN_CONT" ]; then
   echo " [ OK ]   conteo_tablas.csv con $CONT tablas (piso $MIN_CONT)"
 else
@@ -165,7 +184,7 @@ SPOOL $DIR/estructura.sql
 -- tercera. Comprobado el 30/09: por SELECT directo salen las 82 de TEMP
 -- completas y por PL/SQL solo 29.
 SELECT DBMS_METADATA.GET_DDL('TABLE', TABLE_NAME, OWNER)||';'
-  FROM ALL_TABLES WHERE OWNER IN ($LISTA_IN) ORDER BY OWNER, TABLE_NAME;
+  FROM ALL_TABLES WHERE OWNER IN ($LISTA_IN) $FILTRO_TABLAS ORDER BY OWNER, TABLE_NAME;
 SPOOL OFF
 EXIT;
 EOF" 2>&1 | tail -3
@@ -187,7 +206,7 @@ if [ "$SIMULAR" = "1" ]; then
   sxs "export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH NLS_LANG=AMERICAN_AMERICA.AL32UTF8; sqlplus -S $CONEXION <<'EOF'
 SET PAGESIZE 0 FEEDBACK OFF HEADING OFF
 SELECT OWNER||'/'||TABLE_NAME||'.csv  (~'||NVL(NUM_ROWS,0)||' filas)'
-  FROM ALL_TABLES WHERE OWNER IN ($LISTA_IN)
+  FROM ALL_TABLES WHERE OWNER IN ($LISTA_IN) $FILTRO_TABLAS
  ORDER BY NVL(NUM_ROWS,0) DESC;
 EXIT;
 EOF" 2>&1 | head -30
@@ -214,13 +233,26 @@ fi
 # Los parametros van con DEFINE y NO con DEFINE OFF: sqlplus pide por
 # stdin lo que no este definido, y en un proceso en segundo plano eso es
 # EOF (ORA-00942 con el esquema literal).
+# Separador de columna: por defecto \x01 (SOH), NO la coma. Con coma, cualquier
+# descripcion que traiga una coma embebida parte el registro y el COPY falla
+# con "extra data after last expected column" (comprobado 05/10 en DOCUMENTO
+# y ESTABLECIMIENTO). \x01 no aparece en ningun dato y ademas permite dejar
+# FORMAT text en el cargador, que ignora las comas y los saltos de linea.
+COLSEP_VAL="${COLSEP_VAL:-$'\x01'}"
+
 echo
 echo ">> 3. Extrayendo datos (4 sqlplus simultaneos)"
 GENERADOR="${DIR}/gen_espejo_${HORA}.sql"
+# El heredoc va ENTRECOMILLADO: la expansion de $COLSEP_VAL es LOCAL (ocurre
+# al parsear el argumento de sxs, dentro de las comillas dobles) y al ir sin
+# comillas el shell remoto rehace las expansiones sobre el contenido y se come
+# el byte \x01 del COLSEP, dejando `SET COLSEP` vacio y volviendo al separador
+# por defecto (espacios). Comprobado 06/10: <<GEN daba 001 -> nada, <<'GEN'
+# lo conserva.
 sxs "cat > $GENERADOR <<'GEN'
 SET PAGESIZE 0 FEEDBACK OFF HEADING OFF LINESIZE 32767
 SET ESCAPE ON VERIFY OFF ECHO OFF
-SET COLSEP ','
+SET COLSEP $COLSEP_VAL
 SET NUMWIDTH 20
 SET WRAP OFF
 SET TAB OFF
@@ -245,17 +277,20 @@ while read -r ESQ TAB; do
   esac
   # Orden de los parametros segun los DEFINE del generador:
   # SAL=&1 (ruta del csv), ESQ=&2, TAB=&3.
-  sxs "export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH NLS_LANG=AMERICAN_AMERICA.AL32UTF8; nohup sqlplus -S $CONEXION @$GENERADOR $DIR/${ESQ}_${TAB}.csv $ESQ $TAB > $DIR/${ESQ}_${TAB}.nohup 2>&1 &" 2>/dev/null
+  # -n es OBLIGATORIO dentro de este bucle: sin el, el ssh se come el stdin
+  # del `while read` (que es la lista de tablas) y el bucle lanza solo la
+  # primera y termina. Pasado el 05/10: "lanzadas 1 tablas" de 8.
+  sxs -n "export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH NLS_LANG=AMERICAN_AMERICA.AL32UTF8; nohup sqlplus -S $CONEXION @$GENERADOR $DIR/${ESQ}_${TAB}.csv $ESQ $TAB > $DIR/${ESQ}_${TAB}.nohup 2>&1 &" 2>/dev/null
   LANZADOS=$((LANZADOS + 1))
   # Con 4 a la vez: por encima de eso el UNDO de 1G se satura (§17.7
   # ya lo registro: 429.500 filas de prueba dieron "log buffer space").
   if [ $((LANZADOS % 4)) -eq 0 ]; then
     # Espera a que baje de 4 antes de lanzar el siguiente grupo.
-    while [ "$(sxs "pgrep -c sqlplus" 2>/dev/null | tr -dc '0-9')" -ge 4 ]; do sleep 10; done
+    while [ "$(sxs -n "pgrep -c sqlplus" 2>/dev/null | tr -dc '0-9')" -ge 4 ]; do sleep 10; done
   fi
 done < <(sxs "export ORACLE_HOME=$ORACLE_HOME ORACLE_SID=$ORACLE_SID PATH=$ORACLE_HOME/bin:\$PATH NLS_LANG=AMERICAN_AMERICA.AL32UTF8; sqlplus -S $CONEXION <<'EOF'
 SET PAGESIZE 0 FEEDBACK OFF HEADING OFF TRIMSPOOL ON
-SELECT OWNER||' '||TABLE_NAME FROM ALL_TABLES WHERE OWNER IN ($LISTA_IN) ORDER BY OWNER, TABLE_NAME;
+SELECT OWNER||' '||TABLE_NAME FROM ALL_TABLES WHERE OWNER IN ($LISTA_IN) $FILTRO_TABLAS ORDER BY OWNER, TABLE_NAME;
 EXIT;
 EOF" 2>/dev/null)
 

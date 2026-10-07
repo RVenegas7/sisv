@@ -478,6 +478,18 @@ class Command(BaseCommand):
             c10_id, c11_id, sug_id, pend, cod_legacy = self.resolver_cie(
                 causa_basica, fecha, resolver_cie and bool(causa_basica)
             )
+            # Un certificado SIN causa basica es, para todos los efectos, un
+            # certificado que falta codificar. resolver_cie devuelve pendiente=False
+            # en ese caso (solo mira si vino la clave), pero
+            # importar_legacy_registros._resolver_cie devuelve True, y las 22
+            # defunciones del mismo periodo que cargo ese comando estan
+            # pendientes (verificado 05/10/2026). Sin esto, las 594 de esta
+            # carga entraban con pendiente=False y NO aparecian en la bandeja
+            # "Solo pendientes de codificacion" de /defunciones:|work
+            # desaparecerian de la cola de trabajo. Solo se fuerza cuando la
+            # resolucion esta activa: con --ignorar-causa no se toca el estado.
+            if resolver_cie and not causa_basica:
+                pend = True
             texto = texto_causa.get(legacy_id, (None, ""))[1]
             if not texto and causa_basica:
                 texto = self.cie10_legacy_des.get(como_id(causa_basica), "")
