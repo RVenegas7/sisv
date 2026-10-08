@@ -2786,3 +2786,41 @@ nacimientos después del 16/09, aunque **sí** sigue llegando documentación con
   `conciliar_neonatal --anio 2026`).
 
 **Estado de la suite:** 227 tests OK (`DJANGO_DB_ENGINE=sqlite manage.py test` desde `backend/`).
+
+### 27.10 Purga de la data demo de PostgreSQL (08/10/2026)
+
+Se borró todo lo que había sembrado `sembrar_demo`. Estado **antes** → **después**:
+
+| Qué | Antes | Después |
+|---|---:|---:|
+| Nacimientos (`lote LOTE-*`) | 439.479 | **439.476** (−3) |
+| Defunciones (`lote LOTE-*`) | 174.097 | **174.095** (−2) |
+| Fichas de vigilancia | 2 | **0** |
+| Consolidados semanales (+112 filas hijas) | 1 | **0** |
+| Organizaciones | 997 | **995** |
+| Usuarios | 7 | **1** (`admin`) |
+
+Lo que se borró: los 8 registros de `mock_data.py` (3 nacimientos + 2 defunciones + 2 fichas con
+códigos `FV-2026-00345`/`FV-2001-00012` + 1 consolidado sin `legacy_tabla`), las 2 organizaciones
+centro demo (**`LARA-HCB`** y **`LARA-CAB`**, sin hijos y sin ningún registro real) y los usuarios
+`laraepid`, `hbcentral`, `codificadora`, `epi`, `dir` y `tester_legacy`.
+
+**Lo que NO se borró, y por qué:**
+
+- **`MPPS` → `LARA-GOB` → `LARA-EPI`** parecen demo (las creó `sembrar_demo`), pero **`LARA-EPI`
+  es la raíz de los 993 centros reales** que creó `asignar_organizacion_legacy`. Borrarlas
+  orphanaría todo el árbol de atribución. No son demo: son la estructura jerárquica real
+  (ministerio→gobernación→regional→centros). Si algún día hay que rehacerlas, hay que
+  **reparentar los 993 centros** antes, no después.
+- **`LEGACY-LARA`**: es el fallback «Legacy regional (histórico)» para los 263 establecimientos
+  legacy sin centro propio (§17.21). Tampoco es demo.
+- **`admin`**: es el único superusuario y la única forma de entrar a `/admin` y a la API. Se
+  conserva siempre; la clave de demo es `Sisv.2026!` y **hay que cambiarla en producción**.
+
+Consecuencias prácticas: ya no se puede probar el alcance multicentro (no hay usuarios con rol
+ni con organización), y `/vigilancia` empieza vacío. Para restaurarlos:
+`./.venv/bin/python backend/manage.py sembrar_demo` (idempotente, `--sin-usuarios` omite usuarios).
+
+Tras la purga, SISV quedó con **exactamente los 174.095 certificados de defunción del origen**
+(`sismai."CERTIFICADO"`) y los **70 defunciones / 19 nacimientos sin organización** documentados en
+§17 (establecimientos fuera del árbol Lara, a propósito). Suite: **227 tests OK**.
