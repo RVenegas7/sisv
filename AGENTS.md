@@ -528,8 +528,10 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
 ## Convenciones y estado
 
 - Repositorio **git iniciado** (19/09/2026): remoto `git@github.com:RVenegas7/sisv.git`, rama `main`
-  (origin configurado). Llave SSH dedicada `~/.ssh/sisv_github`. Antes de commitear revisar
-  `.gitignore` (dumps legacy, `legancy_conf/*.env`, etc.).
+  (origin configurado). La llave SSH es `~/.ssh/oficina` (misma que entra al servidor de la oficina;
+  está en el agente, y **no** existe `~/.ssh/sisv_github`). `git push origin main` basta.
+  Antes de commitear revisar `.gitignore` (dumps legacy, `legancy_conf/*.env`, `salida_mm_mn_*/`,
+  `lara_2019_2020.xlsx`, etc.).
 - Código base Django/React ya creado: backend con serializers + vistas de datos reales y frontend con los
   formularios de carga de Nacimientos, Defunciones y Fichas de Vigilancia, más el buscador CIE
   reutilizable (smart search + árbol/cascada). Los reportes (`/reportes`) y el módulo de vigilancia
@@ -538,7 +540,8 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
 - **Pruebas automatizadas (24/09/2026):** backend con `DJANGO_DB_ENGINE=sqlite manage.py test`
-  (**227 pruebas a 02/10/2026**: 115 de `backend/tests_sisv.py` + 18 de `backend/despacho/tests.py`
+  (**correr desde `backend/`** — desde la raíz descubre 0 tests),
+  (**227 pruebas a 06/10/2026** (verificado): 115 de `backend/tests_sisv.py` + 18 de `backend/despacho/tests.py`
   + 22 de `backend/registradores/tests.py`
   + 33 de `conciliacion` (16 ENO +
   9 neonatal + 8 materna) + 27 de `registros/tests.py` (2 EV-14, 7 de las secciones del
