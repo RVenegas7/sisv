@@ -86,52 +86,64 @@ PROMPT --------------------------------------------------------------------
 PROMPT Autorizacion explicita del usuario (30/09/2026, PENDIENTES §22.3):
 PROMPT alcanza SOLO a estos 16 objetos de aplicacion. No se toca nada mas.
 PROMPT ====================================================================
+-- NOTA (09/10/2026): la version original declaraba un RECORD y lo instanciaba
+-- con t_objeto('VIEW','X'); PL/SQL NO admite constructores de RECORD, y en
+-- Oracle 10g eso da PLS-00320. Se usa una tabla asociativa de VARCHAR2 con
+-- el formato 'TIPO|NOMBRE' separado en runtime.
 DECLARE
-  TYPE t_objeto IS RECORD (tipo  VARCHAR2(30), nombre VARCHAR2(60));
-  TYPE t_lista IS TABLE OF t_objeto;
-  v_lista t_lista := t_lista(
-    t_objeto('VIEW','C_INFORMES'),
-    t_objeto('VIEW','C_INFORMES1'),
-    t_objeto('VIEW','NATALIDAD'),
-    t_objeto('VIEW','V_REGISTROCIRUGIA'),
-    t_objeto('VIEW','V_FICHAEPI13'),
-    t_objeto('VIEW','C_ESTABLECIMIENTO'),
-    t_objeto('VIEW','V_ESTABLE_DIREC'),
-    t_objeto('VIEW','V_ORG_SANITARIA'),
-    t_objeto('VIEW','V_PACIENTEVACUNACION'),
-    t_objeto('VIEW','V_PACIENTECIRUGIA'),
-    t_objeto('VIEW','H_DEPEN'),
-    t_objeto('PROCEDURE','SPDOC'),
-    t_objeto('PROCEDURE','SPREGDSP'),
-    t_objeto('PROCEDURE','SPREGEPI'),
-    t_objeto('PROCEDURE','SPREGTEL'),
-    t_objeto('FUNCTION','FIDPADRE')
-  );
+  TYPE t_lista IS TABLE OF VARCHAR2(80) INDEX BY BINARY_INTEGER;
+  v_lista  t_lista;
+  v_tipo   VARCHAR2(30);
+  v_nombre VARCHAR2(60);
+  v_barra  PLS_INTEGER;
   v_existe NUMBER;
   v_recs   NUMBER := 0;
   v_ok     NUMBER := 0;
   v_fallos NUMBER := 0;
 BEGIN
+  -- ORDEN IMPORTANTE (09/10/2026): FIDPADRE va PRIMERO. Los 4 procedures
+  -- lo referencian; si se compila despues, quedan INVALID por dependencia
+  -- y SIN error registrado (ALL_ERRORS vacio), lo que obliga a una segunda
+  -- pasada. Con la funcion ya valida, una sola pasada cierra los 16.
+  v_lista(1)  := 'FUNCTION|FIDPADRE';
+  v_lista(2)  := 'PROCEDURE|SPDOC';
+  v_lista(3)  := 'PROCEDURE|SPREGDSP';
+  v_lista(4)  := 'PROCEDURE|SPREGEPI';
+  v_lista(5)  := 'PROCEDURE|SPREGTEL';
+  v_lista(6)  := 'VIEW|C_INFORMES';
+  v_lista(7)  := 'VIEW|C_INFORMES1';
+  v_lista(8)  := 'VIEW|NATALIDAD';
+  v_lista(9)  := 'VIEW|V_REGISTROCIRUGIA';
+  v_lista(10) := 'VIEW|V_FICHAEPI13';
+  v_lista(11) := 'VIEW|C_ESTABLECIMIENTO';
+  v_lista(12) := 'VIEW|V_ESTABLE_DIREC';
+  v_lista(13) := 'VIEW|V_ORG_SANITARIA';
+  v_lista(14) := 'VIEW|V_PACIENTEVACUNACION';
+  v_lista(15) := 'VIEW|V_PACIENTECIRUGIA';
+  v_lista(16) := 'VIEW|H_DEPEN';
   FOR i IN 1..v_lista.COUNT LOOP
+    v_barra  := INSTR(v_lista(i), '|');
+    v_tipo   := SUBSTR(v_lista(i), 1, v_barra - 1);
+    v_nombre := SUBSTR(v_lista(i), v_barra + 1);
     SELECT COUNT(*) INTO v_existe
       FROM ALL_OBJECTS
      WHERE OWNER='SISMAI'
-       AND OBJECT_NAME = v_lista(i).nombre
-       AND OBJECT_TYPE = v_lista(i).tipo;
+       AND OBJECT_NAME = v_nombre
+       AND OBJECT_TYPE = v_tipo;
     IF v_existe = 0 THEN
-      DBMS_OUTPUT.PUT_LINE('  NO EXISTE, se omite: '||v_lista(i).tipo||' SISMAI.'||v_lista(i).nombre);
+      DBMS_OUTPUT.PUT_LINE('  NO EXISTE, se omite: '||v_tipo||' SISMAI.'||v_nombre);
       v_fallos := v_fallos + 1;
     ELSE
       v_recs := v_recs + 1;
       BEGIN
-        EXECUTE IMMEDIATE 'ALTER '||v_lista(i).tipo||' SISMAI.'||v_lista(i).nombre||' COMPILE';
-        DBMS_OUTPUT.PUT_LINE('  RECOMPILADO: '||v_lista(i).tipo||' SISMAI.'||v_lista(i).nombre);
+        EXECUTE IMMEDIATE 'ALTER '||v_tipo||' SISMAI.'||v_nombre||' COMPILE';
+        DBMS_OUTPUT.PUT_LINE('  RECOMPILADO: '||v_tipo||' SISMAI.'||v_nombre);
         v_ok := v_ok + 1;
       EXCEPTION
         -- Un ALTER que falla (p. ej. NATALIDAD sin T_CERTNACI) NO aborta
         -- el resto: se anota la causa y se sigue con los otros 15.
         WHEN OTHERS THEN
-          DBMS_OUTPUT.PUT_LINE('  [FALLO] '||v_lista(i).tipo||' SISMAI.'||v_lista(i).nombre
+          DBMS_OUTPUT.PUT_LINE('  [FALLO] '||v_tipo||' SISMAI.'||v_nombre
             || ': '||SQLERRM);
           v_fallos := v_fallos + 1;
       END;

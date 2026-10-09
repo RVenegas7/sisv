@@ -344,9 +344,12 @@ Idioma de trabajo: **responder siempre en español**.
   diagnóstico 25/09/2026, detalle en PENDIENTES.md §17. NO modificar sin autorización expresa:**
   - Acceso de solo lectura: `ssh respaldo@192.168.5.200` + `export ORACLE_HOME=/opt/oracle
     ORACLE_SID=lar1` + `sqlplus -s respaldo/respaldo` (sin alias TNS: `@lar1` da `ORA-12154`).
-    La **única** cuenta con DBA es la de SO **`oracle`** (grupo `dba`) vía `sqlplus / as sysdba`,
-    pero **no tiene clave conocida** (por llave pública da *Permission denied*): todo lo del
-    02/10/2026 se hizo con `respaldo`, que también sirve para `exp`/`imp` (`USERID=respaldo/respaldo`).
+    La **única** cuenta con DBA es la de SO **`oracle`** (grupo `dba`) vía `sqlplus / as sysdba`.
+    **Desde el 09/10/2026 el usuario sí facilitó su clave** (SSH + `/ as sysdba`); se guarda en
+    `legancy_conf/credenciales.env` como `SISV_SSH_USUARIO_DBA`/`SISV_SSH_CLAVE_DBA` y **solo** se usa
+    para lo autorizado en PENDIENTES §22.3 (el `ALTER … COMPILE` de los 16 objetos, ya cerrado con
+    `SISMAI` en 0 inválidos, §27.11). Todo lo del 02/10/2026 se hizo con `respaldo`, que también sirve
+    para `exp`/`imp` (`USERID=respaldo/respaldo`) y no puede compilar objetos ajenos.
     **`legancy_conf/credenciales.env`** (ignorado por git) tiene host, usuarios y `NLS_LANG`; los
     scripts de `migracion/` lo leen solos. Ojo: **`NLS_LANG` sin definir hace fallar `sqlplus`** con
     *Error 6 initializing SQL* / *sp1\<lang\>.msb not found*, que parece de permisos y no lo es

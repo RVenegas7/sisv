@@ -2631,7 +2631,12 @@ lo que reporta la oficina (18) y confirma §21: el certificado marca el embarazo
 «terminated successfully», `imp SHOW=Y` lee 350 objetos de SISMAI, SHA-256 en
 `/home/program/respaldos_sismai/SHA256SUMS.txt`.
 
-### 27.6 Item 2 — recompilar los 16 objetos: **falta acceso DBA**
+### 27.6 Item 2 — recompilar los 16 objetos: **[HECHO 09/10/2026]**
+
+> **Resuelto el 09/10/2026.** El usuario facilitó la clave del usuario de SO `oracle`
+> (grupo `dba`), que entra por SSH y `sqlplus / as sysdba`. Se ejecutó el SQL corregido y
+> **los 16 objetos quedaron `VALID`; SISMAI tiene 0 inválidos** (detalle y bug del script en
+> §27.11). Se conserva el texto original de abajo como contexto.
 
 Los 16 `INVALID` de SISMAI siguen ahí. Para recompilarlos hace falta `/ as sysdba`, y:
 
@@ -2668,11 +2673,13 @@ inválida por dependencia — que es justo lo que hay que ver antes de ir a crea
    hay ni una defunción posterior al 20/09/2026** (ni nacimientos después del 16/09). El anexo del
    martes sigue llegando pero con fecha de-certified vieja, o la captura del centro se detuvo: hay
    que confirmarlo con la oficina antes de prometer el mes cerrado.
-2. **`TEMP.T_CERTNACI`**: sin ella `NATALIDAD` no recompila. El `crear.sql` del share **no se puede
-   usar** (hace `DROP`+`CREATE` de `EVENTOS_SINC`, §22.1). Necesitamos el DDL de esa tabla del
-   cliente Windows (`192.168.5.133`) o del central.
-3. **Item 2**: ejecutar el comando de §27.6 con acceso a la consola, o dar acceso (llave/clave) a
-   una cuenta con DBA para poder correrlo remoto.
+2. ~~**`TEMP.T_CERTNACI`**: sin ella `NATALIDAD` no recompila.~~ **Descartado el 09/10/2026**:
+   `NATALIDAD` **no** usa `TEMP.T_CERTNACI` (depende de `SISMAI.CERTNACIMIENTO`, `NAC_MADRE`,
+   `NAC_RNACIDO`, `ESTABLECIMIENTO` y `SISMAI.V_ORG_GEOGRAFICA`) y compiló `VALID` sin esa tabla.
+   La hipótesis de §22.1/§27.3 era falsa. Sigue sin existir `TEMP.T_CERTNACI`, pero ya no bloquea
+   nada de lo nuestro.
+3. ~~**Item 2**: ejecutar el comando de §27.6 con acceso a la consola, o dar acceso (llave/clave) a
+   una cuenta con DBA para poder correrlo remoto.~~ **HECHO 09/10/2026** (§27.11).
 4. **Alias de centros** legacy↔demo (§27.4), si se quiere que los usuarios demo vean el histórico.
 
 ### 27.8 `lara_2019_2020.xlsx`: solo mortalidad, **NO cargado**
@@ -2824,3 +2831,46 @@ ni con organización), y `/vigilancia` empieza vacío. Para restaurarlos:
 Tras la purga, SISV quedó con **exactamente los 174.095 certificados de defunción del origen**
 (`sismai."CERTIFICADO"`) y los **70 defunciones / 19 nacimientos sin organización** documentados en
 §17 (establecimientos fuera del árbol Lara, a propósito). Suite: **227 tests OK**.
+
+### 27.11 [HECHO 09/10/2026] Recompilación de los 16 objetos Oracle: `SISMAI` con 0 inválidos
+
+Con la clave del usuario de SO **`oracle`** (grupo `dba`, guardada en
+`legancy_conf/credenciales.env` como `SISV_SSH_USUARIO_DBA`/`SISV_SSH_CLAVE_DBA`) se entra por SSH
+al servidor y `sqlplus / as sysdba` responde (antes era `ORA-01031`). **Resultado: los 16 objetos
+pasaron de `INVALID` a `VALID` y `ALL_OBJECTS` no deja ningún inválido en `SISMAI`.**
+
+**Dos cosas que estaban mal en el plan original de §27.6:**
+
+1. **El SQL tenía un bug de PL/SQL.** Declaraba un `RECORD` y lo instanciaba con
+   `t_objeto('VIEW','X')`; **PL/SQL no admite constructores de `RECORD`** y en Oracle 10g eso da
+   `PLS-00320: la declaración de tipo de esta expresión está incompleta o tiene un formato
+   incorrecto` (el `ALTER` nunca llegaba a ejecutarse). Corregido en
+   `migracion/recompilar_16_objetos.sql`: la lista es ahora una tabla asociativa de `VARCHAR2`
+   con formato `'TIPO|NOMBRE'` separado en runtime. No hubo que tocar nada del servidor.
+2. **El orden de compilación importa.** Los 4 procedimientos (`SPDOC`, `SPREGDSP`, `SPREGEPI`,
+   `SPREGTEL`) referencian la función `FIDPADRE`, que estaba en la **posición 16** — o sea, se
+   compilaba *después* que ellos. Por eso en la primera pasada quedaron `INVALID` **sin error de
+   sintaxis** (`DBA_ERRORS`/`ALL_ERRORS` salían vacíos: es invalidez *por dependencia*, no error
+   de código). Con las vistas y `FIDPADRE` ya válidos, **una segunda pasada** sobre los 4 los
+   cerró. (`FIDDOC` y `FNUMDOC`, las otras dos funciones referenciadas, ya estaban válidas.)
+
+**Verificación final:**
+
+| Objeto | Antes | Después |
+|---|---|---|
+| 11 vistas (`C_INFORMES`, `C_INFORMES1`, `NATALIDAD`, `V_REGISTROCIRUGIA`, `V_FICHAEPI13`, `C_ESTABLECIMIENTO`, `V_ESTABLE_DIREC`, `V_ORG_SANITARIA`, `V_PACIENTEVACUNACION`, `V_PACIENTECIRUGIA`, `H_DEPEN`) | INVALID | **VALID** |
+| `FUNCTION FIDPADRE` | INVALID | **VALID** |
+| `PROCEDURE SPDOC`, `SPREGDSP`, `SPREGEPI`, `SPREGTEL` | INVALID | **VALID** |
+| `COUNT(*) INVALID` en `SISMAI` | 16 | **0** |
+
+**`TEMP.T_CERTNACI` no era el problema.** `NATALIDAD` compiló `VALID` sin ella porque **no la
+usa** (depende de `SISMAI.CERTNACIMIENTO`/`NAC_MADRE`/`NAC_RNACIDO`/`ESTABLECIMIENTO` y de
+`SISMAI.V_ORG_GEOGRAFICA`). La hipótesis de §22.1/§27.3 queda descartada; ya no hace falta pedir
+ese DDL.
+
+**No se tocó** nada más: ni `EVENTOS_SINC`, ni el esquema `TEMP`, ni objetos fuera de los 16
+(alcance §22.3). Resto de inválidos en la base (fuera de alcance, preexistentes y de `SYS`):
+12 `PACKAGE BODY` y 34 `VIEW` de `SYS`, y 2 `VIEW` de `SYSTEM` — ajenos a SISMAI.
+
+Log del servidor: `/tmp/recompilar_16_20261009_0954.log` (primera pasada) y salida de la segunda
+pasada capturada en la sesión de OpenCode del 09/10/2026.
