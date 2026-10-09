@@ -2874,3 +2874,41 @@ ese DDL.
 
 Log del servidor: `/tmp/recompilar_16_20261009_0954.log` (primera pasada) y salida de la segunda
 pasada capturada en la sesión de OpenCode del 09/10/2026.
+
+### 27.12 [HECHO 09/10/2026] `lara_2019_2020.xlsx` cargado como tabla cruda del espejo
+
+**Respuesta a la pregunta del usuario:** el archivo **no estaba** en PostgreSQL. Se cargó el
+09/10/2026, **en crudo**, sin tocarlo ni conciliarlo.
+
+**La clave `PLANILLA` = `sismai."CERTIFICADO"."NUMEROMSDS"`.** Verificado intersectando los
+22.029 valores `PLANILLA` distintos del xlsx contra las columnas del espejo: coinciden **4.848**
+(22 %). La otra candidata, `No. DE CERTIFICADO` (número pequeño, p. ej. `1`, `28`, `35`), reproduce
+`CERTIFICADO.CERTIFICADO`, no aporta enlace útil. El usuario tenía razón en que `PLANILLA` es el
+número del certificado; en el legacy ese número vive en `NUMEROMSDS`.
+
+**Destino (decisión del usuario):** tabla cruda en un esquema aparte, **NO** en `sismai` (que debe
+reflejar Oracle tal cual) y **NO** en `registros.Defuncion`. Esquema nuevo
+**`espejo_extra.lara_2019_2020`**: 223 columnas TEXT (las 220 del EV-14 + `_hoja`, `_fila`,
+`_planilla`), índice por `_planilla`; `DROP`+`CREATE`+`COPY` (idempotente).
+
+```bash
+./.venv/bin/python migracion/cargar_lara_2019_2020_pg.py            # dry-run
+./.venv/bin/python migracion/cargar_lara_2019_2020_pg.py --ejecutar # 22.147 filas
+```
+
+| Hoja | Filas |
+|---|---:|
+| 2019 | 11.810 |
+| 2020 | 10.337 |
+| **Total** | **22.147** |
+
+**Cobertura frente al espejo (2019-2020):** de los **5.729** certificados SISMAI de esos años,
+**4.803 (84 %) tienen fila en el xlsx** y **926 no**. O sea, el xlsx **no es un superconjunto**: es
+una fuente paralela que solapa en su mayoría pero le faltan 926 y le sobran ~17.300.
+
+**Lo que sigue siendo una decisión aparte (no hecha):** conciliar estas filas dentro de
+`registros.Defuncion`. El xlsx **no trae establecimiento** (solo `municipio`/`parroquia`/localidad),
+así que la atribución por centro exige un mapa, y hay que decidir el dedup contra los 4.803 que ya
+están como certificado. Mientras no se decida, el xlsx queda **consultable y enlazable** por
+`_planilla`, sin alterar las tablas de hechos. Lo de §27.8 (sin diagnóstico, patrón compatible con
+COVID) se mantiene.
