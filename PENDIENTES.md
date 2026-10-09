@@ -2912,3 +2912,49 @@ así que la atribución por centro exige un mapa, y hay que decidir el dedup con
 están como certificado. Mientras no se decida, el xlsx queda **consultable y enlazable** por
 `_planilla`, sin alterar las tablas de hechos. Lo de §27.8 (sin diagnóstico, patrón compatible con
 COVID) se mantiene.
+
+### 27.13 [OBSERVACIÓN 09/10/2026] La semana del certificado **no** es la semana del nacimiento
+
+Observación que hay que tener presente en **toda evaluación futura** del sistema.
+
+**Origen del hallazgo.** Al pedir «los certificados de nacimiento de la semana 38 de 2026», se
+listaron **312** certificados agrupados por `CERTNACIMIENTO.FECHACERTIFICADO` (fecha de emisión) en
+el rango dom 20/09–sáb 26/09/2026. Pero al añadir la **fecha de nacimiento**
+(`NAC_RNACIDO.FECHANACIMIENTO`, enlace `NAC_RNACIDO.HCERTIFICADO = CERTNACIMIENTO.ID`) esos 312
+certificados corresponden a **nacimientos de las semanas 02 a 36**, ninguno de la semana 38:
+
+| Semana del nacimiento | Rango | Certificados |
+|---|---|---:|
+| 2026-S02 | 11–17 ene | 1 |
+| 2026-S23 | 07–13 jun | 1 |
+| 2026-S26 | 28 jun–04 jul | 4 |
+| 2026-S27 | 05–11 jul | 58 |
+| 2026-S28 | 12–18 jul | 48 |
+| 2026-S29 | 19–25 jul | 4 |
+| 2026-S30 | 26 jul–01 ago | 56 |
+| 2026-S31 | 02–08 ago | 36 |
+| 2026-S32 | 09–15 ago | 46 |
+| 2026-S33 | 16–22 ago | 14 |
+| 2026-S34 | 23–29 ago | 15 |
+| 2026-S35 | 30 ago–05 sep | 16 |
+| 2026-S36 | 06–12 sep | 13 |
+
+Atraso certificación−nacimiento: **promedio 54 días**, mínimo 14, máximo 252.
+
+**Lo que esto significa (y lo que NO):**
+- **No es un error de la base de datos ni del ETL.** El certificado se emite/transcribe semanas
+  después del nacimiento; la información simplemente **todavía no ha llegado de los otros centros
+  para su transcripción**. Es el mismo fenómeno ya visto: §27.7 (el origen sin nacimientos por
+  `fecha_evento` tras el 16/09), §27.9 (cargas retroactivas del 17-23/09 con fecha repartida por
+  todo el año) y §20 (la caída de captura).
+- **La información agrupada por `FECHACERTIFICADO` NO corresponde a la semana epidemiológica** de
+  nacimiento. Filtrar por fecha de emisión mide **carga administrativa y atraso**, no natalidad de
+  la semana.
+- Para la **natalidad de una semana epidemiológica** hay que filtrar por la **fecha de nacimiento**
+  (`Nacimiento.fecha_evento` / `NAC_RNACIDO.FECHANACIMIENTO`), nunca por `FECHACERTIFICADO`. En la
+  semana 38/2026 eso da **0** nacimientos (el máximo de `fecha_evento` es el 16/09), precisamente
+  porque lo capturado hasta ahora son emisiones rezagadas de semanas anteriores.
+
+**Consecuencia para evaluaciones futuras:** cualquier tablero/consulta de «natalidad semanal» debe
+usar la fecha del evento como criterio de semana; la fecha de emisión solo sirve para medir el
+retraso de remisión entre centros y central.
