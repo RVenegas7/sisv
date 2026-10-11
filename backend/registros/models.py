@@ -156,6 +156,13 @@ class Nacimiento(RegistroConCIE):
         ("VIA_PUBLICA", "Vía pública"),
         ("OTRO", "Otro"),
     ]
+    PERSONA_ATENDIO_PARTO = [
+        ("MEDICO", "Médico"),
+        ("ENFERMERA", "Enfermera"),
+        ("PARTERA", "Partera"),
+        ("COMADRONA", "Comadrona"),
+        ("OTRO", "Otro"),
+    ]
     ESTADO_CIVIL = [
         ("SOLTERA", "Soltera"),
         ("CASADA", "Casada"),
@@ -176,6 +183,12 @@ class Nacimiento(RegistroConCIE):
     tipo_parto = models.CharField("Tipo de parto", max_length=15, choices=TIPO_PARTO, default="VAGINAL")
     tipo_embarazo = models.CharField("Tipo de embarazo", max_length=10, choices=TIPO_EMBARAZO, default="UNICO")
     numero_gemelar = models.PositiveSmallIntegerField("Nº gemelar", null=True, blank=True)
+    persona_atendio_parto = models.CharField(
+        "Persona que atendió el parto", max_length=15, choices=PERSONA_ATENDIO_PARTO, blank=True, default=""
+    )
+    nombre_persona_atendio = models.CharField(
+        "Apellidos y nombres de quien atendió el parto", max_length=200, blank=True, default=""
+    )
     sitio_nacimiento = models.CharField("Sitio", max_length=15, choices=SITIO_NACIMIENTO, default="ESTABLECIMIENTO")
     establecimiento = models.CharField("Establecimiento de salud", max_length=200, blank=True)
     estado = models.CharField("Estado", max_length=60, blank=True)
@@ -195,6 +208,7 @@ class Nacimiento(RegistroConCIE):
     madre_apellidos = models.CharField("Apellidos de la madre", max_length=150)
     madre_cedula = models.CharField("Cédula de la madre", max_length=20)
     madre_edad = models.PositiveSmallIntegerField("Edad de la madre")
+    madre_ocupacion = models.CharField("Ocupación de la madre", max_length=150, blank=True, default="")
     madre_estado_civil = models.CharField("Estado civil", max_length=15, choices=ESTADO_CIVIL, default="SOLTERA")
     madre_nacionalidad = models.CharField(
         "Nacionalidad de la madre", max_length=1, choices=NACIONALIDAD, blank=True
@@ -225,6 +239,7 @@ class Nacimiento(RegistroConCIE):
     padre_nombres = models.CharField("Nombres del padre", max_length=150, blank=True)
     padre_apellidos = models.CharField("Apellidos del padre", max_length=150, blank=True)
     padre_cedula = models.CharField("Cédula del padre", max_length=20, blank=True)
+    padre_ocupacion = models.CharField("Ocupación del padre", max_length=150, blank=True, default="")
     padre_nacionalidad = models.CharField(
         "Nacionalidad del padre", max_length=1, choices=NACIONALIDAD, blank=True
     )
@@ -267,6 +282,12 @@ class Nacimiento(RegistroConCIE):
     libro = models.CharField("Libro de registro civil", max_length=20, blank=True)
     folio = models.PositiveIntegerField("Folio", null=True, blank=True)
     acta = models.PositiveIntegerField("Acta", null=True, blank=True)
+    fecha_registro = models.DateField("Fecha de inscripción", null=True, blank=True)
+    registro_civil_nombre = models.CharField("Nombre del registro civil", max_length=150, blank=True, default="")
+    registrador_civil_nombres = models.CharField(
+        "Apellidos y nombres del registrador civil", max_length=200, blank=True, default=""
+    )
+    registrador_civil_cedula = models.CharField("Cédula del registrador civil", max_length=20, blank=True, default="")
 
     class Meta:
         verbose_name = "Nacimiento"

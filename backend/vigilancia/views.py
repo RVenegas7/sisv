@@ -1,7 +1,10 @@
 import csv
 import io
 from datetime import date
+from functools import reduce
+from operator import add
 
+from django.db.models import Count, F, Sum
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework.views import APIView
@@ -18,6 +21,7 @@ from .models import (
     ConsolidadoSemanal,
     EventoENO,
     FilaConsolidado,
+    FilaEpi15,
     SituacionEspecial,
     columna,
 )
@@ -113,6 +117,26 @@ class ConsolidadoSemanalListView(APIView):
                 if not tiene_dependientes
                 else ConsolidadoSemanal.ORIGEN_CONSOLIDADO
             )
+        # «Crear / abrir»: si ya existe el consolidado (org+año+semana+tipo) se
+        # devuelve el existente en vez de chocar con la restricción única.
+        org_objetivo = datos.get("organizacion") or org_id
+        try:
+            existente = ConsolidadoSemanal.objects.filter(
+                organizacion_id=org_objetivo,
+                anio=int(datos.get("anio")),
+                semana=int(datos.get("semana")),
+                tipo=datos.get("tipo"),
+            ).first()
+        except (TypeError, ValueError):
+            existente = None
+        if existente is not None:
+            return ok(
+                ConsolidadoSemanalSerializer(existente).data,
+                message=(
+                    f"Consolidado {existente.get_tipo_display()} "
+                    f"{existente.anio}-S{existente.semana:02d} existente (abierto)"
+                ),
+            )
         s = ConsolidadoSemanalEscribeSerializer(data=datos)
         if not s.is_valid():
             return error("Datos inválidos", s.errors, 400)
@@ -137,6 +161,55 @@ class ConsolidadoSemanalListView(APIView):
             message=f"Consolidado {consolidado.get_tipo_display()} {consolidado.anio}-S{consolidado.semana:02d} creado",
             status=201,
         )
+
+
+class ConsolidadoSemanalResumenView(APIView):
+    """Resumen por semana epidemiológica del año (respeta alcance).
+
+    Devuelve una fila por semana con los casos sumados de morbilidad
+    (EPI-12) y mortalidad (EPI-14), el número de establecimientos y de
+    consolidados que la alimentan. Es liviano: agrega en la BD, no serializa
+    las matrices completas.
+    """
+
+    def get(self, request):
+        anio = request.query_params.get("anio", "").strip()
+        if not anio:
+            return error("Debe indicar el año.", status=400)
+        try:
+            anio_int = int(anio)
+        except (TypeError, ValueError):
+            return error("El año debe ser numérico.", status=400)
+        base = _por_alcance_qs(ConsolidadoSemanal.objects.filter(anio=anio_int), request)
+
+        expr_total = reduce(add, [F(columna(g, s)) for g, s in CAMPOS_COLUMNA])
+        acumulado = {}
+        agrupado = (
+            FilaConsolidado.objects.filter(consolidado__in=base)
+            .values("consolidado__semana", "consolidado__tipo")
+            .annotate(total=Sum(expr_total))
+        )
+        for fila in agrupado:
+            reg = acumulado.setdefault(
+                fila["consolidado__semana"],
+                {"semana": fila["consolidado__semana"], "morbilidad": 0, "mortalidad": 0},
+            )
+            clave = "morbilidad" if fila["consolidado__tipo"] == ConsolidadoSemanal.TIPO_MORBILIDAD else "mortalidad"
+            reg[clave] += fila["total"] or 0
+        for c in base.values("semana").annotate(
+            consolidados=Count("id"), establecimientos=Count("organizacion_id", distinct=True)
+        ):
+            reg = acumulado.setdefault(c["semana"], {"semana": c["semana"], "morbilidad": 0, "mortalidad": 0})
+            reg["consolidados"] = c["consolidados"]
+            reg["establecimientos"] = c["establecimientos"]
+
+        data = []
+        for semana in sorted(acumulado):
+            reg = acumulado[semana]
+            reg.setdefault("consolidados", 0)
+            reg.setdefault("establecimientos", 0)
+            data.append(reg)
+        return ok(data, count=len(data))
 
 
 class ConsolidadoSemanalDetailView(APIView):
@@ -301,6 +374,46 @@ class Epi15ListView(APIView):
         qs = qs.order_by("-anio", "-semana", "organizacion__nombre")
         data = ConsolidadoEpi15Serializer(qs, many=True).data
         return ok(data, count=qs.count())
+
+
+class Epi15ResumenView(APIView):
+    """Resumen del EPI-15 por semana epidemiológica del año (respeta alcance)."""
+
+    def get(self, request):
+        anio = request.query_params.get("anio", "").strip()
+        if not anio:
+            return error("Debe indicar el año.", status=400)
+        try:
+            anio_int = int(anio)
+        except (TypeError, ValueError):
+            return error("El año debe ser numérico.", status=400)
+        base = _por_alcance_qs(ConsolidadoEpi15.objects.filter(anio=anio_int), request)
+
+        acumulado = {}
+        agrupado = (
+            FilaEpi15.objects.filter(consolidado__in=base)
+            .values("consolidado__semana")
+            .annotate(total=Sum(F("casosp") + F("casoss") + F("casosx")))
+        )
+        for fila in agrupado:
+            acumulado[fila["consolidado__semana"]] = {
+                "semana": fila["consolidado__semana"],
+                "casos": fila["total"] or 0,
+            }
+        for c in base.values("semana").annotate(
+            consolidados=Count("id"), establecimientos=Count("organizacion_id", distinct=True)
+        ):
+            reg = acumulado.setdefault(c["semana"], {"semana": c["semana"], "casos": 0})
+            reg["consolidados"] = c["consolidados"]
+            reg["establecimientos"] = c["establecimientos"]
+
+        data = []
+        for semana in sorted(acumulado):
+            reg = acumulado[semana]
+            reg.setdefault("consolidados", 0)
+            reg.setdefault("establecimientos", 0)
+            data.append(reg)
+        return ok(data, count=len(data))
 
 
 class Epi15DetailView(APIView):

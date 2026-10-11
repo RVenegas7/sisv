@@ -81,16 +81,20 @@ _GRUPOS = {
         **{c: "Recién nacido" for c in (
             "nino_nombres", "nino_apellidos", "numero_historia_clinica", "sexo", "peso_gramos",
             "talla_cm", "edad_gestacional_semanas", "tipo_parto", "tipo_embarazo", "numero_gemelar",
+            "persona_atendio_parto", "nombre_persona_atendio",
             "nacido_vivo", "apgar_1m", "apgar_5m")},
         **{c: "Madre" for c in (
-            "madre_nombres", "madre_apellidos", "madre_cedula", "madre_edad", "madre_estado_civil",
+            "madre_nombres", "madre_apellidos", "madre_cedula", "madre_edad", "madre_ocupacion",
+            "madre_estado_civil",
             "madre_nacionalidad", "madre_pasaporte", "madre_residencia", "madre_residencia_pais",
             "madre_residencia_direccion", "madre_residencia_parroquia", "madre_residencia_comunidad")},
         **{c: "Padre" for c in (
-            "padre_nombres", "padre_apellidos", "padre_cedula", "padre_nacionalidad",
+            "padre_nombres", "padre_apellidos", "padre_cedula", "padre_ocupacion", "padre_nacionalidad",
             "padre_pasaporte", "padre_residencia", "padre_residencia_pais",
             "padre_residencia_direccion", "padre_residencia_parroquia", "padre_residencia_comunidad")},
-        **{c: "Registro civil" for c in ("libro", "folio", "acta")},
+        **{c: "Registro civil" for c in (
+            "libro", "folio", "acta", "fecha_registro", "registro_civil_nombre",
+            "registrador_civil_nombres", "registrador_civil_cedula")},
         **{c: "Responsable" for c in (
             "certificador_nombres", "certificador_cedula", "certificador_matricula_mpps",
             "director_establecimiento")},

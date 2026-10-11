@@ -1181,6 +1181,53 @@ class NacimientoEV25Tests(SISVBase):
         self.assertEqual(r.status_code, 400)
         self.assertIn("madre_residencia_parroquia", r.json()["errors"])
 
+    def test_persona_atendio_parto_y_ocupaciones(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(
+            persona_atendio_parto="PARTERA", nombre_persona_atendio="Marta Rojas",
+            madre_ocupacion="Docente", padre_ocupacion="Obrero",
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        d = r.json()["data"]
+        self.assertEqual(d["persona_atendio_parto"], "PARTERA")
+        self.assertEqual(d["nombre_persona_atendio"], "Marta Rojas")
+        self.assertEqual(d["madre_ocupacion"], "Docente")
+        self.assertEqual(d["padre_ocupacion"], "Obrero")
+
+    def test_registro_civil_complemento(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(
+            libro="L-1", folio=5, acta=12, fecha_registro="2026-02-10",
+            registro_civil_nombre="Registro Civil Municipio Iribarren",
+            registrador_civil_nombres="Luis Pérez", registrador_civil_cedula="V-11223344",
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        d = r.json()["data"]
+        self.assertEqual(d["fecha_registro"], "2026-02-10")
+        self.assertEqual(d["registro_civil_nombre"], "Registro Civil Municipio Iribarren")
+        self.assertEqual(d["registrador_civil_cedula"], "V-11223344")
+
+    def test_detalle_de_consulta_incluye_los_campos_nuevos(self):
+        from registros.presentacion import detalle_certificado
+
+        self.login(self.u_trans_hcb)
+        r = self._post(
+            persona_atendio_parto="MEDICO", nombre_persona_atendio="Dr. José Mora",
+            madre_ocupacion="Docente", padre_ocupacion="Obrero",
+            fecha_registro="2026-02-10", registrador_civil_nombres="Luis Pérez",
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        registro = Nacimiento.objects.get(registro_numero="N-EV25")
+        planos = {
+            c["campo"]: (b["grupo"], c["valor"])
+            for b in detalle_certificado(registro)
+            for c in b["campos"]
+        }
+        self.assertEqual(planos["persona_atendio_parto"], ("Recién nacido", "Médico"))
+        self.assertEqual(planos["madre_ocupacion"][0], "Madre")
+        self.assertEqual(planos["padre_ocupacion"][0], "Padre")
+        self.assertEqual(planos["registrador_civil_nombres"][0], "Registro civil")
+
 
 class ReporteSemanalMMITests(SISVBase):
     """Anexo semanal de mortalidad materna e infantil (reporte generado).

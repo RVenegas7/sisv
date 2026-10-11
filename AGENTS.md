@@ -116,13 +116,19 @@ Idioma de trabajo: **responder siempre en español**.
   BORRADOR|ENVIADO|CERRADO, origen PROPIO|CONSOLIDADO_SUPERIOR; unique por org+año+semana+tipo), `FilaConsolidado`
   (13 grupos etarios × 2 sexos; **regla «edad ignorada» → columna Hombres**, M siempre 0), `SituacionEspecial`,
   `AlertaEpidemia`. Endpoints `/api/vigilancia/`: `eventos-eno` (GET, filtros grupo/en_epi12/en_epi14/q),
-  `consolidados/` (GET lista + POST crea y siembra filas del catálogo), `consolidados/<id>/` (GET/PATCH/DELETE,
-  reemplazo total de filas/situaciones/alertas), `consolidados/exportar/` (CSV con BOM, respeta alcance y filtros).
+  `consolidados/` (GET lista + POST crea y siembra filas del catálogo; **si ya existe org+año+semana+tipo el POST
+  devuelve el existente con 200 «existente (abierto)» en vez de duplicar**), `consolidados/<id>/` (GET/PATCH/DELETE,
+  reemplazo total de filas/situaciones/alertas), `consolidados/exportar/` (CSV con BOM, respeta alcance y filtros),
+  `consolidados/resumen/?anio=` (agregado por semana: casos de morbilidad/mortalidad, establecimientos y nº de
+  consolidados; **sin filas anidadas**, responde en <0,3 s donde la lista sin filtro se colgaba y devolvía 24 MB).
   Permisos: crear/editar TRANSCRIPTOR/CODIFICADOR/DIRECTOR; eliminar DIRECTOR/superusuario; EPIDEMIÓLOGO lectura
-  (igual que `permisos_de`). Frontend: `/vigilancia` (matriz editable 13×2, pestañas situaciones/alertas, estados,
-  exportar CSV); `/vigilancia/fichas` conserva la carga individual heredada. El org en POST se fuerza desde
-  `organizacion_por_defecto` (CENTRO) o del payload (niveles superiores eligen centro destino); utilidades en
+  (igual que `permisos_de`). Frontend: `/vigilancia` (resumen por semana del año; «Ver detalle» abre la semana con
+  vista por centro → matriz editable 13×2, o por evento con totales H/M; pestañas situaciones/alertas, estados,
+  exportar CSV); `/vigilancia/epi15` (resumen por semana + detalle por centro → matriz
+  primeras/subsiguientes/X); `/vigilancia/fichas` conserva la carga individual heredada. El org en POST se fuerza
+  desde `organizacion_por_defecto` (CENTRO) o del payload (niveles superiores eligen centro destino); utilidades en
   `vigilancia/services.py` (`semana_epidemiologica`, `organizaciones_descendientes`, `sembrar_filas`).
+  `epi15/resumen/?anio=` expone el mismo agregado para el EPI-15 (solo lectura, `ConsolidadoEpi15`/`FilaEpi15`).
 - Las tablas de hechos **persisten en PostgreSQL** (ya no son mock): nacimientos/defunciones/fichas con CRUD
   (GET/POST/PUT/PATCH/DELETE) vía ORM, scoping por alcance y validación CIE por fecha; `/dashboard/` y
   `/reportes/` leen de la BD; `/reportes/exportar/` descarga CSV (UTF-8 BOM para Excel) respetando alcance
@@ -174,6 +180,13 @@ Idioma de trabajo: **responder siempre en español**.
     recupera de `NAC_RNACIDO."NOMBRES"` (438.518) y `NAC_MADRE."HRESIDENCIA"` (416.706, por nombre
     dentro del árbol), **solo campos vacíos** e idempotente; pruebas en
     `registros/tests_completar_nacimiento.py`.
+  - **Complemento EV-25 (10/10/2026, migración `0010_nacimiento_ev25_parto_ocupacion_registrocivil`):**
+    al verificar el formato impreso contra el módulo faltaban campos que el certificado sí pide; se
+    agregaron opcionales: `persona_atendio_parto` (Médico/Enfermera/Partera/Comadrona/Otro) y
+    `nombre_persona_atendio`, ocupación de `madre_ocupacion`/`padre_ocupacion`, y en el registro civil
+    `fecha_registro` («fecha de inscripción»), `registro_civil_nombre`, `registrador_civil_nombres`,
+    `registrador_civil_cedula` (espejo del EV-14). Serializer, `presentacion.py` (consulta por número)
+    y `CargaNacimientos.jsx` actualizados; `NacimientoEV25Tests` pasa a 9. Suite backend **248 OK**.
   - **Registro semanal MM/MN (02/10/2026, §23.4):** el anexo del telegrama es un **reporte generado**, no
     un formulario de captura. Endpoint `GET /api/registros/reportes/semanal-mmi/?anio=&semana=[&formato=csv]`
     (`ReporteSemanalMMIView`) por establecimiento y semana: nacidos vivos/muertos desde

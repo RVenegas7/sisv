@@ -6,6 +6,7 @@ import {
   exportarConsolidados,
   listarConsolidados,
   listarOrganizaciones,
+  resumenConsolidados,
 } from "../api/sisv"
 import CentroSelector from "../components/CentroSelector"
 import { Boton, Campo, Input, Select } from "../components/ui"
@@ -73,7 +74,12 @@ export default function Vigilancia({ usuario }) {
   const permisos = usuario?.permisos || {}
   const orgUsuario = usuario?.organizacion
   const hoy = new Date()
-  const [lista, setLista] = useState([])
+  const [resumen, setResumen] = useState([])
+  const [cargandoResumen, setCargandoResumen] = useState(false)
+  const [semanaAbierta, setSemanaAbierta] = useState(null)
+  const [detalleSemana, setDetalleSemana] = useState([])
+  const [vistaSemana, setVistaSemana] = useState("centro")
+  const [tipoSemana, setTipoSemana] = useState("MORBILIDAD")
   const [nuevo, setNuevo] = useState({
     anio: hoy.getFullYear(),
     semana: semanaISO(hoy),
@@ -96,8 +102,8 @@ export default function Vigilancia({ usuario }) {
   const bloqueado = esLectura || cerrado || !consolidado
 
   useEffect(() => {
-    cargarLista()
-  }, [])
+    cargarResumen(nuevo.anio)
+  }, [nuevo.anio])
 
   useEffect(() => {
     if (esCentro) return
@@ -116,12 +122,32 @@ export default function Vigilancia({ usuario }) {
       .catch(() => setCentros([]))
   }, [esCentro, orgUsuario?.nivel, orgUsuario?.estado])
 
-  async function cargarLista() {
+  async function cargarResumen(anio = nuevo.anio) {
+    setCargandoResumen(true)
     try {
-      setLista(await listarConsolidados())
-    } catch {
-      setLista([])
+      setResumen(await resumenConsolidados({ anio }))
+    } catch (err) {
+      aviso("error", err.message)
+      setResumen([])
+    } finally {
+      setCargandoResumen(false)
     }
+  }
+
+  async function abrirSemana(semana) {
+    setSemanaAbierta(semana)
+    setVistaSemana("centro")
+    try {
+      setDetalleSemana(await listarConsolidados({ anio: nuevo.anio, semana }))
+    } catch (err) {
+      aviso("error", err.message)
+      setDetalleSemana([])
+    }
+  }
+
+  function cerrarSemana() {
+    setSemanaAbierta(null)
+    setDetalleSemana([])
   }
 
   function aviso(tipo, texto) {
@@ -145,33 +171,31 @@ export default function Vigilancia({ usuario }) {
   async function crearNuevo(e) {
     e.preventDefault()
     if (esLectura) return
-    const payload = {
-      anio: Number(nuevo.anio),
-      semana: Number(nuevo.semana),
-      tipo: nuevo.tipo,
-    }
-    if (nuevo.organizacion) payload.organizacion = nuevo.organizacion
-    else if (!esCentro && orgUsuario) payload.organizacion = orgUsuario.id
-    aviso("info", "Creando consolidado…")
+    const anio = Number(nuevo.anio)
+    const semana = Number(nuevo.semana)
+    const tipo = nuevo.tipo
+    let orgId = nuevo.organizacion
+    if (!orgId && !esCentro && orgUsuario) orgId = orgUsuario.id
+    aviso("info", "Buscando consolidado…")
     try {
+      const existentes = await listarConsolidados({ anio, semana, tipo })
+      const coincidencia = orgId ? existentes.find((c) => c.organizacion_id === orgId) : null
+      if (coincidencia) {
+        aplicarConsolidado(coincidencia)
+        aviso("ok", `Consolidado existente abierto: ${coincidencia.organizacion_nombre} — ${coincidencia.tipo_label} ${anio}-S${String(semana).padStart(2, "0")}.`)
+        setTab("informe")
+        window.scrollTo({ top: 0, behavior: "smooth" })
+        return
+      }
+      const payload = { anio, semana, tipo }
+      if (orgId) payload.organizacion = orgId
+      aviso("info", "Creando consolidado…")
       const cons = await crearConsolidado(payload)
       aplicarConsolidado(cons)
-      aviso("ok", `Consolidado ${cons.tipo_label} ${cons.anio}-S${String(cons.semana).padStart(2, "0")} creado (${cons.filas.length} filas).`)
+      aviso("ok", `Consolidado ${cons.tipo_label} ${anio}-S${String(semana).padStart(2, "0")} creado (${cons.filas.length} filas).`)
       setTab("informe")
-      await cargarLista()
+      await cargarResumen(anio)
       window.scrollTo({ top: 0, behavior: "smooth" })
-    } catch (err) {
-      aviso("error", err.message)
-    }
-  }
-
-  async function cargar(cons) {
-    try {
-      const detalle = await listarConsolidados({ anio: cons.anio, semana: cons.semana, tipo: cons.tipo })
-      const el = detalle.find((x) => x.id === cons.id) || cons
-      aplicarConsolidado(el)
-      aviso("info", `Consolidado cargado: ${el.organizacion_nombre} — ${el.tipo_label} ${el.anio}-S${String(el.semana).padStart(2, "0")} (${EL_STATE(cons.estado)}).`)
-      setTab("informe")
     } catch (err) {
       aviso("error", err.message)
     }
@@ -213,7 +237,7 @@ export default function Vigilancia({ usuario }) {
       const cons = await actualizarConsolidado(consolidado.id, { estado: estadoNuevo })
       aplicarConsolidado(cons)
       aviso("ok", `Consolidado marcado como ${ESTADO_LABEL[estadoNuevo]}.`)
-      await cargarLista()
+      await cargarResumen(consolidado.anio)
     } catch (err) {
       aviso("error", err.message)
     }
@@ -221,6 +245,7 @@ export default function Vigilancia({ usuario }) {
 
   async function eliminar() {
     if (!consolidado || !window.confirm("¿Eliminar este consolidado semanal?")) return
+    const anio = consolidado.anio
     try {
       await eliminarConsolidado(consolidado.id)
       setConsolidado(null)
@@ -228,7 +253,7 @@ export default function Vigilancia({ usuario }) {
       setSituaciones([])
       setAlertas([])
       aviso("ok", "Consolidado eliminado.")
-      await cargarLista()
+      await cargarResumen(anio)
     } catch (err) {
       aviso("error", err.message)
     }
@@ -242,7 +267,7 @@ export default function Vigilancia({ usuario }) {
     setTab("informe")
     setVistaInforme("evento")
     setErrores({})
-    cargarLista()
+    cargarResumen(nuevo.anio)
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
@@ -280,6 +305,29 @@ export default function Vigilancia({ usuario }) {
   }, [esCentro, orgUsuario, centros])
 
   const totalGeneral = filas.reduce((acc, f) => acc + totalesFila(f).total, 0)
+
+  const agregadoEvento = useMemo(() => {
+    const mapa = new Map()
+    for (const c of detalleSemana) {
+      if (c.tipo !== tipoSemana) continue
+      for (const f of c.filas || []) {
+        const det = f.evento_detalle || {}
+        const acc = mapa.get(f.evento) || {
+          evento: f.evento,
+          nombre: det.nombre,
+          orden: det.orden_epi12 || det.orden_epi14 || 0,
+          columnas: {},
+        }
+        for (const [k, v] of Object.entries(f.columnas || {})) {
+          acc.columnas[k] = (acc.columnas[k] || 0) + Number(v || 0)
+        }
+        mapa.set(f.evento, acc)
+      }
+    }
+    return [...mapa.values()]
+      .map((e) => ({ ...e, resumen: totalesFila(e) }))
+      .sort((a, b) => a.orden - b.orden)
+  }, [detalleSemana, tipoSemana])
 
   return (
     <div className="pagina">
@@ -529,40 +577,174 @@ export default function Vigilancia({ usuario }) {
         </>
       )}
 
-      {!consolidado && lista.length > 0 && (
-        <section className="lista">
-          <h2>Consolidados registrados ({lista.length})</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Año-Semana</th>
-                <th>Tipo</th>
-                <th>Organización</th>
-                <th>Estado</th>
-                <th>Origen</th>
-                <th>Total casos</th>
-                <th className="acciones">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lista.map((c) => (
-                <tr key={c.id}>
-                  <td>{c.anio}-S{String(c.semana).padStart(2, "0")}</td>
-                  <td>{c.tipo_label}</td>
-                  <td>{c.organizacion_nombre}</td>
-                  <td>{c.estado_label}</td>
-                  <td>{c.origen_label}</td>
-                  <td>{c.total_casos}</td>
-                  <td className="acciones">
-                    <button type="button" className="btn-mini" onClick={() => cargar(c)}>
-                      Abrir
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+      {!consolidado && (
+        <>
+          <section className="lista">
+            <div className="cabecera-lista">
+              <h2>Consolidado por semana epidemiológica — {nuevo.anio} ({resumen.length} semanas)</h2>
+              <button type="button" className="btn-mini" onClick={() => cargarResumen(nuevo.anio)}>
+                Actualizar
+              </button>
+            </div>
+            {cargandoResumen ? (
+              <p className="ayuda">Cargando consolidados existentes…</p>
+            ) : resumen.length === 0 ? (
+              <p className="ayuda">No hay consolidados cargados para {nuevo.anio}.</p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Semana</th>
+                    <th>Morbilidad (EPI-12)</th>
+                    <th>Mortalidad (EPI-14)</th>
+                    <th>Establecimientos</th>
+                    <th>Consolidados</th>
+                    <th className="acciones">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resumen.map((s) => (
+                    <tr key={s.semana}>
+                      <td>Semana {s.semana}</td>
+                      <td className="celda-total">{s.morbilidad}</td>
+                      <td className="celda-total">{s.mortalidad}</td>
+                      <td className="celda-total">{s.establecimientos}</td>
+                      <td className="celda-total">{s.consolidados}</td>
+                      <td className="acciones">
+                        <button type="button" className="btn-mini" onClick={() => abrirSemana(s.semana)}>
+                          Ver detalle
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+
+          {semanaAbierta != null && (
+            <section className="lista">
+              <div className="cabecera-lista">
+                <h2>Semana {semanaAbierta} — {nuevo.anio}</h2>
+                <div className="filas-campo">
+                  <button
+                    type="button"
+                    className={`btn-mini ${vistaSemana === "centro" ? "activo" : ""}`}
+                    onClick={() => setVistaSemana("centro")}
+                  >
+                    Por centro
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn-mini ${vistaSemana === "evento" ? "activo" : ""}`}
+                    onClick={() => setVistaSemana("evento")}
+                  >
+                    Por evento
+                  </button>
+                  <button type="button" className="btn-mini" onClick={cerrarSemana}>
+                    ← Volver al resumen
+                  </button>
+                </div>
+              </div>
+
+              {vistaSemana === "centro" ? (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Centro</th>
+                      <th>Tipo</th>
+                      <th>Estado</th>
+                      <th>Total casos</th>
+                      <th className="acciones">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detalleSemana.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="ayuda">Sin consolidados para esta semana.</td>
+                      </tr>
+                    ) : (
+                      detalleSemana.map((c) => (
+                        <tr key={c.id}>
+                          <td>{c.organizacion_nombre}</td>
+                          <td>{c.tipo_label}</td>
+                          <td>{c.estado_label}</td>
+                          <td className="celda-total">{c.total_casos}</td>
+                          <td className="acciones">
+                            <button
+                              type="button"
+                              className="btn-mini"
+                              onClick={() => {
+                                aplicarConsolidado(c)
+                                setTab("informe")
+                                window.scrollTo({ top: 0, behavior: "smooth" })
+                              }}
+                            >
+                              Abrir
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              ) : (
+                <>
+                  <div className="filas-campo" style={{ marginBottom: "0.6rem" }}>
+                    {TIPOS.map(([k, r]) => (
+                      <button
+                        key={k}
+                        type="button"
+                        className={`btn-mini ${tipoSemana === k ? "activo" : ""}`}
+                        onClick={() => setTipoSemana(k)}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                  {agregadoEvento.length === 0 ? (
+                    <p className="ayuda">
+                      No hay eventos de {tipoSemana === "MORBILIDAD" ? "morbilidad" : "mortalidad"} en esta semana.
+                    </p>
+                  ) : (
+                    <div className="matriz">
+                      <table className="tabla-matriz">
+                        <thead>
+                          <tr>
+                            <th className="celda-orden">Ord.</th>
+                            <th className="col-enfermedad">Enfermedad / Evento</th>
+                            <th className="celda-total">Total H</th>
+                            <th className="celda-total">Total M</th>
+                            <th className="celda-total">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {agregadoEvento.map((e) => (
+                            <tr key={e.evento}>
+                              <td className="celda-orden">{e.orden || "—"}</td>
+                              <td className="col-enfermedad"><span className="evento-nombre">{e.nombre}</span></td>
+                              <td className="celda-total">{e.resumen.h}</td>
+                              <td className="celda-total">{e.resumen.m}</td>
+                              <td className="celda-total">{e.resumen.total}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr>
+                            <td colSpan={2}>Totales</td>
+                            <td className="celda-total">{agregadoEvento.reduce((a, e) => a + e.resumen.h, 0)}</td>
+                            <td className="celda-total">{agregadoEvento.reduce((a, e) => a + e.resumen.m, 0)}</td>
+                            <td className="celda-total">{agregadoEvento.reduce((a, e) => a + e.resumen.total, 0)}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+          )}
+        </>
       )}
     </div>
   )
@@ -767,8 +949,6 @@ function FragmentoCeldas({ grupo, f, bloqueado, onChange }) {
     </>
   )
 }
-
-const EL_STATE = (s) => ESTADO_LABEL[s] || s
 
 function SituacionesBloque({ editable, items, setItems, onGuardar }) {
   return (

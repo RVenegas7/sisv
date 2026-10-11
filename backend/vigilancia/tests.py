@@ -178,6 +178,53 @@ class ConsolidadoTests(SISVBase):
         self.assertIn(r.status_code, (401, 403))
 
 
+class ConsolidadoResumenTests(SISVBase):
+    """Resumen por semana y «crear / abrir» del Consolidado Semanal (EPI-12/14)."""
+
+    def _crear(self, uid, semana, org=None):
+        self.login(uid)
+        payload = {"anio": 2026, "semana": semana, "tipo": "MORBILIDAD"}
+        if org is not None:
+            payload["organizacion"] = org
+        return self.client.post(
+            "/api/vigilancia/consolidados/", payload, content_type="application/json"
+        )
+
+    def test_resumen_agrupa_por_semana(self):
+        self._crear(self.u_admin, 3, self.org_hcb.pk)
+        self._crear(self.u_admin, 3, self.org_cabudare.pk)
+        fila = FilaConsolidado.objects.filter(
+            consolidado__anio=2026, consolidado__semana=3
+        ).first()
+        fila.menor_1_h = 4
+        fila.save(update_fields=["menor_1_h"])
+        self.login(self.u_admin)
+        r = self.client.get("/api/vigilancia/consolidados/resumen/?anio=2026")
+        self.assertEqual(r.status_code, 200)
+        data = r.json()["data"]
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["semana"], 3)
+        self.assertEqual(data[0]["consolidados"], 2)
+        self.assertEqual(data[0]["establecimientos"], 2)
+        self.assertEqual(data[0]["morbilidad"], 4)
+
+    def test_resumen_exige_anio(self):
+        self.login(self.u_admin)
+        r = self.client.get("/api/vigilancia/consolidados/resumen/")
+        self.assertEqual(r.status_code, 400)
+
+    def test_crear_abre_el_existente(self):
+        primero = self._crear(self.u_trans_hcb, 8).json()["data"]
+        segundo = self.client.post(
+            "/api/vigilancia/consolidados/",
+            {"anio": 2026, "semana": 8, "tipo": "MORBILIDAD"},
+            content_type="application/json",
+        )
+        self.assertEqual(segundo.status_code, 200)
+        self.assertEqual(segundo.json()["data"]["id"], primero["id"])
+        self.assertEqual(ConsolidadoSemanal.objects.filter(anio=2026, semana=8).count(), 1)
+
+
 class ConsolidadoEpi15Tests(SISVBase):
     def test_crear_con_traza_legacy(self):
         c = ConsolidadoEpi15.objects.create(
@@ -205,6 +252,36 @@ class ConsolidadoEpi15Tests(SISVBase):
         )
         self.assertIsNone(f.evento)
         self.assertEqual(f.nombre_legacy, "SÍNDROME VIRAL")
+
+
+class Epi15ResumenTests(SISVBase):
+    """Resumen por semana del EPI-15 (solo lectura del legado)."""
+
+    def test_resumen_por_semana(self):
+        c = ConsolidadoEpi15.objects.create(organizacion=self.org_hcb, anio=2019, semana=12)
+        FilaEpi15.objects.create(
+            consolidado=c, legacy_id=1, nombre_legacy="CÓLERA",
+            evento=self.ev_dengue, casosp=3, casoss=1, casosx=0,
+        )
+        c2 = ConsolidadoEpi15.objects.create(organizacion=self.org_cabudare, anio=2019, semana=12)
+        FilaEpi15.objects.create(
+            consolidado=c2, legacy_id=2, nombre_legacy="DENGUE",
+            evento=self.ev_dengue, casosp=2,
+        )
+        self.login(self.u_admin)
+        r = self.client.get("/api/vigilancia/epi15/resumen/?anio=2019")
+        self.assertEqual(r.status_code, 200)
+        data = r.json()["data"]
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["semana"], 12)
+        self.assertEqual(data[0]["casos"], 6)
+        self.assertEqual(data[0]["consolidados"], 2)
+        self.assertEqual(data[0]["establecimientos"], 2)
+
+    def test_resumen_exige_anio(self):
+        self.login(self.u_admin)
+        r = self.client.get("/api/vigilancia/epi15/resumen/")
+        self.assertEqual(r.status_code, 400)
 
 
 class LegacyMapeoTests(SISVBase):

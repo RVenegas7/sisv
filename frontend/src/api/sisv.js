@@ -259,6 +259,11 @@ export async function listarConsolidados(params = {}) {
   return r.data.data
 }
 
+export async function resumenConsolidados(params = {}) {
+  const r = await api.get("/vigilancia/consolidados/resumen/", { params })
+  return r.data.data
+}
+
 export async function crearConsolidado(payload) {
   const r = await api.post("/vigilancia/consolidados/", payload)
   return r.data.data
@@ -280,6 +285,11 @@ export async function exportarConsolidados(params = {}) {
 
 export async function listarEpi15(params = {}) {
   const r = await api.get("/vigilancia/epi15/", { params })
+  return r.data.data
+}
+
+export async function resumenEpi15(params = {}) {
+  const r = await api.get("/vigilancia/epi15/resumen/", { params })
   return r.data.data
 }
 

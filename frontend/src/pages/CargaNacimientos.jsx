@@ -18,6 +18,8 @@ const VACIO = {
   tipo_parto: "VAGINAL",
   tipo_embarazo: "UNICO",
   numero_gemelar: "",
+  persona_atendio_parto: "",
+  nombre_persona_atendio: "",
   sitio_nacimiento: "ESTABLECIMIENTO",
   establecimiento: "",
   estado: "",
@@ -35,6 +37,7 @@ const VACIO = {
   madre_apellidos: "",
   madre_cedula: "",
   madre_edad: "",
+  madre_ocupacion: "",
   madre_estado_civil: "SOLTERA",
   madre_nacionalidad: "",
   madre_pasaporte: "",
@@ -50,6 +53,7 @@ const VACIO = {
   padre_nombres: "",
   padre_apellidos: "",
   padre_cedula: "",
+  padre_ocupacion: "",
   padre_nacionalidad: "",
   padre_pasaporte: "",
   padre_residencia: "",
@@ -64,6 +68,10 @@ const VACIO = {
   libro: "",
   folio: "",
   acta: "",
+  fecha_registro: "",
+  registro_civil_nombre: "",
+  registrador_civil_nombres: "",
+  registrador_civil_cedula: "",
   fecha_emision: "",
   numero_planilla: "",
   tipo_numero_certificado: "",
@@ -116,6 +124,13 @@ const OPCIONES = {
     ["ESTABLECIMIENTO", "Establecimiento de salud"],
     ["DOMICILIO", "Domicilio"],
     ["VIA_PUBLICA", "Vía pública"],
+    ["OTRO", "Otro"],
+  ],
+  PERSONA_ATENDIO: [
+    ["MEDICO", "Médico"],
+    ["ENFERMERA", "Enfermera"],
+    ["PARTERA", "Partera"],
+    ["COMADRONA", "Comadrona"],
     ["OTRO", "Otro"],
   ],
   ESTADO_CIVIL: [
@@ -494,6 +509,12 @@ export default function CargaNacimientos({ usuario }) {
           <Campo label="Nº gemelar" htmlFor="numero_gemelar">
             <Input id="numero_gemelar" type="number" min="1" value={form.numero_gemelar} onChange={(e) => cambiar("numero_gemelar", e.target.value)} />
           </Campo>
+          <Campo label="Persona que atendió el parto" htmlFor="persona_atendio_parto">
+            <Select id="persona_atendio_parto" opciones={OPCIONES.PERSONA_ATENDIO} value={form.persona_atendio_parto} onChange={(e) => cambiar("persona_atendio_parto", e.target.value)} />
+          </Campo>
+          <Campo label="Apellidos y nombres de quien atendió el parto" htmlFor="nombre_persona_atendio">
+            <Input id="nombre_persona_atendio" value={form.nombre_persona_atendio} onChange={(e) => cambiar("nombre_persona_atendio", e.target.value)} />
+          </Campo>
           <Campo label="Sitio del nacimiento" htmlFor="sitio_nacimiento">
             <Select id="sitio_nacimiento" opciones={OPCIONES.SITIO} value={form.sitio_nacimiento} onChange={(e) => cambiar("sitio_nacimiento", e.target.value)} />
           </Campo>
@@ -522,6 +543,9 @@ export default function CargaNacimientos({ usuario }) {
           <Campo label="Edad" htmlFor="madre_edad" error={errores.madre_edad}>
             <Input id="madre_edad" type="number" min="10" max="60" value={form.madre_edad} error={errores.madre_edad} onChange={(e) => cambiar("madre_edad", e.target.value)} />
           </Campo>
+          <Campo label="Ocupación" htmlFor="madre_ocupacion">
+            <Input id="madre_ocupacion" value={form.madre_ocupacion} onChange={(e) => cambiar("madre_ocupacion", e.target.value)} />
+          </Campo>
           <Campo label="Estado civil" htmlFor="madre_estado_civil">
             <Select id="madre_estado_civil" opciones={OPCIONES.ESTADO_CIVIL} value={form.madre_estado_civil} onChange={(e) => cambiar("madre_estado_civil", e.target.value)} />
           </Campo>
@@ -544,6 +568,9 @@ export default function CargaNacimientos({ usuario }) {
           <Campo label="Cédula" htmlFor="padre_cedula">
             <Input id="padre_cedula" value={form.padre_cedula} onChange={(e) => cambiar("padre_cedula", e.target.value)} />
           </Campo>
+          <Campo label="Ocupación" htmlFor="padre_ocupacion">
+            <Input id="padre_ocupacion" value={form.padre_ocupacion} onChange={(e) => cambiar("padre_ocupacion", e.target.value)} />
+          </Campo>
           <Campo label="Nacionalidad" htmlFor="padre_nacionalidad">
             <Select id="padre_nacionalidad" opciones={OPCIONES.NACIONALIDAD} value={form.padre_nacionalidad} onChange={(e) => cambiar("padre_nacionalidad", e.target.value)} />
           </Campo>
@@ -562,6 +589,18 @@ export default function CargaNacimientos({ usuario }) {
           </Campo>
           <Campo label="Acta" htmlFor="acta">
             <Input id="acta" type="number" value={form.acta} onChange={(e) => cambiar("acta", e.target.value)} />
+          </Campo>
+          <Campo label="Fecha de inscripción" htmlFor="fecha_registro">
+            <Input id="fecha_registro" type="date" value={form.fecha_registro} onChange={(e) => cambiar("fecha_registro", e.target.value)} />
+          </Campo>
+          <Campo label="Nombre del registro civil" htmlFor="registro_civil_nombre">
+            <Input id="registro_civil_nombre" value={form.registro_civil_nombre} onChange={(e) => cambiar("registro_civil_nombre", e.target.value)} />
+          </Campo>
+          <Campo label="Apellidos y nombres del registrador civil" htmlFor="registrador_civil_nombres">
+            <Input id="registrador_civil_nombres" value={form.registrador_civil_nombres} onChange={(e) => cambiar("registrador_civil_nombres", e.target.value)} />
+          </Campo>
+          <Campo label="Cédula del registrador civil" htmlFor="registrador_civil_cedula">
+            <Input id="registrador_civil_cedula" value={form.registrador_civil_cedula} onChange={(e) => cambiar("registrador_civil_cedula", e.target.value)} />
           </Campo>
         </Seccion>
 

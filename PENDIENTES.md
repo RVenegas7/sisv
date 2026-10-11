@@ -2234,6 +2234,29 @@ madre por parroquia, padre por comunidad, nivel inválido → 400) y
 `registros/tests_completar_nacimiento.py` (6). **Suite backend 193 OK** (181 → 193), frontend 13 OK,
 `npm run build` OK.
 
+#### 23.3.1 [HECHO 10/10/2026] Complemento del EV-25: lo que el formato impreso pedía y el módulo no capturaba
+
+Verificación del **formato impreso** (`capturas/certificado_nacimiento.jpg`, leído por OCR) contra el
+modelo `Nacimiento` y la pantalla `/nacimientos`. Casi todo coincidía (secciones I–IV + responsable),
+salvo tres cosas que el certificado sí pide y no había dónde guardarse. Se agregaron (migración
+`0010_nacimiento_ev25_parto_ocupacion_registrocivil`), **todas opcionales**:
+
+| Dónde en el EV-25 | Campos nuevos |
+| --- | --- |
+| Sección I (nacimiento) | `persona_atendio_parto` (Médico/Enfermera/Partera/Comadrona/Otro) y `nombre_persona_atendio` («apellidos y nombres del que atendió el parto») |
+| Sección II (madre) | `madre_ocupacion` |
+| Sección III (padre) | `padre_ocupacion` |
+| Sección IV (registro civil) | `fecha_registro` («fecha de inscripción»), `registro_civil_nombre`, `registrador_civil_nombres`, `registrador_civil_cedula` |
+
+- Se espejó el registro civil del EV-14 de defunción (`Defuncion.fecha_registro` / `registro_civil_nombre`
+  / `registrador_civil_*`), que ya los tenía.
+- Serializer, `presentacion.py::detalle_certificado` (el panel de consulta por número ahora los muestra
+  en sus bloques «Recién nacido», «Madre», «Padre», «Registro civil») y `CargaNacimientos.jsx` quedaron
+  actualizados. Nada nuevo es obligatorio y **el ETL no se toca**.
+- Pruebas: `registros.tests.NacimientoEV25Tests` pasa de 6 a 9 (parto+ocupaciones, registro civil
+  complemento y que el detalle de consulta incluya los campos). **Suite backend 248 OK** (245 → 248),
+  `makemigrations --check` sin cambios, `npm run build` OK. Aplicada a PostgreSQL local.
+
 ### 23.4 HECHO (02/10/2026): el Registro Semanal de Mortalidad Materna e Infantil, como reporte generado
 
 El anexo del telegrama **no** es el consolidado semanal de ENO (`vigilancia.ConsolidadoSemanal`,
@@ -3186,3 +3209,42 @@ cuándo, qué se sugirió (código + JSON completo) y qué se confirmó.
 - El número real del certificado (`NUMEROMSDS`/`NROPLANILLA`, §27.16) todavía no se usa como número
   de consulta: sigue `registro_numero`. Si se decide poblar `numero_certificado`, el flujo de
   consulta por número puede buscarlo también.
+
+## 29. [HECHO 11/10/2026] El consolidado semanal ahora muestra lo que YA está cargado (resumen por semana)
+
+### 29.1 El problema
+
+`/vigilancia` (EPI-12/14) y `/vigilancia/epi15` (EPI-15) listaban **todas** las cabeceras con sus
+filas anidadas:
+
+- `/api/vigilancia/consolidados/` sin filtro **se colgaba** (>180 s) y con `?anio=2026` tardaba ~15 s
+  y devolvía **24 MB** (el serializer anida las 26 columnas × evento de cada fila).
+- El **selector de Año solo afectaba al formulario de crear/abrir**, nunca a la lista.
+- El botón **«Crear / abrir consolidado»** siempre hacía POST: si ya existía chocaba con la
+  restricción única (`org+año+semana+tipo`) en vez de abrirlo.
+
+### 29.2 Lo que se construyó
+
+- **Endpoints de resumen** (agregados en SQL, sin anidar filas), respetando `_por_alcance_qs`:
+  - `GET /api/vigilancia/consolidados/resumen/?anio=` → por semana: `morbilidad` (casos),
+    `mortalidad` (casos), `establecimientos` (orgs distintas) y `consolidados` (cabeceras, ambos tipos).
+  - `GET /api/vigilancia/epi15/resumen/?anio=` → por semana: `casos`, `establecimientos`, `consolidados`.
+- **POST de consolidado con «crear / abrir»**: si ya existe la cabecera se devuelve el existente
+  (200 con mensaje «… existente (abierto)») en vez de duplicar. La búsqueda se hace **antes** de
+  `is_valid()` porque el `UniqueTogetherValidator` rechazaba el duplicado (400
+  `non_field_errors`) antes de poder abrirlo.
+- **Frontend** `Vigilancia.jsx` y `Epi15.jsx`: la pantalla principal es el **resumen por semana del
+  año** (`nuevo.anio`, recargado al cambiarlo). Al pulsar «Ver detalle» se abre la semana:
+  - EPI-12/14: vista **por centro** (Abrir → matriz completa) o **por evento** (suma H/M/total por
+    evento agregada en el cliente con `totalesFila`).
+  - EPI-15: detalle por centro (Abrir → matriz de primeras/subsiguientes/X).
+- `api/sisv.js`: `resumenConsolidados` y `resumenEpi15`.
+
+### 29.3 Verificación
+
+- Suite backend **253 tests OK** (nuevos `ConsolidadoResumenTests` 3 y `Epi15ResumenTests` 2);
+  `manage.py check` sin issues; `makemigrations --check --dry-run` sin cambios; `npm run build` OK.
+- **Prueba real en la BD local (PG 18.6):** `consolidados/resumen/?anio=2026` → 200, 38 semanas,
+  0,28 s (S38: 7.291 casos morbilidad / 2 mortalidad / 147 cabeceras / 146 establecimientos);
+  `epi15/resumen/?anio=2026` → 200, 8 semanas, 0,08 s; POST de la S38 existente → 200 con el mismo
+  `id` y `count` de morbilidad S38 sin cambiar (146).

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { exportarEpi15, listarEpi15, obtenerEpi15 } from "../api/sisv"
+import { exportarEpi15, listarEpi15, obtenerEpi15, resumenEpi15 } from "../api/sisv"
 import { Boton, Campo, Select } from "../components/ui"
 
 const ESTADO_LABEL = {
@@ -10,9 +10,11 @@ const ESTADO_LABEL = {
 
 export default function Epi15({ usuario }) {
   const hoy = new Date()
-  const [lista, setLista] = useState([])
+  const [resumen, setResumen] = useState([])
   const [anio, setAnio] = useState(hoy.getFullYear())
   const [semana, setSemana] = useState("")
+  const [semanaAbierta, setSemanaAbierta] = useState(null)
+  const [detalleSemana, setDetalleSemana] = useState([])
   const [seleccionado, setSeleccionado] = useState(null)
   const [filas, setFilas] = useState([])
   const [cargando, setCargando] = useState(true)
@@ -22,24 +24,36 @@ export default function Epi15({ usuario }) {
     setEstadoUI({ tipo, texto })
   }
 
-  async function cargar() {
+  async function cargarResumen() {
     setCargando(true)
     try {
-      const params = {}
-      if (anio) params.anio = anio
-      if (semana) params.semana = semana
-      setLista(await listarEpi15(params))
+      setResumen(await resumenEpi15({ anio }))
     } catch (err) {
       aviso("error", err.message)
-      setLista([])
+      setResumen([])
     } finally {
       setCargando(false)
     }
   }
 
+  async function abrirSemana(valor) {
+    setSemanaAbierta(valor)
+    try {
+      setDetalleSemana(await listarEpi15({ anio, semana: valor }))
+    } catch (err) {
+      aviso("error", err.message)
+      setDetalleSemana([])
+    }
+  }
+
+  function cerrarSemana() {
+    setSemanaAbierta(null)
+    setDetalleSemana([])
+  }
+
   useEffect(() => {
-    cargar()
-  }, [])
+    cargarResumen()
+  }, [anio])
 
   async function abrir(cons) {
     try {
@@ -72,6 +86,11 @@ export default function Epi15({ usuario }) {
   const totalCasos = useMemo(
     () => filas.reduce((acc, f) => acc + Number(f.total || 0), 0),
     [filas]
+  )
+
+  const vistaResumen = useMemo(
+    () => (semana ? resumen.filter((r) => String(r.semana) === String(semana)) : resumen),
+    [resumen, semana]
   )
 
   return (
@@ -110,7 +129,7 @@ export default function Epi15({ usuario }) {
           </Campo>
         </div>
         <div className="pie-form">
-          <Boton type="button" onClick={cargar}>
+          <Boton type="button" onClick={cargarResumen}>
             Consultar
           </Boton>
           <button type="button" className="btn-mini" style={{ marginLeft: "0.6rem" }} onClick={exportar}>
@@ -176,43 +195,91 @@ export default function Epi15({ usuario }) {
       )}
 
       {!seleccionado && (
-        <section className="lista">
-          <h2>Consolidados registrados ({lista.length})</h2>
-          {cargando ? (
-            <p className="ayuda">Cargando…</p>
-          ) : lista.length === 0 ? (
-            <p className="ayuda">No hay consolidados EPI-15 para el filtro seleccionado.</p>
-          ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>Año-Semana</th>
-                  <th>Organización</th>
-                  <th>Estado</th>
-                  <th>Origen</th>
-                  <th>Filas</th>
-                  <th className="acciones">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lista.map((c) => (
-                  <tr key={c.id}>
-                    <td>{c.anio}-S{String(c.semana).padStart(2, "0")}</td>
-                    <td>{c.organizacion_nombre}</td>
-                    <td>{c.estado_label || c.estado}</td>
-                    <td>{c.origen}</td>
-                    <td>{Array.isArray(c.filas) ? c.filas.length : 0}</td>
-                    <td className="acciones">
-                      <button type="button" className="btn-mini" onClick={() => abrir(c)}>
-                        Abrir
-                      </button>
-                    </td>
+        <>
+          <section className="lista">
+            <div className="cabecera-lista">
+              <h2>Resumen por semana — {anio} ({vistaResumen.length} semanas)</h2>
+              <button type="button" className="btn-mini" onClick={cargarResumen}>
+                Actualizar
+              </button>
+            </div>
+            {cargando ? (
+              <p className="ayuda">Cargando…</p>
+            ) : vistaResumen.length === 0 ? (
+              <p className="ayuda">No hay consolidados EPI-15 para el filtro seleccionado.</p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Semana</th>
+                    <th>Casos</th>
+                    <th>Establecimientos</th>
+                    <th>Consolidados</th>
+                    <th className="acciones">Acciones</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {vistaResumen.map((r) => (
+                    <tr key={r.semana}>
+                      <td>Semana {r.semana}</td>
+                      <td className="celda-total">{r.casos}</td>
+                      <td className="celda-total">{r.establecimientos}</td>
+                      <td className="celda-total">{r.consolidados}</td>
+                      <td className="acciones">
+                        <button type="button" className="btn-mini" onClick={() => abrirSemana(r.semana)}>
+                          Ver detalle
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+
+          {semanaAbierta != null && (
+            <section className="lista">
+              <div className="cabecera-lista">
+                <h2>Semana {semanaAbierta} — {anio}</h2>
+                <button type="button" className="btn-mini" onClick={cerrarSemana}>
+                  ← Volver al resumen
+                </button>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Organización</th>
+                    <th>Estado</th>
+                    <th>Origen</th>
+                    <th>Filas</th>
+                    <th className="acciones">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detalleSemana.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="ayuda">Sin consolidados para esta semana.</td>
+                    </tr>
+                  ) : (
+                    detalleSemana.map((c) => (
+                      <tr key={c.id}>
+                        <td>{c.organizacion_nombre}</td>
+                        <td>{c.estado_label || c.estado}</td>
+                        <td>{c.origen}</td>
+                        <td>{Array.isArray(c.filas) ? c.filas.length : 0}</td>
+                        <td className="acciones">
+                          <button type="button" className="btn-mini" onClick={() => abrir(c)}>
+                            Abrir
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </section>
           )}
-        </section>
+        </>
       )}
     </div>
   )
