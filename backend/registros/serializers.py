@@ -17,6 +17,38 @@ def _validar_cie(attrs, partial, instance=None):
         raise serializers.ValidationError(errores)
 
 
+class _VaciosANullMixin:
+    """El formulario envía "" en los campos numéricos/de fecha que deja en blanco.
+
+    DRF rechaza "" en IntegerField/DateField aunque el modelo acepte nulos, así que
+    esos vacíos se convierten a None antes de validar. Solo se tocan los campos que
+    declaran `allow_null`, para no enmascarar los obligatorios.
+    """
+
+    _VACIO_A_NULL = (
+        serializers.IntegerField,
+        serializers.DecimalField,
+        serializers.FloatField,
+        serializers.DateField,
+        serializers.DateTimeField,
+        serializers.TimeField,
+        serializers.DurationField,
+    )
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict) and not hasattr(data, "getlist"):
+            limpio = dict(data)
+            for nombre, campo in self.fields.items():
+                if (
+                    campo.allow_null
+                    and isinstance(campo, self._VACIO_A_NULL)
+                    and limpio.get(nombre) == ""
+                ):
+                    limpio[nombre] = None
+            data = limpio
+        return super().to_internal_value(data)
+
+
 class _CIEDetalleMixin:
     def get_cie10_detalle(self, obj):
         if not obj.cie10:
@@ -45,6 +77,15 @@ class _CIEDetalleMixin:
             "nivel_label": obj.cie11_sugerido.get_nivel_display(),
         }
 
+    def get_sugerencia_origen_label(self, obj):
+        return obj.get_sugerencia_origen_display() if obj.sugerencia_origen else ""
+
+    def get_codificado_por_nombre(self, obj):
+        if not obj.codificado_por_id:
+            return None
+        usuario = obj.codificado_por
+        return usuario.get_full_name() or usuario.get_username()
+
 
 class _OrganizacionMixin:
     def get_organizacion(self, obj):
@@ -72,7 +113,7 @@ def _ubicacion_nombres(ubicacion):
     }
 
 
-class NacimientoSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.ModelSerializer):
+class NacimientoSerializer(_VaciosANullMixin, _CIEDetalleMixin, _OrganizacionMixin, serializers.ModelSerializer):
     cie10_detalle = serializers.SerializerMethodField()
     cie11_detalle = serializers.SerializerMethodField()
     cie11_sugerido_detalle = serializers.SerializerMethodField()
@@ -80,6 +121,8 @@ class NacimientoSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.Mod
     organizacion_id = serializers.SerializerMethodField()
     organizacion_nombre = serializers.SerializerMethodField()
     organizacion_nivel = serializers.SerializerMethodField()
+    sugerencia_origen_label = serializers.SerializerMethodField()
+    codificado_por_nombre = serializers.SerializerMethodField()
     sexo_label = serializers.CharField(source="get_sexo_display", read_only=True)
     tipo_parto_label = serializers.CharField(source="get_tipo_parto_display", read_only=True)
     madre_residencia_territorio = serializers.SerializerMethodField()
@@ -115,6 +158,9 @@ class NacimientoSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.Mod
             "director_establecimiento",
             "version_cie", "cie10", "cie11", "cie10_detalle", "cie11_detalle", "creado_en",
             "cie10_legacy", "codificacion_pendiente", "cie11_sugerido", "cie11_sugerido_detalle",
+            "sugerencia_codigo", "sugerencia_titulo", "sugerencia_origen",
+            "sugerencia_origen_label", "sugerencia_en",
+            "codificado_por", "codificado_por_nombre", "codificado_en",
             "organizacion", "organizacion_id", "organizacion_nombre", "organizacion_nivel",
         ]
 
@@ -139,7 +185,7 @@ class NacimientoSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.Mod
         return attrs
 
 
-class DefuncionSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.ModelSerializer):
+class DefuncionSerializer(_VaciosANullMixin, _CIEDetalleMixin, _OrganizacionMixin, serializers.ModelSerializer):
     cie10_detalle = serializers.SerializerMethodField()
     cie11_detalle = serializers.SerializerMethodField()
     cie11_sugerido_detalle = serializers.SerializerMethodField()
@@ -147,6 +193,8 @@ class DefuncionSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.Mode
     organizacion_id = serializers.SerializerMethodField()
     organizacion_nombre = serializers.SerializerMethodField()
     organizacion_nivel = serializers.SerializerMethodField()
+    sugerencia_origen_label = serializers.SerializerMethodField()
+    codificado_por_nombre = serializers.SerializerMethodField()
 
     class Meta:
         model = Defuncion
@@ -170,8 +218,23 @@ class DefuncionSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.Mode
             "registro_civil_nombre", "folio_defuncion", "numero_acta_defuncion", "fecha_registro",
             "declarante_nombres", "declarante_cedula", "registrador_civil_nombres", "registrador_civil_cedula",
             "gaceta", "resolucion",
+            "etnia", "edad", "edad_unidad", "nacimiento_entidad", "nacimiento_pais",
+            "sitio_ocurrencia", "area_ocurrencia", "codigo_comunidad", "ubicacion_geografica",
+            "partida_tomo", "partida_folio", "partida_libro", "partida_acta",
+            "fertil_numero_gestas", "fertil_fecha_ultima_gesta", "fertil_estaba_embarazada",
+            "fertil_puerperio", "fertil_contribuyo_muerte", "fertil_nacidos_vivos",
+            "fertil_nacidos_fallecidos", "fertil_muertes_fetales", "fertil_abortos",
+            "causa_descrita_medico", "causa_aplicando_reglas", "causa_primera_parte",
+            "causa_segunda_parte", "diagnostico_otro", "direccion_medico", "telefono_medico",
+            "cargo_medico", "tipo_certificacion",
+            "destino_cadaver", "numero_permiso",
+            "registro_civil_entidad", "padre_fallecido_nombres", "padre_fallecido_cedula",
+            "declarante_nacionalidad", "registrador_civil_nacionalidad",
             "version_cie", "cie10", "cie11", "cie10_detalle", "cie11_detalle", "creado_en",
             "cie10_legacy", "codificacion_pendiente", "cie11_sugerido", "cie11_sugerido_detalle",
+            "sugerencia_codigo", "sugerencia_titulo", "sugerencia_origen",
+            "sugerencia_origen_label", "sugerencia_en",
+            "codificado_por", "codificado_por_nombre", "codificado_en",
             "organizacion", "organizacion_id", "organizacion_nombre", "organizacion_nivel",
         ]
 
@@ -180,7 +243,7 @@ class DefuncionSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.Mode
         return attrs
 
 
-class FichaVigilanciaSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializers.ModelSerializer):
+class FichaVigilanciaSerializer(_VaciosANullMixin, _CIEDetalleMixin, _OrganizacionMixin, serializers.ModelSerializer):
     cie10_detalle = serializers.SerializerMethodField()
     cie11_detalle = serializers.SerializerMethodField()
     cie11_sugerido_detalle = serializers.SerializerMethodField()
@@ -188,6 +251,8 @@ class FichaVigilanciaSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializer
     organizacion_id = serializers.SerializerMethodField()
     organizacion_nombre = serializers.SerializerMethodField()
     organizacion_nivel = serializers.SerializerMethodField()
+    sugerencia_origen_label = serializers.SerializerMethodField()
+    codificado_por_nombre = serializers.SerializerMethodField()
 
     class Meta:
         model = FichaVigilancia
@@ -199,6 +264,9 @@ class FichaVigilanciaSerializer(_CIEDetalleMixin, _OrganizacionMixin, serializer
             "sintomas", "nota",
             "version_cie", "cie10", "cie11", "cie10_detalle", "cie11_detalle", "creado_en",
             "cie10_legacy", "codificacion_pendiente", "cie11_sugerido", "cie11_sugerido_detalle",
+            "sugerencia_codigo", "sugerencia_titulo", "sugerencia_origen",
+            "sugerencia_origen_label", "sugerencia_en",
+            "codificado_por", "codificado_por_nombre", "codificado_en",
             "organizacion", "organizacion_id", "organizacion_nombre", "organizacion_nivel",
         ]
 

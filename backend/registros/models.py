@@ -43,6 +43,35 @@ class RegistroConCIE(models.Model):
         CIE11, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
         verbose_name="CIE-11 sugerido (cross-walk)",
     )
+
+    # --- Sugerencia de codificación (offline, por catálogo CIE) y auditoría ---
+    # El certificado se consulta por número; el motor de sugerencias propone un código
+    # (sin IA, por coincidencia de texto contra el catálogo CIE) y la persona con rol
+    # CODIFICADOR lo confirma. Se guarda el código sugerido y quién/cuándo confirmó.
+    ORIGEN_SUGERENCIA = [
+        ("", "—"),
+        ("CATALOGO", "Catálogo CIE"),
+        ("IA", "IA"),
+        ("MANUAL", "Manual"),
+    ]
+    sugerencia_codigo = models.CharField(
+        "Código CIE sugerido", max_length=64, blank=True, default="",
+        help_text="Código propuesto por el motor de sugerencias (catálogo CIE local).",
+    )
+    sugerencia_titulo = models.CharField(
+        "Título del código sugerido", max_length=500, blank=True, default=""
+    )
+    sugerencia_origen = models.CharField(
+        "Origen de la sugerencia", max_length=10, blank=True, default="", choices=ORIGEN_SUGERENCIA
+    )
+    sugerencia_json = models.JSONField("Detalle de la sugerencia", null=True, blank=True)
+    sugerencia_en = models.DateTimeField("Sugerido en", null=True, blank=True)
+    codificado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="+", verbose_name="Codificado por",
+    )
+    codificado_en = models.DateTimeField("Codificado en", null=True, blank=True)
+
     creado_en = models.DateTimeField("Creado en", auto_now_add=True)
 
     class Meta:
@@ -52,6 +81,15 @@ class RegistroConCIE(models.Model):
         if self.cie10_id or self.cie11_id:
             self.codificacion_pendiente = False
         super().save(*args, **kwargs)
+
+    def confirmar_codificacion(self, usuario=None):
+        """Registra que la codificación vigente fue confirmada por quien codifica."""
+        from django.utils import timezone
+
+        if usuario is not None and getattr(usuario, "is_authenticated", False):
+            self.codificado_por = usuario
+        self.codificado_en = timezone.now()
+        self.codificacion_pendiente = False
 
     def clean(self):
         super().clean()
@@ -318,6 +356,30 @@ class Defuncion(RegistroConCIE):
         ("DENTRO12M", "Dentro de 12 meses"),
         ("IGNORADO", "Ignorado"),
     ]
+    EDAD_UNIDAD = [
+        ("ANIOS", "Años"),
+        ("MESES", "Meses"),
+        ("DIAS", "Días"),
+    ]
+    AREA_OCURRENCIA = [
+        ("RESIDENCIAL", "Residencial"),
+        ("DEPORTE", "Área de deporte y atletismo"),
+        ("COMERCIO", "Comercio y áreas de servicio"),
+        ("ESCUELAS", "Instalación o área pública / escuelas"),
+        ("CALLES", "Calles o carreteras"),
+        ("GRANJA", "Granja"),
+        ("INDUSTRIAL", "Área industrial o de construcción"),
+        ("OTRO", "Otro"),
+    ]
+    TIPO_CERTIFICACION = [
+        ("MEDICA", "Médica"),
+        ("NO_MEDICA", "No médica"),
+        ("OTRO", "Otra"),
+    ]
+    DESTINO_CADAVER = [
+        ("INHUMACION", "Inhumación"),
+        ("CREMACION", "Cremación"),
+    ]
 
     registro_numero = models.CharField("Nº de certificado", max_length=30, unique=True)
     lote_id = models.CharField("Lote de carga masiva", max_length=40, blank=True, db_index=True)
@@ -400,6 +462,90 @@ class Defuncion(RegistroConCIE):
     registrador_civil_cedula = models.CharField("Cédula del registrador civil", max_length=20, blank=True, default="")
     gaceta = models.CharField("Gaceta", max_length=30, blank=True, default="")
     resolucion = models.CharField("Resolución", max_length=30, blank=True, default="")
+
+    # --- EV-14 «Modelo Nuevo» (ampliación 10/10/2026, migración 0007) ----------
+    # Sección I — identificación (complemento)
+    etnia = models.CharField("Etnia", max_length=80, blank=True, default="")
+    edad = models.PositiveSmallIntegerField(
+        "Edad", null=True, blank=True,
+        help_text="Edad del fallecido; la unidad la indica edad_unidad.",
+    )
+    edad_unidad = models.CharField("Unidad de la edad", max_length=6, choices=EDAD_UNIDAD, blank=True, default="")
+    nacimiento_entidad = models.CharField("Entidad federal de nacimiento", max_length=80, blank=True, default="")
+    nacimiento_pais = models.CharField("País de nacimiento (exterior)", max_length=80, blank=True, default="")
+    sitio_ocurrencia = models.CharField("Sitio donde ocurrió la muerte", max_length=200, blank=True, default="")
+    area_ocurrencia = models.CharField(
+        "Área donde ocurrió la muerte", max_length=15, choices=AREA_OCURRENCIA, blank=True, default=""
+    )
+    codigo_comunidad = models.CharField("Código de la comunidad", max_length=30, blank=True, default="")
+    ubicacion_geografica = models.CharField("Ubicación geográfica", max_length=150, blank=True, default="")
+    partida_tomo = models.CharField("Tomo de la partida de nacimiento", max_length=20, blank=True, default="")
+    partida_folio = models.CharField("Folio de la partida de nacimiento", max_length=20, blank=True, default="")
+    partida_libro = models.CharField("Libro de la partida de nacimiento", max_length=20, blank=True, default="")
+    partida_acta = models.CharField("Acta de la partida de nacimiento", max_length=30, blank=True, default="")
+
+    # Sección III-IV — muerte en mujeres en edad fértil (solo sexo femenino)
+    fertil_numero_gestas = models.PositiveSmallIntegerField(
+        "Nº de gestas (mujer en edad fértil)", null=True, blank=True
+    )
+    fertil_fecha_ultima_gesta = models.DateField("Fecha de la última gesta", null=True, blank=True)
+    fertil_estaba_embarazada = models.CharField(
+        "Estaba embarazada", max_length=10, choices=SI_NO_IGNORADO, blank=True, default=""
+    )
+    fertil_puerperio = models.CharField(
+        "En puerperio de", max_length=12, choices=PERIODO_PUERPERIO, blank=True, default=""
+    )
+    fertil_contribuyo_muerte = models.CharField(
+        "La gestación contribuyó a la muerte", max_length=10, choices=SI_NO_IGNORADO, blank=True, default=""
+    )
+    fertil_nacidos_vivos = models.PositiveSmallIntegerField(
+        "Nacidos vivos (historia obstétrica)", null=True, blank=True
+    )
+    fertil_nacidos_fallecidos = models.PositiveSmallIntegerField(
+        "Nacidos vivos fallecidos", null=True, blank=True
+    )
+    fertil_muertes_fetales = models.PositiveSmallIntegerField("Muertes fetales", null=True, blank=True)
+    fertil_abortos = models.PositiveSmallIntegerField("Abortos", null=True, blank=True)
+
+    # Sección VI — certificación médica (complemento)
+    causa_descrita_medico = models.TextField(
+        "Causa de muerte descrita por el médico", blank=True, default=""
+    )
+    causa_aplicando_reglas = models.TextField(
+        "Causa aplicando las reglas de clasificación", blank=True, default=""
+    )
+    causa_primera_parte = models.TextField("Causa — primera parte", blank=True, default="")
+    causa_segunda_parte = models.TextField("Causa — segunda parte", blank=True, default="")
+    diagnostico_otro = models.CharField(
+        "Diagnóstico confirmado por otro medio", max_length=150, blank=True, default=""
+    )
+    direccion_medico = models.CharField("Dirección del médico responsable", max_length=250, blank=True, default="")
+    telefono_medico = models.CharField("Teléfono del médico responsable", max_length=30, blank=True, default="")
+    cargo_medico = models.CharField("Cargo del médico responsable", max_length=100, blank=True, default="")
+    tipo_certificacion = models.CharField(
+        "Tipo de certificación", max_length=15, choices=TIPO_CERTIFICACION, blank=True, default=""
+    )
+
+    # Destino del cadáver
+    destino_cadaver = models.CharField(
+        "Destino del cadáver", max_length=12, choices=DESTINO_CADAVER, blank=True, default=""
+    )
+    numero_permiso = models.CharField("Nº de permiso de inhumación", max_length=30, blank=True, default="")
+
+    # Registro civil (complemento)
+    registro_civil_entidad = models.CharField("Entidad del registro civil", max_length=80, blank=True, default="")
+    padre_fallecido_nombres = models.CharField(
+        "Padre del fallecido (apellidos y nombres)", max_length=200, blank=True, default=""
+    )
+    padre_fallecido_cedula = models.CharField(
+        "Documento del padre del fallecido", max_length=20, blank=True, default=""
+    )
+    declarante_nacionalidad = models.CharField(
+        "Tipo de documento del declarante", max_length=1, choices=NACIONALIDAD, blank=True, default=""
+    )
+    registrador_civil_nacionalidad = models.CharField(
+        "Tipo de documento del registrador civil", max_length=1, choices=NACIONALIDAD, blank=True, default=""
+    )
 
     class Meta:
         verbose_name = "Defunción"

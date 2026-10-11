@@ -21,6 +21,10 @@ export function Input({ error, ...props }) {
   return <input {...props} aria-invalid={Boolean(error)} />
 }
 
+export function TextArea({ error, rows = 2, ...props }) {
+  return <textarea rows={rows} {...props} aria-invalid={Boolean(error)} />
+}
+
 export function Select({ opciones, ...props }) {
   return (
     <select {...props}>

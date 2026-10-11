@@ -120,13 +120,23 @@ class PermisosRegistrosTests(SISVBase):
         r = self.client.delete(f"/api/registros/nacimientos/{creado['id']}/")
         self.assertEqual(r.status_code, 200)
 
-    def test_codificador_edita(self):
-        self.login(self.u_cod_hcb)
+    def test_codificador_no_edita_solo_confirma(self):
+        self.login(self.u_trans_hcb)
         creado = self.client.post("/api/registros/nacimientos/", self.datos_nacimiento("N-0103"),
                                   content_type="application/json").json()["data"]
+        self.login(self.u_cod_hcb)
+        # El rol CODIFICADOR ya no edita el certificado…
         r = self.client.patch(f"/api/registros/nacimientos/{creado['id']}/", {"sexo": "M"},
                               content_type="application/json")
+        self.assertEqual(r.status_code, 403)
+        # …pero sí confirma la codificación CIE sugerida.
+        r = self.client.post(
+            "/api/registros/consulta/confirmar/",
+            {"modulo": "nacimientos", "numero": "N-0103", "codigo": self.cie11_subgrupo.codigo},
+            content_type="application/json",
+        )
         self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["data"]["codificado_por"], self.u_cod_hcb.pk)
 
 
 class AlcanceTests(SISVBase):
@@ -547,6 +557,131 @@ class DefuncionEV14Tests(SISVBase):
         r = self._post(manera_de_morir="MAGIA")
         self.assertEqual(r.status_code, 400)
         self.assertIn("manera_de_morir", r.json()["errors"])
+
+
+class DefuncionEV14AmpliadoTests(SISVBase):
+    """Campos del EV-14 agregados en la ampliación de octubre 2026.
+
+    Identificación ampliada (etnia, edad con unidad, lugar de nacimiento detallado,
+    partida de nacimiento), bloque de mujeres en edad fértil, causa de muerte descrita
+    por el médico, cargo/tipo de certificación, destino del cadáver y ampliación del
+    registro civil. Todos opcionales; la defunción mínima ya existente sigue igual.
+    """
+
+    def _post(self, **extra):
+        datos = {
+            "registro_numero": "D-EV14-AMP",
+            "fecha_evento": "2023-06-01",
+            "version_cie": "CIE11",
+            "cie11": self.cie11_categoria.pk,
+            "sexo": "F",
+            "fallecido_nombres": "Pedro",
+            "fallecido_apellidos": "Gómez",
+            "organizacion": self.org_hcb.id,
+        }
+        datos.update(extra)
+        return self.client.post(
+            "/api/registros/defunciones/", datos, content_type="application/json"
+        )
+
+    def test_identificacion_ampliada(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(
+            etnia="MESTIZO", edad=42, edad_unidad="ANIOS",
+            nacimiento_entidad="Lara", nacimiento_pais="Venezuela",
+            sitio_ocurrencia="Av. Venezuela", area_ocurrencia="CALLES",
+            codigo_comunidad="13009000101", ubicacion_geografica="10.07,-69.32",
+            partida_tomo="1", partida_folio="22", partida_libro="3", partida_acta="A-77",
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        d = r.json()["data"]
+        self.assertEqual(d["etnia"], "MESTIZO")
+        self.assertEqual(d["edad"], 42)
+        self.assertEqual(d["edad_unidad"], "ANIOS")
+        self.assertEqual(d["nacimiento_entidad"], "Lara")
+        self.assertEqual(d["area_ocurrencia"], "CALLES")
+        self.assertEqual(d["partida_acta"], "A-77")
+
+    def test_mujeres_en_edad_fertil(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(
+            fertil_numero_gestas=3, fertil_fecha_ultima_gesta="2023-01-15",
+            fertil_estaba_embarazada="SI", fertil_puerperio="DENTRO42D",
+            fertil_contribuyo_muerte="SI", fertil_nacidos_vivos=2,
+            fertil_nacidos_fallecidos=0, fertil_muertes_fetales=0, fertil_abortos=1,
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        d = r.json()["data"]
+        self.assertEqual(d["fertil_numero_gestas"], 3)
+        self.assertEqual(d["fertil_estaba_embarazada"], "SI")
+        self.assertEqual(d["fertil_contribuyo_muerte"], "SI")
+        self.assertEqual(d["fertil_abortos"], 1)
+
+    def test_causa_certificacion_y_destino_cadaver(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(
+            causa_descrita_medico="Infarto agudo de miocardio",
+            causa_aplicando_reglas="Infarto agudo de miocardio",
+            causa_primera_parte="Infarto agudo de miocardio",
+            causa_segunda_parte="Cardiopatía isquémica",
+            diagnostico_otro="Resonancia magnética",
+            cargo_medico="Médico de guardia", tipo_certificacion="MEDICA",
+            telefono_medico="0414-1234567", direccion_medico="Hospital Central",
+            destino_cadaver="INHUMACION", numero_permiso="PERM-001",
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        d = r.json()["data"]
+        self.assertEqual(d["causa_descrita_medico"], "Infarto agudo de miocardio")
+        self.assertEqual(d["tipo_certificacion"], "MEDICA")
+        self.assertEqual(d["destino_cadaver"], "INHUMACION")
+        self.assertEqual(d["numero_permiso"], "PERM-001")
+
+    def test_registro_civil_ampliado(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(
+            registro_civil_entidad="Lara",
+            padre_fallecido_nombres="José Gómez", padre_fallecido_cedula="V-13579246",
+            declarante_nacionalidad="V", registrador_civil_nacionalidad="E",
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        d = r.json()["data"]
+        self.assertEqual(d["registro_civil_entidad"], "Lara")
+        self.assertEqual(d["padre_fallecido_nombres"], "José Gómez")
+        self.assertEqual(d["declarante_nacionalidad"], "V")
+        self.assertEqual(d["registrador_civil_nacionalidad"], "E")
+
+    def test_numericos_vacios_se_guardan_como_nulo(self):
+        """El formulario envía "" en los numéricos vacíos y DRF los rechazaba.
+
+        Los campos numéricos/fecha que quedan en blanco deben guardarse como None, no
+        devolver 400 (afecta también a `peso_nacer_gramos` y `edad_gestacional_semanas`).
+        """
+        self.login(self.u_trans_hcb)
+        r = self._post(
+            peso_nacer_gramos="", edad_gestacional_semanas="", edad="",
+            fertil_numero_gestas="", fertil_abortos="", numero_permiso="",
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        d = r.json()["data"]
+        self.assertIsNone(d["peso_nacer_gramos"])
+        self.assertIsNone(d["edad"])
+        self.assertIsNone(d["fertil_numero_gestas"])
+
+    def test_destino_cadaver_invalido_se_rechaza(self):
+        self.login(self.u_trans_hcb)
+        r = self._post(destino_cadaver="MOMIFICACION")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("destino_cadaver", r.json()["errors"])
+
+    def test_campos_nuevos_opcionales_en_certificado_minimo(self):
+        self.login(self.u_trans_hcb)
+        r = self._post()
+        self.assertEqual(r.status_code, 201, r.content)
+        d = r.json()["data"]
+        self.assertIsNone(d["edad"])
+        self.assertEqual(d["etnia"], "")
+        self.assertEqual(d["fertil_estaba_embarazada"], "")
+        self.assertEqual(d["destino_cadaver"], "")
 
 
 class CoberturaTableroTests(SISVBase):
@@ -1166,3 +1301,147 @@ class ReporteSemanalMMITests(SISVBase):
         self.login(self.u_admin)
         r = self.client.get("/api/registros/reportes/semanal-mmi/?anio=2023")
         self.assertEqual(r.status_code, 400)
+
+
+class SugerenciaCatalogoTests(SISVBase):
+    """La sugerencia de codificación es offline: solo cruza texto con el catálogo CIE."""
+
+    def test_prefiere_el_codigo_mas_especifico(self):
+        from registros.sugerencia import sugerir
+
+        obj = Defuncion(version_cie="CIE11", causa_primera_parte="Dengue grave")
+        res = sugerir(obj)
+        self.assertEqual(res["origen"], "CATALOGO")
+        self.assertEqual(res["causa_basica"]["codigo"], self.cie11_subgrupo.codigo)
+
+    def test_sin_texto_no_hay_candidatos(self):
+        from registros.sugerencia import sugerir
+
+        res = sugerir(Defuncion(version_cie="CIE11"))
+        self.assertIsNone(res["causa_basica"])
+        self.assertEqual(res["candidatos"], [])
+
+    def test_crosswalk_del_codigo_legacy(self):
+        from registros.sugerencia import sugerir
+
+        obj = Defuncion(version_cie="CIE11", cie10_legacy="J18.9")
+        res = sugerir(obj)
+        self.assertEqual(res["causa_basica"]["codigo"], self.cie11_categoria.codigo)
+        self.assertEqual(res["causa_basica"]["fuente"], "CROSSWALK")
+
+
+class ConsultaYConfirmacionTests(SISVBase):
+    """Consulta por número (detalle completo) y confirmación de codificación con auditoría."""
+
+    def _defuncion(self, numero="D-0001", **extra):
+        datos = {
+            "registro_numero": numero,
+            "fecha_evento": "2023-05-01",
+            "version_cie": "CIE11",
+            "sexo": "M",
+            "fallecido_nombres": "Juan",
+            "fallecido_apellidos": "Pérez",
+            "causa_primera_parte": "Dengue grave",
+            "cie11": self.cie11_categoria.pk,
+        }
+        datos.update(extra)
+        return self.client.post("/api/registros/defunciones/", datos, content_type="application/json")
+
+    def _consulta(self, numero, modulo="defunciones"):
+        return self.client.get(f"/api/registros/consulta/?modulo={modulo}&numero={numero}")
+
+    def test_consulta_devuelve_detalle_completo_y_sugerencia(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion()
+        self.login(self.u_cod_hcb)
+        r = self._consulta("D-0001")
+        self.assertEqual(r.status_code, 200)
+        data = r.json()["data"]
+        self.assertEqual(data["numero"], "D-0001")
+        self.assertTrue(data["puede_codificar"])
+        grupos = [b["grupo"] for b in data["detalle"]]
+        self.assertIn("Certificación médica", grupos)
+        self.assertIn("Codificación CIE", grupos)
+        campos = {c["campo"]: c["valor"] for b in data["detalle"] for c in b["campos"]}
+        self.assertEqual(campos["causa_primera_parte"], "Dengue grave")
+        self.assertEqual(campos["fallecido_nombres"], "Juan")
+        self.assertEqual(data["sugerencia"]["codigo"], self.cie11_subgrupo.codigo)
+
+    def test_consulta_fuera_de_alcance_es_404(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion("D-0002")
+        self.login(self.u_trans_cabudare)
+        self.assertEqual(self._consulta("D-0002").status_code, 404)
+
+    def test_numero_inexistente_es_404(self):
+        self.login(self.u_cod_hcb)
+        self.assertEqual(self._consulta("NO-EXISTE").status_code, 404)
+
+    def test_confirmar_registra_auditoria_y_codigo(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion("D-0003")
+        self.login(self.u_cod_hcb)
+        sugerido = self._consulta("D-0003").json()["data"]["sugerencia"]["codigo"]
+        r = self.client.post(
+            "/api/registros/consulta/confirmar/",
+            {"modulo": "defunciones", "numero": "D-0003", "codigo": sugerido},
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 200)
+        data = r.json()["data"]
+        self.assertEqual(data["codificado_por"], self.u_cod_hcb.pk)
+        self.assertIsNotNone(data["codificado_en"])
+        self.assertFalse(data["codificacion_pendiente"])
+        obj = Defuncion.objects.get(registro_numero="D-0003")
+        self.assertEqual(obj.codificado_por_id, self.u_cod_hcb.pk)
+        self.assertEqual(obj.sugerencia_codigo, sugerido)
+        self.assertEqual(obj.cie11.codigo, sugerido)
+
+    def test_transcriptor_no_puede_confirmar(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion("D-0004")
+        r = self.client.post(
+            "/api/registros/consulta/confirmar/",
+            {"modulo": "defunciones", "numero": "D-0004", "codigo": self.cie11_subgrupo.codigo},
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 403)
+
+    def test_codigo_inexistente_es_400(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion("D-0005")
+        self.login(self.u_cod_hcb)
+        r = self.client.post(
+            "/api/registros/consulta/confirmar/",
+            {"modulo": "defunciones", "numero": "D-0005", "codigo": "ZZZ.9"},
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 400)
+
+    def test_version_incoherente_con_la_fecha_es_400(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion("D-0006", fecha_evento="2020-03-01", version_cie="CIE10",
+                        cie10=self.cie10_antiguo.pk, cie11=None)
+        self.login(self.u_cod_hcb)
+        r = self.client.post(
+            "/api/registros/consulta/confirmar/",
+            {"modulo": "defunciones", "numero": "D-0006", "version_cie": "CIE11",
+             "codigo": self.cie11_subgrupo.codigo},
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 400)
+
+    def test_sugerencia_no_se_recalcula_tras_confirmar(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion("D-0007")
+        self.login(self.u_cod_hcb)
+        en1 = self._consulta("D-0007").json()["data"]["sugerencia"]["en"]
+        self.client.post(
+            "/api/registros/consulta/confirmar/",
+            {"modulo": "defunciones", "numero": "D-0007", "codigo": self.cie11_subgrupo.codigo},
+            content_type="application/json",
+        )
+        data = self._consulta("D-0007").json()["data"]
+        self.assertEqual(data["sugerencia"]["en"], en1)
+        self.assertIsNotNone(data["registro"]["codificado_en"])
+

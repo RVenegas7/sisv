@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from "react"
-import { actualizarDefuncion, actualizarFicha, actualizarNacimiento, listarCodificacion } from "../api/sisv"
+import {
+  actualizarDefuncion,
+  actualizarFicha,
+  actualizarNacimiento,
+  confirmarCodificacion,
+  consultarCertificado,
+  listarCodificacion,
+} from "../api/sisv"
 import CIESearch from "../components/CIESearch"
 import SeccionCIE from "../components/SeccionCIE"
 import { Boton, Campo, Input, Select } from "../components/ui"
@@ -25,6 +32,43 @@ function codigo(modulo, r) {
   return r.codigo_notificacion || ""
 }
 
+// Precarga la selección con el código ya registrado (si lo hay) o con el sugerido.
+function seleccionDesdeConsulta(data) {
+  const reg = data.registro || {}
+  const sug = data.sugerencia || {}
+  if (reg.version_cie === "CIE10" && reg.cie10_detalle) {
+    return { cie10: { ...reg.cie10_detalle }, cie11: null, subgrupo: null }
+  }
+  if (reg.version_cie === "CIE11" && reg.cie11_detalle) {
+    return { cie10: null, cie11: { ...reg.cie11_detalle }, subgrupo: null }
+  }
+  if (sug.codigo) {
+    if (sug.version === "CIE10") return { cie10: { codigo: sug.codigo, descripcion: sug.titulo }, cie11: null, subgrupo: null }
+    return { cie10: null, cie11: { codigo: sug.codigo, titulo: sug.titulo, nivel: null }, subgrupo: null }
+  }
+  return CERO
+}
+
+function BloqueDetalle({ bloques }) {
+  return (
+    <div className="detalle-certificado">
+      {bloques.map((b) => (
+        <section key={b.grupo} className="seccion">
+          <h3>{b.grupo}</h3>
+          <dl className="grid-detalle">
+            {b.campos.map((c) => (
+              <div key={c.campo}>
+                <dt>{c.etiqueta}</dt>
+                <dd>{c.valor}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ))}
+    </div>
+  )
+}
+
 export default function Codificacion({ usuario }) {
   const permisos = usuario?.permisos || {}
   const hoy = new Date()
@@ -39,7 +83,15 @@ export default function Codificacion({ usuario }) {
   const [versionManual, setVersionManual] = useState(false)
   const [estadoUI, setEstadoUI] = useState({ tipo: "", texto: "" })
 
+  const [numeroConsulta, setNumeroConsulta] = useState("")
+  const [consulta, setConsulta] = useState(null)
+  const [seleccionConsulta, setSeleccionConsulta] = useState(CERO)
+  const [versionConsulta, setVersionConsulta] = useState("CIE11")
+  const [versionManualConsulta, setVersionManualConsulta] = useState(false)
+
   const esLectura = !permisos.puede_editar
+  const puedeCodificar = Boolean(permisos.puede_codificar)
+  const soloLectura = !permisos.puede_editar && !puedeCodificar
 
   function aviso(tipo, texto) {
     setEstadoUI({ tipo, texto })
@@ -110,6 +162,57 @@ export default function Codificacion({ usuario }) {
     }
   }
 
+  async function consultarPorNumero() {
+    const num = numeroConsulta.trim()
+    if (!num) {
+      aviso("error", "Escriba el número del certificado.")
+      return
+    }
+    aviso("info", "Consultando certificado…")
+    try {
+      const data = await consultarCertificado(modulo, num)
+      setConsulta(data)
+      setVersionConsulta(data.registro?.version_cie || "CIE11")
+      setVersionManualConsulta(false)
+      setSeleccionConsulta(seleccionDesdeConsulta(data))
+      aviso("", "")
+    } catch (err) {
+      setConsulta(null)
+      aviso("error", err.message)
+    }
+  }
+
+  function usarCandidato(c) {
+    if (versionConsulta === "CIE10") {
+      setSeleccionConsulta({ cie10: { codigo: c.codigo, descripcion: c.titulo }, cie11: null, subgrupo: null })
+    } else {
+      setSeleccionConsulta({ cie10: null, cie11: { codigo: c.codigo, titulo: c.titulo, nivel: c.nivel }, subgrupo: null })
+    }
+  }
+
+  async function confirmarConsulta() {
+    if (!consulta || !puedeCodificar) return
+    const codigoSel = seleccionConsulta?.cie11?.codigo || seleccionConsulta?.cie10?.codigo
+    if (!codigoSel) {
+      aviso("error", "No hay código para confirmar.")
+      return
+    }
+    aviso("info", "Confirmando codificación…")
+    try {
+      const actualizado = await confirmarCodificacion({
+        modulo,
+        numero: consulta.numero,
+        codigo: codigoSel,
+        version_cie: versionConsulta,
+      })
+      const conf = actualizado.cie11_detalle || actualizado.cie10_detalle
+      aviso("ok", `Codificación confirmada: ${conf?.codigo || codigoSel}.`)
+      await consultarPorNumero()
+    } catch (err) {
+      aviso("error", err.message)
+    }
+  }
+
   const sugerido = seleccionado?.cie11_sugerido_detalle
   const totalPendientes = useMemo(
     () => Object.values(resumen || {}).reduce((a, b) => a + (Number(b) || 0), 0),
@@ -133,11 +236,55 @@ export default function Codificacion({ usuario }) {
         </div>
       )}
 
-      {esLectura && (
+      {soloLectura && (
         <div className="aviso aviso-info">
           Su rol (<strong>{usuario?.rol_label}</strong>) es de solo lectura: no puede guardar códigos CIE.
         </div>
       )}
+
+      {puedeCodificar && (
+        <div className="aviso aviso-info">
+          Rol <strong>{usuario?.rol_label}</strong>: consulte un certificado por su número, revise los datos ya
+          registrados y confirme la codificación CIE (sugerida automáticamente por el catálogo). El certificado no
+          se puede editar desde aquí.
+        </div>
+      )}
+
+      <div className="formulario">
+        <div className="grid">
+          <Campo label="Consultar certificado por número" htmlFor="cod-num">
+            <Input
+              id="cod-num"
+              value={numeroConsulta}
+              onChange={(e) => setNumeroConsulta(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  consultarPorNumero()
+                }
+              }}
+              placeholder="Ej. DEF-2026-000003, N-0001, código de ficha…"
+            />
+          </Campo>
+        </div>
+        <div className="pie-form">
+          <Boton type="button" onClick={consultarPorNumero}>
+            Consultar
+          </Boton>
+          {consulta && (
+            <button
+              type="button"
+              className="btn-mini"
+              onClick={() => {
+                setConsulta(null)
+                setNumeroConsulta("")
+              }}
+            >
+              Cerrar consulta
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className="filas-campo" style={{ marginBottom: "0.8rem" }}>
         {MODULOS.map(([k, r]) => (
@@ -154,6 +301,100 @@ export default function Codificacion({ usuario }) {
           Total pendientes: <strong>{totalPendientes}</strong>
         </span>
       </div>
+
+      {consulta && (
+        <section className="panel" style={{ marginTop: "1rem" }}>
+          <header className="cabecera-seccion">
+            <h2>
+              {consulta.numero} — {nombres(modulo, consulta.registro)}
+              <span className="etiqueta">{consulta.registro.version_cie}</span>
+            </h2>
+            <p className="ayuda" style={{ margin: 0 }}>
+              Evento: {consulta.registro.fecha_evento} ·{" "}
+              {consulta.registro.organizacion_nombre || "Sin organización"}
+              {consulta.registro.cie10_legacy ? ` · CIE-10 legacy: ${consulta.registro.cie10_legacy}` : ""}
+            </p>
+            {consulta.registro.codificado_en ? (
+              <p className="ayuda" style={{ margin: "0.2rem 0 0" }}>
+                <span className="etiqueta">Confirmado</span> por{" "}
+                <strong>{consulta.registro.codificado_por_nombre || "—"}</strong> el{" "}
+                {new Date(consulta.registro.codificado_en).toLocaleString()}
+              </p>
+            ) : (
+              <p className="ayuda" style={{ margin: "0.2rem 0 0" }}>
+                <span className="etiqueta">Pendiente de confirmación</span> · la codificación{" "}
+                {consulta.registro.cie11_detalle || consulta.registro.cie10_detalle ? (
+                  <>ya registrada: <strong>
+                    {consulta.registro.cie11_detalle?.codigo || consulta.registro.cie10_detalle?.codigo}
+                  </strong></>
+                ) : (
+                  <>aún no registrada</>
+                )}
+              </p>
+            )}
+          </header>
+
+          <BloqueDetalle bloques={consulta.detalle} />
+
+          <section className="seccion">
+            <h3>Sugerencia de codificación</h3>
+            {consulta.sugerencia?.codigo ? (
+              <>
+                <p className="ayuda">
+                  Sugerido por el catálogo: <strong>{consulta.sugerencia.codigo}</strong> —{" "}
+                  {consulta.sugerencia.titulo}
+                  {consulta.sugerencia.origen_label ? ` (${consulta.sugerencia.origen_label})` : ""}
+                </p>
+                <ul className="sugerencias-cat">
+                  {(consulta.sugerencia.detalle?.candidatos || []).map((c) => (
+                    <li key={`${c.codigo}-${c.titulo}`}>
+                      <button
+                        type="button"
+                        className="btn-mini"
+                        disabled={!puedeCodificar}
+                        onClick={() => usarCandidato(c)}
+                        title="Usar este código"
+                      >
+                        {c.fuente === "CROSSWALK" ? "↔ " : ""}
+                        <strong>{c.codigo}</strong> — {c.titulo}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="ayuda">No hay texto de causa para sugerir un código automáticamente.</p>
+            )}
+          </section>
+
+          {puedeCodificar && (
+            <SeccionCIE
+              titulo="Codificación CIE a confirmar"
+              etiqueta="Código de la causa"
+              fechaEvento={consulta.registro.fecha_evento}
+              version={versionConsulta}
+              setVersion={(v) => {
+                setVersionConsulta(v)
+                setVersionManualConsulta(true)
+                setSeleccionConsulta(CERO)
+              }}
+              versionManual={versionManualConsulta}
+              setVersionManual={setVersionManualConsulta}
+              seleccion={seleccionConsulta}
+              setSeleccion={setSeleccionConsulta}
+            />
+          )}
+
+          <div className="pie-form">
+            <Boton type="button" disabled={!puedeCodificar} onClick={confirmarConsulta}>
+              {puedeCodificar ? "Confirmar codificación CIE" : "Solo lectura"}
+            </Boton>
+            {!puedeCodificar && (
+              <span className="ayuda">Su rol no puede confirmar codificaciones.</span>
+            )}
+          </div>
+        </section>
+      )}
 
       {!seleccionado && (
         <div className="formulario">

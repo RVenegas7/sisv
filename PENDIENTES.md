@@ -2278,6 +2278,39 @@ anexo no agrega un número nuevo que compita: es una vista semanal por estableci
 fuentes del tablero, y la marca `*` en el frontend avisa cuándo el MM de ese centro salió del certificado
 porque el registro de investigación no estaba disponible.
 
+### 23.5 HECHO (10/10/2026): segunda ampliación del EV-14 (campos que aún faltaban)
+
+Revisando el certificado impreso (`capturas/certificado_defuncion.jpg`) y las pantallas «Modelo Nuevo»
+(`capturas/pantalla1_mm.jpg`…`pantalla6_mm.jpg`) contra `CargaDefunciones.jsx` quedaron campos del EV-14 sin
+capturar. Se amplió `registros.Defuncion` con **38 campos más** (migración
+`0008_defuncion_area_ocurrencia_defuncion_cargo_medico_and_more`), todos opcionales:
+
+| Sección | Campos agregados |
+| --- | --- |
+| **I — Identificación** | `etnia`, `edad` + `edad_unidad`, `nacimiento_entidad`, `nacimiento_pais`, `sitio_ocurrencia`, `area_ocurrencia`, `codigo_comunidad`, `ubicacion_geografica`, `partida_tomo`/`partida_folio`/`partida_libro`/`partida_acta` |
+| **III-IV — Mujeres en edad fértil** | `fertil_numero_gestas`, `fertil_fecha_ultima_gesta`, `fertil_estaba_embarazada`, `fertil_puerperio`, `fertil_contribuyo_muerte`, `fertil_nacidos_vivos`, `fertil_nacidos_fallecidos`, `fertil_muertes_fetales`, `fertil_abortos` |
+| **VI — Certificación médica** | `causa_descrita_medico`, `causa_aplicando_reglas`, `causa_primera_parte`, `causa_segunda_parte`, `diagnostico_otro`, `direccion_medico`, `telefono_medico`, `cargo_medico`, `tipo_certificacion`, `destino_cadaver`, `numero_permiso` |
+| **VII — Registro civil** | `registro_civil_entidad`, `padre_fallecido_nombres`, `padre_fallecido_cedula`, `declarante_nacionalidad`, `registrador_civil_nacionalidad` |
+
+Decisiones:
+
+- **Solo sexo femenino.** Los campos obstétricos (`fertil_*`) y los datos de la madre (`madre_*`) se
+  deshabilitan en el formulario cuando el sexo no es `F` (fieldset anidado `.subbloque` con
+  `display: contents` para no romper el grid; `embarazo_o_puerperio` también se bloquea). Se conservan los
+  valores ya cargados, solo quedan inhabilitados para edición.
+- **Nada nuevo es obligatorio** y el ETL no se toca; el certificado mínimo sigue creándose.
+- **Bug preexistente corregido:** el formulario envía `""` en los numéricos vacíos y DRF rechaza `""` en
+  `IntegerField`/`DateField` (afectaba a `peso_nacer_gramos`, `edad_gestacional_semanas`, etc. al crear).
+  Se agregó `serializers._VaciosANullMixin` (aplicado a Nacimiento/Defunción/Ficha) que convierte `""` a
+  `None` **solo** en campos que declaran `allow_null`, sin enmascarar los obligatorios.
+- Frontend `CargaDefunciones.jsx`: nuevos campos, `OPCIONES.EDAD_UNIDAD/AREA_OCURRENCIA/TIPO_CERTIFICACION/
+  DESTINO_CADAVER`, helper `TextArea` en `components/ui.jsx` y regla CSS `.formulario fieldset.subbloque`.
+
+Pruebas: `registros/tests.py::DefuncionEV14AmpliadoTests` (7) — identificación ampliada, bloque femenino,
+causa/certificación/destino, registro civil, numéricos vacíos → `None`, elección inválida rechazada y
+certificado mínimo con los nuevos campos opcionales. **Suite completa 234 OK** (227 → 234), frontend 13 OK,
+`npm run build` OK.
+
 ---
 
 ## 24. [HECHO 02/10/2026] Despacho de certificados y registradores civiles: el legacy no los tiene, hay que construirlos
@@ -2669,10 +2702,11 @@ inválida por dependencia — que es justo lo que hay que ver antes de ir a crea
 
 ### 27.7 Lo que sigue abierto
 
-1. **El origen se quedó sin datos desde el 20/09**: aunque se recuperó agosto, en el Oracle **no
+1. ~~**El origen se quedó sin datos desde el 20/09**: aunque se recuperó agosto, en el Oracle **no
    hay ni una defunción posterior al 20/09/2026** (ni nacimientos después del 16/09). El anexo del
    martes sigue llegando pero con fecha de-certified vieja, o la captura del centro se detuvo: hay
-   que confirmarlo con la oficina antes de prometer el mes cerrado.
+   que confirmarlo con la oficina antes de prometer el mes cerrado.~~ **RESUELTO 10/10/2026**: es
+   logística de centros foráneos, no un problema de sistema ni de datos. Ver §27.14.
 2. ~~**`TEMP.T_CERTNACI`**: sin ella `NATALIDAD` no recompila.~~ **Descartado el 09/10/2026**:
    `NATALIDAD` **no** usa `TEMP.T_CERTNACI` (depende de `SISMAI.CERTNACIMIENTO`, `NAC_MADRE`,
    `NAC_RNACIDO`, `ESTABLECIMIENTO` y `SISMAI.V_ORG_GEOGRAFICA`) y compiló `VALID` sin esa tabla.
@@ -2958,3 +2992,197 @@ Atraso certificación−nacimiento: **promedio 54 días**, mínimo 14, máximo 2
 **Consecuencia para evaluaciones futuras:** cualquier tablero/consulta de «natalidad semanal» debe
 usar la fecha del evento como criterio de semana; la fecha de emisión solo sirve para medir el
 retraso de remisión entre centros y central.
+
+### 27.14 [RESUELTO 10/10/2026] §27.7.1 — la «caída» es logística de centros foráneos, no un problema de sistema
+
+**Respuesta de la oficina** (Lara): los certificados de nacimiento y defunción **llegan con retardo
+de los centros foráneos**; en algunos casos son de semanas epidemiológicas **de la 2 a la 31** y, a
+medida que van llegando, se cargan en la semana epidemiológica pendiente. Están organizando un
+**operativo para ponerse al día** (se prevé que lleguen también semanas **39 y 40**, sobre todo
+certificados de **defunción** por ser de menor volumen de movimiento).
+
+**Interpretación:** no es un problema de sistema ni de datos — es **logística con los centros
+foráneos**. Encaja con lo ya observado: §27.7 (sin defunciones del origen tras el 20/09), §27.9
+(cargas retroactivas del 17-23/09 con fecha repartida por todo el año) y §27.13 (la emisión del
+certificado va semanas por detrás del nacimiento). El origen **sí** sigue recibiendo; lo que no
+llega en fecha son los certificados de algunos centros.
+
+**Consecuencia práctica:**
+- Las semanas recientes del tablero son **mínimos**, no totales: lo que falta no se perdió, está en
+  tránsito desde los centros. No prometer el mes cerrado hasta que el operativo se complete.
+- Cuando lleguen las semanas 39-40, el espejo hay que **refrescarlo** (§27.9) y volver a correr
+  `importar_legacy_registros` + `asignar_organizacion_legacy`, que es donde entran los retroactivos.
+- El banner de cobertura (§20.2, `AvisoCobertura`) ya avisa de atraso; no hay que cambiar lógica.
+
+**Registrado el 10/10/2026 desde casa**, sin acceso al SISMAI ni a la BD actualizada.
+
+### 27.15 [HALLAZGO 10/10/2026] El legacy sí tiene código único por centro; el ETL usa el nombre (que NO es único)
+
+> Validado con el espejo local (`sismai."ESTABLECIMIENTO"` / `ORG_GEOGRAFICA`), sin SISMAI. Motiva el
+> cambio de `asignar_organizacion_legacy` y da cierre al «alias» de §27.7.4: la clave correcta es el
+> **código**, no el nombre.
+
+**1. `ESTABLECIMIENTO."CODIGO"` es único y sirve de clave.** 21.148 filas, **21.148 códigos distintos**,
+ninguno vacío, todos numéricos. Jerárquico: **2 dígitos = estado** (Lara = `13`), **6 dígitos =
+establecimiento**. Ejemplos: DES LARA `13`, DPS LARA `130369`, HOSP. CENTRAL `130021`.
+
+**2. El nombre NO es único, y es lo que hoy usamos de punta a punta.**
+- `importar_legacy_registros` guarda `establecimiento` como **nombre** (resuelve `HESTABLECIMIENTO` id→nombre
+  en `importar_legacy_registros.py:253`) y **descarta el código**.
+- `asignar_organizacion_legacy` deduplica organizaciones por **nombre normalizado** e inventa
+  `LEG-CENTRO-nnn` (`asignar_organizacion_legacy.py:109`), y `cargar_mm_mn_roto` inventa `LEGCSV-nnnn`.
+
+**3. Consecuencia medida:** en el árbol Lara hay **25 nombres compartidos por 54 centros distintos**
+(991 nombres exactos para 1.020 establecimientos). El ETL los **fusiona en una sola organización** y
+pierde el código oficial. Las peores: `AMB. SAN MIGUEL` (`130005`/`130281`, 110 nac + 18 def),
+`AMB. PUEBLO NUEVO` ×3, `AMB. LAS VERAS` ×3, `DPS SAN MIGUEL (LAR)` (`130346`/`130376`).
+
+**Caso confirmado por la oficina (10/10/2026):** `HOSP. DR. PASTOR OROPEZA` (`130090`) está en **Carora**
+— municipio **Torres**, parroquia Trinidad Samuel, comunidad CARORA — y `HOSP. DR. PASTOR OROPEZA (IVSS)`
+(`130148`) en **Barquisimeto** — municipio **Iribarren**, parroquia Juan de Villegas, comunidad Andrés
+Eloy Blanco. Son **dos centros distintos** y el normalizador los junta porque `normalizar()` **borra el
+paréntesis** (`re.sub(r"\([^)]*\)", "", …)` en `asignar_organizacion_legacy.py:32`): **`(IVSS)` no es
+ruido, es parte del nombre oficial**. Corregir esa limpieza es parte del cambio de §27.15.6.
+
+**4. Entregables para la oficina** (script nuevo `migracion/exportar_centros_legacy.py`, solo lectura):
+- `auditoria/centros_duplicados_<fecha>.csv` — 54 centros (25 nombres) del árbol Lara con `nombre`,
+  `codigo`, **estado/municipio/parroquia/comunidad** (del árbol `ORG_GEOGRAFICA`), `status`,
+  `funcionamiento`, `en_registros_sisv` y los conteos por nombre. Para que la oficina asigne cada
+  código a su centro físico.
+- `auditoria/centros_establecimientos_<fecha>.csv` — los **21.148** establecimientos del catálogo, con
+  geografía, `status`, `en_arbol_lara`/`en_registros_sisv`. El catálogo es **nacional**: solo **1.020**
+  son de Lara (el `ESTABLECIMIENTO` de SISMAI lista todo el país aunque los datos sean de Lara).
+- La geografía sale de `ESTABLECIMIENTO."HLOCALIDAD"` → `ORG_GEOGRAFICA` (categorías 20 estado / 30
+  municipio / 40 parroquia / 50 comunidad); 12 establecimientos no enlazan y salen sin geografía.
+
+**5. Campo de «activo»:** `ESTABLECIMIENTO."STATUS"` (char(1)) — `A` activo (16.776), `I` inactivo
+(4.153), `B` inactivo sin funcionamiento (219, todos `FUNCIONAMIENTO='N'`). Se exporta el `STATUS` crudo
+más `FUNCIONAMIENTO` (S/N).
+
+**6. Recomendación (pendiente de aplicar con la BD buena):** usar `CODIGO` como clave de atribución —
+guardar el código en los registros y en `Organizacion.codigo`; que `asignar_organizacion_legacy` cree y
+deduplique **por código** (el nombre pasa a ser etiqueta) y **deje de borrar los paréntesis** en
+`normalizar()` (el `(IVSS)` distingue dos centros); y **backfill** de los registros ya cargados
+reconstruyendo el código por nombre cuando sea unívoco, marcando los 25 ambivalentes para revisión.
+
+### 27.16 [HALLAZGO 10/10/2026] El `registro_numero` legacy es la PK de Oracle, no el número del certificado
+
+> Pregunta del usuario: ¿tenemos identificado el campo del código del certificado de nacimiento y de
+> defunción? El operario ve `LEG-CERT-…`/`LEG-RN-…` con números que **no** coinciden con el físico.
+
+**1. Qué muestra SISV hoy.** `registro_numero` = `LEG-CERT-{ID}` (defunción) y `LEG-RN-{ID}`
+(nacimiento), donde `{ID}` es la **clave interna de Oracle**, no el número del certificado:
+- Defunción: `importar_legacy_registros.py:328` → `legacy_id = CERTIFICADO."ID"`.
+- Nacimiento: `importar_legacy_registros.py:239` → `legacy_id = NAC_RNACIDO."ID"` (el recién nacido; su
+  `HCERTIFICADO` apunta a `CERTNACIMIENTO`).
+
+Ejemplo real: `LEG-CERT-999473093` (SISV) ↔ `NUMEROMSDS = 5143453` (físico, muerte del 20/09/2026).
+
+**2. Campos reales del número del certificado en el espejo.** El ETL **nunca** los guardó.
+- **Defunción** → `sismai."CERTIFICADO"."NUMEROMSDS"` (nunca vacío; 173.914 distintos de 173.976).
+  `"NUMEROPARTIDA"` es otro dato (nº de partida) y viene vacío en 164.736 de 173.976. El campo
+  `"CERTIFICADO"` es un **código interno** (5.907 valores), no el número.
+- **Nacimiento** → `sismai."CERTNACIMIENTO"."NROPLANILLA"` (nº de la planilla impresa; 438.821
+  distintos de 439.596) y `"CONSECUTIVO"` (único, 439.596/439.596, con prefijo estado/establecimiento:
+  `000013-NNNNNNN`). El modelo ya tiene `numero_planilla` (EV-25) sin poblar.
+
+**3. Impacto en `despacho`.** `despacho/services.py::numero_de_registro` toma **los dígitos finales** de
+`registro_numero` y los compara con la serie del talonario: con `LEG-CERT-{ID}` usa el **ID de Oracle**
+(p. ej. `999473093`), fuera de cualquier serie física → **no cuenta como usado** y el «faltante» queda
+mal. Es la causa directa de «los números no coinciden».
+
+**4. Entregable para la verificación física** (script nuevo
+`migracion/exportar_numeros_certificado.py`, solo lectura): CSV en `auditoria/` con `registro_numero_sisv`,
+`legacy_id`, **`numero_certificado`** (NUMEROMSDS), `numero_planilla`/`consecutivo`, `numero_partida`,
+año, fecha, nombre, establecimiento y estado. Generado para **2026**: `numeros_certificado_2026_<fecha>.csv`
+(6.805 defunciones + 10.101 nacimientos).
+
+**5. Cautelas de calidad:** `NUMEROMSDS` no es perfecto — hay valores que parecen fecha (p. ej.
+`05032026`), y 62 repetidos; `NROPLANILLA` tiene longitudes mixtas (7-8 dígitos). Antes de reemplazar el
+`registro_numero` hay que decidir cuál es el número oficial y **verificarlo contra los físicos** (es
+justo el operativo que la oficina va a hacer).
+
+**6. Recomendación:** guardar el número real (campo propio p. ej. `numero_certificado`, o poblar el
+`numero_planilla`/`numero_acta` que ya existen) desde `NUMEROMSDS`/`NROPLANILLA`, y cambiar
+`despacho/services.py` para cruzar la serie contra **ese** número, no contra el sufijo de
+`registro_numero`. `legacy_id` ya se conserva por separado, así que no se pierde el enlace al Oracle.
+
+**7. Export completo para verificación física** (`migracion/exportar_certificados_completos.py`, solo
+lectura): vuelca **todas las columnas** de `registros_nacimiento`/`registros_defuncion` (para revisar el
+certificado completo), más `numero_certificado_real` (NUMEROMSDS) / `numero_planilla_real`+`consecutivo_real`
+y `organizacion_nombre` al final. Filtra por año del certificado (default) o del evento (`--criterio evento`).
+Generado para **2026**, separado por tipo:
+- `auditoria/defunciones_certificados_2026_<fecha>.csv` — **6.805** filas × 86 columnas (2,6 MB).
+- `auditoria/nacimientos_certificados_2026_<fecha>.csv` — **10.101** filas × 69 columnas (4,4 MB).
+Sin `--anio` exporta el histórico completo (archivos grandes).
+
+## 28. [HECHO 10/10/2026] Consulta de certificado por número y confirmación de codificación CIE (rol Codificador)
+
+> Petición del usuario: al consultar un certificado por su número debe mostrarse **toda la
+> información ya registrada**; el rol **Codificador** la ve **sin editar** y solo **confirma la
+> codificación** (CIE-10 o CIE-11). La codificación la **sugiere** el sistema — se pidió «I/A», pero
+> el usuario decidió el motor **offline por catálogo** (sin LLM, funciona sin internet). La
+> confirmación la autoriza el codificador logueado y **queda auditada**.
+
+**Decisiones tomadas con el usuario (10/10/2026):** (a) motor de sugerencia = **catálogo local**
+(no IA externa); (b) alcance = **los tres módulos** (defunciones, nacimientos, fichas); (c) el rol
+**se queda «Codificador»** (no se renombra); (d) **sí con auditoría** — se guarda quién confirmó,
+cuándo, qué se sugirió (código + JSON completo) y qué se confirmó.
+
+### 28.1 Qué se construyó
+
+**Backend**
+
+- **Modelo (`RegistroConCIE` abstracto, migración `0009`):** `sugerencia_codigo`, `sugerencia_titulo`,
+  `sugerencia_origen` (`CATALOGO`|`IA`|`MANUAL`), `sugerencia_json` (detalle persistido), `sugerencia_en`,
+  `codificado_por` (FK `auth.User`) y `codificado_en`. Método `confirmar_codificacion(usuario)`.
+  Aplicada a Postgres local (`manage.py migrate registros`).
+- **`registros/sugerencia.py` (nuevo):** sugerencia **sin IA**. Tokeniza el texto de causa/evento
+  (`texto_de_causa` por módulo: defunción → `causa_*`/`otros_estados_patologicos`; ficha →
+  `nombre_evento`+`sintomas`+`nota`; nacimiento → sin texto), lo cruza con el catálogo CIE activo
+  (CIE-11 niveles 3-4, o CIE-10) puntuando por coincidencia ponderada por longitud de token, y
+  **apuesta fuerte** por el cross-walk: si hay `cie10_legacy`, traduce por `MapeoCIE`. Devuelve
+  `{texto, version, origen, causa_basica, candidatos}` con la forma de `codificador.md`, sin aplicar
+  las reglas nosológicas de la OMS (decide la persona).
+- **`registros/presentacion.py` (nuevo):** detalle agrupado de todo lo registrado, con
+  `verbose_name` y valor formateado (opciones, sí/no, fechas) en bloques que siguen las secciones
+  del certificado (Identificación, Certificación médica, Registro civil…).
+- **Endpoints** (`/api/registros/`):
+  - `GET consulta/?modulo=&numero=` → `{registro, detalle, sugerencia, puede_codificar}`. Número =
+    `registro_numero` (nac/def) o `codigo_notificacion` (fichas), **exacto** y respetando el alcance.
+    Si no está confirmado, (re)calcula y persiste la sugerencia (queda constancia de qué se propuso).
+  - `POST consulta/confirmar/` `{modulo, numero, codigo, version_cie}` → valida contra el catálogo y
+    contra la fecha del evento (`validar_seleccion_cie`), fija `cie10`/`cie11` y llama a
+    `confirmar_codificacion`. Requiere un permiso nuevo.
+- **Permisos** (`seguridad/services.py::permisos_de`): se añade **`puede_codificar`**
+  (CODIFICADOR + DIRECTOR + superusuario) y **se quita CODIFICADOR de `puede_escribir`/`puede_editar`**:
+  el codificador ya no edita el certificado, solo lo confirma. Se actualizó `test_codificador_edita` →
+  `test_codificador_no_edita_solo_confirma`.
+
+**Frontend** (`/codificacion`, `Codificacion.jsx`)
+
+- Nuevo bloque **«Consultar certificado por número»** (con el módulo activo): muestra el panel de
+  lectura con el detalle **agrupado y solo lectura**, la sugerencia y sus candidatos («Usar»), el
+  buscador CIE opcional para corregir el código y el botón **«Confirmar codificación CIE»** (solo si
+  `puede_codificar`). Tras confirmar se recarga y muestra «Confirmado por X el …».
+- Roles sin `puede_codificar` ven el detalle deshabilitado («Solo lectura»).
+- `api/sisv.js`: `consultarCertificado`, `confirmarCodificacion`.
+
+### 28.2 Verificación
+
+- Suite backend **245 tests OK** (antes 234) con los nuevos `SugerenciaCatalogoTests` (3) y
+  `ConsultaYConfirmacionTests` (8); frontend **13 OK**; `npm run build` OK;
+  `makemigrations --check --dry-run` sin cambios.
+- **Prueba real en la BD local:** consulta de `LEG-CERT-999463261` → la sugerencia por catálogo
+  resolvió `JB64.5` («Enfermedades del aparato respiratorio que complican el embarazo…») por
+  **CROSSWALK** desde el `cie10_legacy`; el detalle devuelve 5 bloques con todos los campos no vacíos.
+
+### 28.3 Notas
+
+- La sugerencia es una **propuesta determinista**, no las reglas de Selección de Causa Básica de la
+  OMS: la valida quien codifica.
+- Para registrar la confirmación **basta la consulta por número**: la bandeja antigua (lista de
+  pendientes + PATCH) se conserva para los roles que editan (transcriptor/director).
+- El número real del certificado (`NUMEROMSDS`/`NROPLANILLA`, §27.16) todavía no se usa como número
+  de consulta: sigue `registro_numero`. Si se decide poblar `numero_certificado`, el flujo de
+  consulta por número puede buscarlo también.

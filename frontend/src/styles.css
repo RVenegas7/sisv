@@ -536,6 +536,15 @@ main.contenido {
   min-width: 0;
 }
 
+.formulario fieldset.subbloque {
+  display: contents;
+}
+
+.formulario fieldset.subbloque:disabled .campo label,
+.formulario fieldset.subbloque:disabled .subseccion {
+  opacity: 0.55;
+}
+
 .formulario textarea {
   padding: 0.55rem 0.65rem;
   border: 1px solid var(--borde);
@@ -1000,6 +1009,57 @@ main.contenido {
   margin: 0 0 0.8rem;
   font-size: 0.95rem;
   color: var(--verde-oscuro);
+}
+
+/* Detalle legible de un certificado consultado por número (codificación) */
+.detalle-certificado .seccion {
+  border-bottom: 1px dashed var(--borde);
+  padding-bottom: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.detalle-certificado .seccion:last-child {
+  border-bottom: none;
+}
+
+.detalle-certificado h3 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--verde-oscuro);
+  margin: 0 0 0.4rem;
+}
+
+.grid-detalle {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.35rem 0.8rem;
+  margin: 0;
+}
+
+.grid-detalle div {
+  border-left: 2px solid var(--borde);
+  padding-left: 0.45rem;
+}
+
+.grid-detalle dt {
+  font-size: 0.72rem;
+  color: var(--texto-suave);
+}
+
+.grid-detalle dd {
+  margin: 0;
+  font-size: 0.85rem;
+  word-break: break-word;
+}
+
+.sugerencias-cat {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
 .barras {

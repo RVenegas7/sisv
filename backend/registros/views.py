@@ -8,18 +8,22 @@ from django.db.models import Q, Count, Max
 from django.db.models.functions import TruncMonth, ExtractYear, ExtractMonth
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse, StreamingHttpResponse
+from django.utils import timezone
 from rest_framework.views import APIView
 
 from sisv_backend.api import error, ok
 
 from .models import ConfiguracionGeneral, Defuncion, FichaVigilancia, Nacimiento
+from .presentacion import detalle_certificado
 from .serializers import DefuncionSerializer, FichaVigilanciaSerializer, NacimientoSerializer
 from .services import (
     muerte_materna_detalle,
     muerte_materna_por_organizacion,
     muerte_materna_por_semana,
+    validar_seleccion_cie,
 )
-from catalogos.models import MapeoCIE
+from .sugerencia import sugerir
+from catalogos.models import CIE10, CIE11, MapeoCIE
 from seguridad.models import Organizacion
 from vigilancia.models import ConsolidadoSemanal
 
@@ -43,6 +47,7 @@ NOMBRES_PERMISOS = {
     "puede_editar": "editar registros",
     "puede_eliminar": "eliminar registros",
     "puede_configurar": "acceder a la configuración general",
+    "puede_codificar": "confirmar la codificación CIE",
 }
 
 MODELOS = {
@@ -538,6 +543,142 @@ class CodificacionView(APIView):
                 "paginas": (total + por_pagina - 1) // por_pagina,
             },
         )
+
+
+_CAMPO_NUMERO = {
+    "defunciones": "registro_numero",
+    "nacimientos": "registro_numero",
+    "fichas": "codigo_notificacion",
+}
+
+
+def _resolver_certificado(modulo, numero, request):
+    """Busca un certificado por su número exacto respetando el alcance.
+
+    Devuelve ``(registro, None)`` o ``(None, respuesta_de_error)``. El número es el
+    `registro_numero` (nacimientos/defunciones) o el `codigo_notificacion` (fichas).
+    """
+    if modulo not in MODELOS:
+        return None, error(f"Módulo no válido: {modulo}", status=400)
+    numero = (numero or "").strip()
+    if not numero:
+        return None, error("Debe indicar el número del certificado.", status=400)
+    qs = _por_alcance(
+        MODELOS[modulo].objects.select_related("organizacion", "cie10", "cie11", "codificado_por"),
+        request,
+    )
+    campo = _CAMPO_NUMERO[modulo]
+    registro = qs.filter(**{f"{campo}__iexact": numero}).order_by("-fecha_evento").first()
+    if registro is None:
+        return None, error("Certificado no encontrado o fuera de su alcance.", status=404)
+    return registro, None
+
+
+def _cie_por_codigo(version, codigo):
+    """Resuelve el objeto CIE de un código del catálogo (subgrupo preferido en CIE-11)."""
+    codigo = (codigo or "").strip()
+    if not codigo:
+        return None
+    if version == "CIE10":
+        return CIE10.objects.filter(codigo__iexact=codigo).first()
+    # Un mismo código CIE-11 puede existir como categoría y como subgrupo; se prefiere
+    # el más específico (subgrupo, nivel 4).
+    return CIE11.objects.filter(codigo__iexact=codigo).order_by("-nivel").first()
+
+
+def _guardar_sugerencia(registro, resultado):
+    """Persiste la sugerencia para dejar constancia de qué se propuso antes de confirmar."""
+    basica = resultado.get("causa_basica") or {}
+    registro.sugerencia_codigo = basica.get("codigo", "") or ""
+    registro.sugerencia_titulo = (basica.get("titulo", "") or "")[:500]
+    registro.sugerencia_origen = resultado.get("origen", "CATALOGO")
+    registro.sugerencia_json = resultado
+    registro.sugerencia_en = timezone.now()
+    registro.save(update_fields=[
+        "sugerencia_codigo", "sugerencia_titulo", "sugerencia_origen",
+        "sugerencia_json", "sugerencia_en",
+    ])
+
+
+def _sugerencia_actual(registro):
+    return {
+        "codigo": registro.sugerencia_codigo,
+        "titulo": registro.sugerencia_titulo,
+        "origen": registro.sugerencia_origen,
+        "origen_label": registro.get_sugerencia_origen_display() if registro.sugerencia_origen else "",
+        "en": registro.sugerencia_en,
+        "detalle": registro.sugerencia_json,
+    }
+
+
+class ConsultaCertificadoView(APIView):
+    """Consulta un certificado por número: todo lo registrado + la sugerencia CIE.
+
+    GET /api/registros/consulta/?modulo=defunciones&numero=DEF-2026-000003
+
+    Solo lectura: el detalle agrupado lo arma `presentacion.detalle_certificado`. Si el
+    certificado aún no está confirmado, se (re)calcula la sugerencia con el catálogo
+    local y se guarda, para que quede la constancia de qué se propuso al confirmar.
+    """
+
+    def get(self, request):
+        modulo = (request.query_params.get("modulo", "defunciones") or "").strip().lower()
+        registro, err = _resolver_certificado(modulo, request.query_params.get("numero"), request)
+        if err:
+            return err
+        if not registro.codificado_en:
+            _guardar_sugerencia(registro, sugerir(registro))
+        serializer = SERIALIZADORES[modulo]
+        return ok({
+            "modulo": modulo,
+            "numero": getattr(registro, _CAMPO_NUMERO[modulo]),
+            "registro": serializer(registro).data,
+            "detalle": detalle_certificado(registro),
+            "sugerencia": _sugerencia_actual(registro),
+            "puede_codificar": permisos_de(request.user)["puede_codificar"],
+        })
+
+
+class ConfirmarCodificacionView(APIView):
+    """Confirma la codificación CIE de un certificado (rol CODIFICADOR).
+
+    POST /api/registros/consulta/confirmar/
+    body: ``{"modulo": "defunciones", "numero": "...", "codigo": "...", "version_cie": "CIE11"}``
+
+    El código debe existir en el catálogo y ser coherente con la fecha del evento
+    (misma validación que la captura). Queda la auditoría de quién y cuándo confirmó.
+    """
+
+    def post(self, request):
+        if not permisos_de(request.user)["puede_codificar"]:
+            return _denegar("puede_codificar")
+        datos = request.data or {}
+        modulo = (datos.get("modulo", "") or "").strip().lower()
+        registro, err = _resolver_certificado(modulo, datos.get("numero"), request)
+        if err:
+            return err
+
+        version = (datos.get("version_cie") or registro.version_cie or "CIE11").strip().upper()
+        if version not in ("CIE10", "CIE11"):
+            return error("Versión CIE no válida.", status=400)
+        cie_obj = _cie_por_codigo(version, datos.get("codigo"))
+        if cie_obj is None:
+            return error(f"Código {version} no encontrado en el catálogo: {datos.get('codigo')}", status=400)
+
+        nuevo_cie10 = cie_obj if version == "CIE10" else None
+        nuevo_cie11 = cie_obj if version == "CIE11" else None
+        errores = validar_seleccion_cie(version, nuevo_cie10, nuevo_cie11, registro.fecha_evento)
+        if errores:
+            return error("No se puede confirmar esa codificación", errores, 400)
+
+        registro.version_cie = version
+        registro.cie10 = nuevo_cie10
+        registro.cie11 = nuevo_cie11
+        registro.confirmar_codificacion(request.user)
+        registro.save()
+
+        serializer = SERIALIZADORES[modulo]
+        return ok(serializer(registro).data, message="Codificación confirmada")
 
 
 class NacimientoView(_RegistroAPI):

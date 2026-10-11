@@ -298,6 +298,16 @@ export async function listarCodificacion(params = {}) {
   return r.data
 }
 
+export async function consultarCertificado(modulo, numero) {
+  const r = await api.get("/registros/consulta/", { params: { modulo, numero } })
+  return r.data.data
+}
+
+export async function confirmarCodificacion(payload) {
+  const r = await api.post("/registros/consulta/confirmar/", payload)
+  return r.data.data
+}
+
 export async function listarTalonarios(params = {}) {
   const r = await api.get("/despacho/talonarios/", { params })
   return { items: r.data.data, count: r.data.count }

@@ -13,13 +13,17 @@ def permisos_de(user):
     """Permisos finos por acción según el rol. El superusuario siempre tiene todo."""
     es_super = bool(user) and bool(getattr(user, "is_superuser", False))
     rol = rol_de(user)
-    escribir = es_super or rol in ("TRANSCRIPTOR", "CODIFICADOR", "VIGILANCIA", "DIRECTOR")
+    # El CODIFICADOR ya no edita el certificado: consulta el registro por número,
+    # lo ve completo y solo confirma la codificación CIE (ver `puede_codificar`).
+    escribir = es_super or rol in ("TRANSCRIPTOR", "VIGILANCIA", "DIRECTOR")
     return {
         # Rol (para UI): quién puede crear/editar registros
         "puede_escribir": escribir,
         "puede_editar": escribir,
         "puede_eliminar": es_super or rol == "DIRECTOR",
         "puede_configurar": es_super or rol == "DIRECTOR",
+        # Confirmación de la codificación CIE (sugerida y autorizada por logueado).
+        "puede_codificar": es_super or rol in ("CODIFICADOR", "DIRECTOR"),
         # Despacho de talonarios de certificados: lo lleva el jefe de la unidad.
         # El DIRECTOR entra porque ya tiene el resto de los permisos de configurar;
         # el superusuario siempre.
