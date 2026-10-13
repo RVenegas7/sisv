@@ -313,7 +313,9 @@ Idioma de trabajo: **responder siempre en español**.
 - `despacho`: **control de entrega de talonarios de certificados de nacimiento y defunción** (01/10/2026).
   El legacy **no guardó nunca el despacho** (`sismai.NUMERO_BD` y `sismai.HISTORICO_IDS` están vacías), así
   que se captura desde cero. Modelos: `Talonario` (tipo NACIMIENTO|DEFUNCION, centro, fecha_entrega,
-  serie_desde/serie_hasta, `cantidad` calculada, responsables, observaciones) y `NovedadCertificado`
+  serie_desde/serie_hasta, `cantidad` calculada, responsables, observaciones) — el alta pide
+  **serie desde + cantidad** y deriva `serie_hasta = desde + cantidad − 1` (también acepta
+  `serie_hasta` directo), y `NovedadCertificado`
   (excepción por certificado: DANADO|EN_TRANSITO|DEVUELTO con justificación y datos del tránsito; unique por
   talonario+numero). El **uso** se deduce cruzando el **sufijo numérico** de `registro_numero`
   (`DEF-2026-000003`→3) contra la serie, dentro del subárbol del centro
@@ -572,7 +574,7 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
 - **Pruebas automatizadas (12/10/2026):** backend con `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
   (**correr desde `backend/`** — desde la raíz descubre 0 tests),
-  (**253 pruebas a 12/10/2026** (verificado): 115 de `backend/tests_sisv.py` + 18 de `backend/despacho/tests.py`
+  (**255 pruebas a 12/10/2026** (verificado): 115 de `backend/tests_sisv.py` + 20 de `backend/despacho/tests.py`
   + 22 de `backend/registradores/tests.py`
   + 33 de `conciliacion` (16 ENO +
   9 neonatal + 8 materna) + 27 de `registros/tests.py` (2 EV-14, 7 de las secciones del

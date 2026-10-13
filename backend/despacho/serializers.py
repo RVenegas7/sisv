@@ -8,6 +8,11 @@ class TalonarioSerializer(serializers.ModelSerializer):
     tipo_label = serializers.SerializerMethodField()
     resumen = serializers.SerializerMethodField()
 
+    # El formulario pide «serie desde» + «cantidad»; si no viene «serie_hasta»
+    # se deriva (desde + cantidad - 1). `cantidad` se recalcula en Talonario.save.
+    serie_hasta = serializers.IntegerField(required=False, min_value=1)
+    cantidad = serializers.IntegerField(required=False, min_value=1)
+
     class Meta:
         model = Talonario
         fields = [
@@ -16,7 +21,11 @@ class TalonarioSerializer(serializers.ModelSerializer):
             "responsable_recibe", "responsable_entrega", "observaciones",
             "creado_en", "resumen",
         ]
-        read_only_fields = ["cantidad", "creado_en", "centro_nombre", "tipo_label", "resumen"]
+        read_only_fields = ["creado_en", "centro_nombre", "tipo_label", "resumen"]
+        # El UniqueTogetherValidator de DRF exigiría «serie_hasta» presente antes
+        # de validate(), donde se deriva de la cantidad. La duplicidad por serie
+        # se valida a mano en validate() (misma restricción del modelo).
+        validators = []
 
     def get_centro_nombre(self, obj):
         return obj.centro.nombre if obj.centro_id else None
@@ -35,6 +44,15 @@ class TalonarioSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         desde = attrs.get("serie_desde", getattr(self.instance, "serie_desde", None))
         hasta = attrs.get("serie_hasta", getattr(self.instance, "serie_hasta", None))
+        cantidad = attrs.get("cantidad")
+        # «Cantidad» es la forma de pedir la serie: hasta = desde + cantidad - 1.
+        if hasta is None and desde is not None:
+            if cantidad is None:
+                raise serializers.ValidationError(
+                    {"cantidad": "Indique la cantidad entregada (o la serie hasta)."}
+                )
+            hasta = desde + cantidad - 1
+            attrs["serie_hasta"] = hasta
         if desde is not None and hasta is not None and hasta < desde:
             raise serializers.ValidationError(
                 {"serie_hasta": "La serie hasta no puede ser menor que la serie desde."}

@@ -38,7 +38,7 @@ const FORMA_VACIA = {
   centro: null,
   fecha_entrega: "",
   serie_desde: "",
-  serie_hasta: "",
+  cantidad: "",
   responsable_recibe: "",
   responsable_entrega: "",
   observaciones: "",
@@ -104,12 +104,17 @@ export default function Despacho({ usuario }) {
       avisar("error", "Seleccione el centro de salud al que se asigna el talonario.")
       return
     }
+    const cantidad = Number(form.cantidad)
+    if (!Number.isInteger(cantidad) || cantidad < 1) {
+      avisar("error", "Indique la cantidad de certificados asignados (un entero mayor que cero).")
+      return
+    }
     const payload = {
       tipo: form.tipo,
       centro: form.centro,
       fecha_entrega: form.fecha_entrega,
       serie_desde: Number(form.serie_desde),
-      serie_hasta: Number(form.serie_hasta),
+      cantidad,
       responsable_recibe: form.responsable_recibe,
       responsable_entrega: form.responsable_entrega,
       observaciones: form.observaciones,
@@ -213,6 +218,12 @@ export default function Despacho({ usuario }) {
   }
 
   const opcionesCentros = centros.map((c) => [String(c.id), c.nombre])
+  const desdeNum = Number(form.serie_desde)
+  const cantidadNum = Number(form.cantidad)
+  const hastaCalculada =
+    Number.isInteger(desdeNum) && desdeNum >= 1 && Number.isInteger(cantidadNum) && cantidadNum >= 1
+      ? desdeNum + cantidadNum - 1
+      : null
   const novedadesPorNumero = {}
   if (detalle) {
     for (const c of detalle.certificados) {
@@ -271,14 +282,22 @@ export default function Despacho({ usuario }) {
                 onChange={(e) => setForm((f) => ({ ...f, serie_desde: e.target.value }))}
               />
             </Campo>
-            <Campo label="Serie hasta" htmlFor="tal-hasta">
+            <Campo label="Cantidad asignada" htmlFor="tal-cantidad">
               <Input
-                id="tal-hasta"
+                id="tal-cantidad"
                 type="number"
                 min="1"
                 required
-                value={form.serie_hasta}
-                onChange={(e) => setForm((f) => ({ ...f, serie_hasta: e.target.value }))}
+                value={form.cantidad}
+                onChange={(e) => setForm((f) => ({ ...f, cantidad: e.target.value }))}
+              />
+            </Campo>
+            <Campo label="Serie hasta (automática)" htmlFor="tal-hasta">
+              <Input
+                id="tal-hasta"
+                type="number"
+                readOnly
+                value={hastaCalculada || ""}
               />
             </Campo>
             <Campo label="Responsable que recibe" htmlFor="tal-recibe">

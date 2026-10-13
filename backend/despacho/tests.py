@@ -67,6 +67,25 @@ class DespachoTalonarioTests(DespachoBase):
         self.assertEqual(r.json()["data"]["cantidad"], 10)
         self.assertEqual(Talonario.objects.count(), 1)
 
+    def test_cantidad_deriva_serie_hasta(self):
+        """El alta pide cantidad y la serie hasta se calcula (desde + cantidad - 1)."""
+        self.login(self.u_jefe)
+        datos = self.datos_talonario(serie_desde=500, cantidad=50)
+        del datos["serie_hasta"]
+        r = self.client.post("/api/despacho/talonarios/", datos, content_type="application/json")
+        self.assertEqual(r.status_code, 201, r.content.decode())
+        tal = Talonario.objects.get()
+        self.assertEqual(tal.serie_desde, 500)
+        self.assertEqual(tal.serie_hasta, 549)
+        self.assertEqual(tal.cantidad, 50)
+
+    def test_cantidad_o_hasta_obligatoria(self):
+        self.login(self.u_jefe)
+        datos = self.datos_talonario(serie_desde=500)
+        del datos["serie_hasta"]
+        r = self.client.post("/api/despacho/talonarios/", datos, content_type="application/json")
+        self.assertEqual(r.status_code, 400)
+
     def test_serie_invalida(self):
         self.login(self.u_jefe)
         r = self.client.post(

@@ -3248,3 +3248,17 @@ filas anidadas:
   0,28 s (S38: 7.291 casos morbilidad / 2 mortalidad / 147 cabeceras / 146 establecimientos);
   `epi15/resumen/?anio=2026` → 200, 8 semanas, 0,08 s; POST de la S38 existente → 200 con el mismo
   `id` y `count` de morbilidad S38 sin cambiar (146).
+
+## 30. [PENDIENTE — preguntar al usuario] PAI: ¿qué debe registrar el programa de inmunizaciones?
+
+Durante los **controles epidemiológicos** se realiza el PAI (Programa Ampliado de
+Inmunizaciones). Antes de modelar nada hay que preguntar al usuario **qué debe registrar
+SISV del PAI**. Hipótesis a confirmar:
+
+- ¿Dosis aplicadas por biológico (BCG, hepatitis B, pentavalente, SRP, DPT, polio, amarilica…)
+  con esquema (primera/segunda/refuerzo) y grupo etario?
+- ¿A nivel individual (vacunatorio por niño, con historia) o solo **consolidado semanal/mensual**
+  por establecimiento, estilo EPI-12/EPI-15?
+- ¿Coberturas, población diana, vacunas vencidas/perdidas, cadena de frío?
+- ¿Con qué instrumento papel oficial se reporta hoy y quién lo consolida (centro → ASIC →
+  regional)?
