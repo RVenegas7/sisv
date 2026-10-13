@@ -71,6 +71,7 @@ describe("exportaciones", () => {
     expect(apiMock.cliente.get).toHaveBeenCalledWith("/registros/reportes/exportar/", {
       params: { modulo: "nacimientos" },
       responseType: "blob",
+      timeout: 120000,
     })
   })
 })

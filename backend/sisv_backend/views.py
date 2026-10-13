@@ -9,7 +9,6 @@ ENDPOINTS = {
         "search_cie10": "/api/catalogos/cie10/buscar/?q=<texto|codigo>",
         "list_cie11": "/api/catalogos/cie11/",
         "arbol": "/api/catalogos/cie11/arbol/",
-        "ramas": "/api/catalogos/cie11/ramas/?padre=<id>",
         "search_cie11": "/api/catalogos/cie11/buscar/?q=<texto|codigo>",
         "mapeos": "/api/catalogos/mapeos/?cie10=<codigo>&cie11=<id>",
     },
@@ -37,6 +36,8 @@ ENDPOINTS = {
         "epi15": "/api/vigilancia/epi15/",
         "epi15_detail": "/api/vigilancia/epi15/<id>/",
         "epi15_exportar": "/api/vigilancia/epi15/exportar/",
+        "consolidados_resumen": "/api/vigilancia/consolidados/resumen/?anio=",
+        "epi15_resumen": "/api/vigilancia/epi15/resumen/?anio=",
     },
     "seguridad": {
         "organizaciones": "/api/seguridad/organizaciones/",

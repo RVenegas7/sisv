@@ -1,5 +1,6 @@
 import api, { setCsrf } from "./axios"
 
+const TIMEOUT_EXPORT = 120000
 export async function iniciarSesion(username, password) {
   const r = await api.post("/auth/login/", { username, password })
   const token = await obtenerCsrf()
@@ -153,12 +154,13 @@ export async function exportarReporteSemanalMMI(params = {}) {
   const r = await api.get("/registros/reportes/semanal-mmi/", {
     params: { ...params, formato: "csv" },
     responseType: "blob",
+    timeout: TIMEOUT_EXPORT,
   })
   return r.data
 }
 
 export async function exportarReportes(params = {}) {
-  const r = await api.get("/registros/reportes/exportar/", { params, responseType: "blob" })
+  const r = await api.get("/registros/reportes/exportar/", { params, responseType: "blob", timeout: TIMEOUT_EXPORT })
   return r.data
 }
 
@@ -279,7 +281,7 @@ export async function eliminarConsolidado(id) {
 }
 
 export async function exportarConsolidados(params = {}) {
-  const r = await api.get("/vigilancia/consolidados/exportar/", { params, responseType: "blob" })
+  const r = await api.get("/vigilancia/consolidados/exportar/", { params, responseType: "blob", timeout: TIMEOUT_EXPORT })
   return r.data
 }
 
@@ -299,7 +301,7 @@ export async function obtenerEpi15(id) {
 }
 
 export async function exportarEpi15(params = {}) {
-  const r = await api.get("/vigilancia/epi15/exportar/", { params, responseType: "blob" })
+  const r = await api.get("/vigilancia/epi15/exportar/", { params, responseType: "blob", timeout: TIMEOUT_EXPORT })
   return r.data
 }
 
@@ -365,6 +367,7 @@ export async function exportarDespacho(ruta, params = {}) {
   const r = await api.get(`/despacho/reportes/${ruta}/`, {
     params: { ...params, formato: "csv" },
     responseType: "blob",
+    timeout: TIMEOUT_EXPORT,
   })
   return r.data
 }

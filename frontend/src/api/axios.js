@@ -22,7 +22,20 @@ api.interceptors.request.use((cfg) => {
 
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
+  async (err) => {
+    if (err.response?.status === 403 && !err.config.__csrfRetried) {
+      // Un 403 puede ser el token CSRF rotado: se pide otro una vez y se reintenta.
+      err.config.__csrfRetried = true
+      try {
+        const r = await api.get("/auth/csrf/")
+        setCsrf(r.data.data.csrf)
+        err.config.headers["X-CSRFToken"] = r.data.data.csrf
+        return api(err.config)
+      } catch {
+        // Si persiste, cae al reject con el msg original
+        return Promise.reject(err)
+      }
+    }
     const msg = err.response?.data?.message || err.message || "Error de red"
     const errors = err.response?.data?.errors
     if (err.response?.status === 401) {

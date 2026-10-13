@@ -8,12 +8,24 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-insecure-sisv-dev-no-usar-en-produccion")
-DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
+_SECRET_DEV = "django-insecure-sisv-dev-no-usar-en-produccion"
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", _SECRET_DEV)
+# DEBUG fail-closed: sin DJANGO_DEBUG explícito arranca en modo seguro.
+DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
 if DEBUG:
     ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
 else:
     ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+# Producción: exigir DJANGO_SECRET_KEY real.
+if not DEBUG and SECRET_KEY == _SECRET_DEV:
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        "Defina DJANGO_SECRET_KEY en producción (no se permite el valor de desarrollo)."
+    )
+# Las cookies solo viajan por HTTPS fuera de depuración (en desarrollo local van por HTTP).
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+
 
 
 def _ip_local():

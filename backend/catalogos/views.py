@@ -70,10 +70,18 @@ class CIE10DetailView(APIView):
         return ok(CIE10Serializer(obj).data)
 
 
+def _int_param(valor, defecto=None):
+    """int() tolerante: un query param basura no provoca 500."""
+    try:
+        return int(str(valor).strip())
+    except (TypeError, ValueError):
+        return defecto
+
+
 class CIE11ListView(APIView):
     def get(self, request):
-        nivel = int(request.query_params.get("nivel", 0) or 0)
-        padre = int(request.query_params.get("padre", 0) or 0)
+        nivel = _int_param(request.query_params.get("nivel", 0), 0)
+        padre = _int_param(request.query_params.get("padre", 0), 0)
         qs = CIE11.objects.filter(activo=True)
         if nivel:
             qs = qs.filter(nivel=nivel)

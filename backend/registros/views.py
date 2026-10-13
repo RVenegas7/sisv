@@ -23,6 +23,14 @@ from .services import (
     validar_seleccion_cie,
 )
 from .sugerencia import sugerir
+
+
+def _int_param(valor, defecto=None):
+    """int() tolerante."""
+    try:
+        return int(str(valor).strip())
+    except (TypeError, ValueError):
+        return defecto
 from catalogos.models import CIE10, CIE11, MapeoCIE
 from seguridad.models import Organizacion
 from vigilancia.models import ConsolidadoSemanal
@@ -38,6 +46,7 @@ from vigilancia.services import (
 )
 from seguridad.services import (
     alcance_registros,
+    organizacion_destino_valida,
     organizacion_por_defecto,
     permisos_de,
 )
@@ -435,7 +444,10 @@ class _RegistroAPI(APIView):
         s = self.serializer(data=datos)
         if not s.is_valid():
             return error("Datos inválidos", s.errors, 400)
-        obj = s.save(organizacion_id=organizacion_por_defecto(request.user, datos))
+        org_id = organizacion_por_defecto(request.user, datos)
+        if org_id is not None and not organizacion_destino_valida(request.user, org_id):
+            return error("La organización destino está fuera de su alcance geográfico.", status=403)
+        obj = s.save(organizacion_id=org_id)
         return ok(self.serializer(obj).data, message=f"{self.etiqueta.title()} creado", status=201)
 
     def put(self, request, pk):
@@ -457,7 +469,10 @@ class _RegistroAPI(APIView):
         alc = alcance_registros(request.user)
         forzar_centro = isinstance(alc, dict) and alc["tipo"] == "CENTRO"
         if "organizacion" in datos or forzar_centro:
-            s.save(organizacion_id=organizacion_por_defecto(request.user, datos))
+            org_id = organizacion_por_defecto(request.user, datos)
+            if not organizacion_destino_valida(request.user, org_id):
+                return error("La organización destino está fuera de su alcance geográfico.", status=403)
+            s.save(organizacion_id=org_id)
         else:
             s.save()
         return ok(self.serializer(s.instance).data, message=f"{self.etiqueta.title()} actualizado")
@@ -1031,8 +1046,8 @@ class ReporteComparativoView(APIView):
     LOTES_MMI = ["LEGACY-MMI", "LEGACY-VIOLENTA"]
 
     def get(self, request):
-        anio1 = int(request.query_params.get("anio1", date.today().year))
-        anio2 = int(request.query_params.get("anio2", date.today().year - 1))
+        anio1 = _int_param(request.query_params.get("anio1"), date.today().year)
+        anio2 = _int_param(request.query_params.get("anio2"), date.today().year - 1)
 
         def _serie(anio):
             def contar(modelo, **extra):
@@ -1429,9 +1444,15 @@ class ConfiguracionView(APIView):
             if campo in datos and datos[campo] is not None and str(datos[campo]).strip() != "":
                 setattr(cfg, campo, datos[campo])
         if datos.get("fecha_corte_cie11") not in (None, ""):
-            cfg.fecha_corte_cie11 = date.fromisoformat(str(datos["fecha_corte_cie11"])[:10])
+            try:
+                cfg.fecha_corte_cie11 = date.fromisoformat(str(datos["fecha_corte_cie11"])[:10])
+            except ValueError:
+                return error("fecha_corte_cie11 debe ser YYYY-MM-DD.", status=400)
         if datos.get("organizacion_activa") not in (None, ""):
-            cfg.organizacion_activa_id = int(datos["organizacion_activa"])
+            org_id = _int_param(datos["organizacion_activa"])
+            if org_id is None:
+                return error("organizacion_activa debe ser entero.", status=400)
+            cfg.organizacion_activa_id = org_id
         if "detectar_meses_degradados" in datos and datos["detectar_meses_degradados"] is not None:
             cfg.detectar_meses_degradados = bool(datos["detectar_meses_degradados"])
         if datos.get("factor_mes_degradado") not in (None, ""):

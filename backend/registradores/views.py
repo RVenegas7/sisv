@@ -56,6 +56,19 @@ def _por_alcance_designaciones(qs, request):
     return qs
 
 
+def _registro_civil_en_alcance(request, pk):
+    """¿El registro civil está dentro del alcance? (para vistas de detalle)."""
+    return _por_alcance_registros_civiles(
+        RegistroCivil.objects.filter(pk=pk), request
+    ).exists()
+
+
+def _designacion_en_alcance(request, pk):
+    return _por_alcance_designaciones(
+        DesignacionRegistrador.objects.filter(pk=pk), request
+    ).exists()
+
+
 # --------------------------------------------------------------------------
 # Registros civiles
 # --------------------------------------------------------------------------
@@ -91,7 +104,7 @@ class RegistroCivilDetalleView(APIView):
 
     def get(self, request, pk):
         obj = self._get(pk)
-        if obj is None:
+        if obj is None or not _registro_civil_en_alcance(request, pk):
             return error("Registro civil no encontrado", status=404)
         return ok(RegistroCivilSerializer(obj).data)
 
@@ -105,7 +118,7 @@ class RegistroCivilDetalleView(APIView):
         if not _puede(request):
             return _denegar()
         obj = self._get(pk)
-        if obj is None:
+        if obj is None or not _registro_civil_en_alcance(request, pk):
             return error("Registro civil no encontrado", status=404)
         s = RegistroCivilSerializer(obj, data=request.data or {}, partial=parcial)
         if not s.is_valid():
@@ -116,7 +129,7 @@ class RegistroCivilDetalleView(APIView):
         if not _puede(request):
             return _denegar()
         obj = self._get(pk)
-        if obj is None:
+        if obj is None or not _registro_civil_en_alcance(request, pk):
             return error("Registro civil no encontrado", status=404)
         try:
             obj.delete()
@@ -243,7 +256,7 @@ class DesignacionDetalleView(APIView):
 
     def get(self, request, pk):
         obj = self._get(pk)
-        if obj is None:
+        if obj is None or not _designacion_en_alcance(request, pk):
             return error("Designación no encontrada", status=404)
         return ok(DesignacionRegistradorSerializer(obj).data)
 
@@ -257,7 +270,7 @@ class DesignacionDetalleView(APIView):
         if not _puede(request):
             return _denegar()
         obj = self._get(pk)
-        if obj is None:
+        if obj is None or not _designacion_en_alcance(request, pk):
             return error("Designación no encontrada", status=404)
         s = DesignacionRegistradorSerializer(obj, data=request.data or {}, partial=parcial)
         if not s.is_valid():
@@ -268,7 +281,7 @@ class DesignacionDetalleView(APIView):
         if not _puede(request):
             return _denegar()
         obj = self._get(pk)
-        if obj is None:
+        if obj is None or not _designacion_en_alcance(request, pk):
             return error("Designación no encontrada", status=404)
         obj.delete()
         return ok(message="Designación eliminada")

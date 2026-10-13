@@ -8,10 +8,18 @@ from .models import ASIC, DivisionTerritorial
 NIVELES_VALIDOS = [v for v, _ in DivisionTerritorial.NIVEL_CHOICES]
 
 
+def _int_param(valor, defecto=None):
+    """int() tolerante: un query param basura no provoca 500."""
+    try:
+        return int(str(valor).strip())
+    except (TypeError, ValueError):
+        return defecto
+
+
 class TerritorioView(APIView):
     def get(self, request):
         nivel = request.query_params.get("nivel", "").strip().upper()
-        padre = int(request.query_params.get("padre", "0") or 0)
+        padre = _int_param(request.query_params.get("padre", "0") or 0)
         if nivel and nivel not in NIVELES_VALIDOS:
             return error(f"Nivel inválido. Use: {', '.join(NIVELES_VALIDOS)}")
         qs = DivisionTerritorial.objects.filter(activo=True)
@@ -144,7 +152,7 @@ class AsicView(APIView):
             responsable=str(datos.get("responsable", "")).strip(),
             telefono=str(datos.get("telefono", "")).strip(),
             email=str(datos.get("email", "")).strip(),
-            establecimientos_adscritos=int(datos.get("establecimientos_adscritos", 0) or 0),
+            establecimientos_adscritos=_int_param(datos.get("establecimientos_adscritos", 0) or 0, 0),
             observaciones=str(datos.get("observaciones", "")).strip(),
             activo=bool(datos.get("activo", True)),
         )
@@ -190,7 +198,7 @@ class AsicDetalleView(APIView):
             if campo in datos and datos[campo] is not None:
                 setattr(a, campo, str(datos[campo]).strip())
         if "establecimientos_adscritos" in datos and datos["establecimientos_adscritos"] is not None:
-            a.establecimientos_adscritos = int(datos["establecimientos_adscritos"])
+            a.establecimientos_adscritos = _int_param(datos["establecimientos_adscritos"], 0)
         if "activo" in datos:
             a.activo = bool(datos["activo"])
         if "codigo" in datos and ASIC.objects.filter(codigo=a.codigo).exclude(pk=a.pk).exists():

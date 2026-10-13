@@ -102,6 +102,27 @@ def organizacion_por_defecto(user, payload):
     return None
 
 
+def organizacion_destino_valida(user, org_id):
+    """¿La organización destino de una escritura está dentro del alcance?
+
+    Evita que un usuario con alcance regional asigne registros, consolidados
+    o talonarios a centros de otro estado, o un centro a otro centro.
+    """
+    if org_id in (None, ""):
+        return False
+    alc = alcance_registros(user)
+    if not isinstance(alc, dict):
+        return True
+    org = Organizacion.objects.filter(pk=org_id).only("id", "estado").first()
+    if org is None:
+        return False
+    if alc["tipo"] == "CENTRO":
+        return org.id == alc["organizacion_id"]
+    if alc["tipo"] == "REGIONAL" and alc.get("estado"):
+        return org.estado == alc["estado"]
+    return True
+
+
 def permitido_registro(user, registro):
     """¿Puede el usuario leer/editar este registro?"""
     alc = alcance_registros(user)

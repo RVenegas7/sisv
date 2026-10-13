@@ -11,7 +11,12 @@ from rest_framework.views import APIView
 
 from sisv_backend.api import error, ok
 
-from seguridad.services import alcance_registros, organizacion_por_defecto, permisos_de
+from seguridad.services import (
+    alcance_registros,
+    organizacion_destino_valida,
+    organizacion_por_defecto,
+    permisos_de,
+)
 from seguridad.models import Organizacion
 
 from .models import (
@@ -35,6 +40,14 @@ from .serializers import (
     SituacionEspecialSerializer,
 )
 from .services import sembrar_filas, semana_epidemiologica
+
+
+def _int_param(valor, defecto=None):
+    """int() tolerante: un query param basura no provoca 500."""
+    try:
+        return int(str(valor).strip())
+    except (TypeError, ValueError):
+        return defecto
 
 
 NOMBRES_PERMISOS = {
@@ -91,9 +104,12 @@ class ConsolidadoSemanalListView(APIView):
         semana = request.query_params.get("semana", "").strip()
         tipo = request.query_params.get("tipo", "").strip().upper()
         if anio:
-            qs = qs.filter(anio=int(anio))
-        if semana:
-            qs = qs.filter(semana=int(semana))
+            anio_i = _int_param(anio)
+            if anio_i is not None:
+                qs = qs.filter(anio=anio_i)
+        semana_i = _int_param(semana)
+        if semana_i is not None:
+            qs = qs.filter(semana=semana_i)
         if tipo in ("MORBILIDAD", "MORTALIDAD"):
             qs = qs.filter(tipo=tipo)
         qs = qs.order_by("-anio", "-semana", "tipo")
@@ -105,10 +121,13 @@ class ConsolidadoSemanalListView(APIView):
             return _denegar("puede_escribir")
         datos = dict(request.data or {})
         org_id = organizacion_por_defecto(request.user, datos)
-        if not datos.get("organizacion"):
-            if not org_id:
-                return error("Debe indicar la organización/establecimiento destino para el consolidado.", status=400)
-            datos["organizacion"] = org_id
+        if not org_id:
+            return error("Debe indicar la organización/establecimiento destino para el consolidado.", status=400)
+        # Se valida la org ya resuelta (para un usuario de CENTRO es la suya,
+        # lo enviado se ignora); un REGIONAL no puede elegir otro estado.
+        if not organizacion_destino_valida(request.user, org_id):
+            return error("El establecimiento destino está fuera de su alcance geográfico.", status=403)
+        datos["organizacion"] = org_id
         org = Organizacion.objects.filter(id=datos["organizacion"]).first()
         if org is not None:
             tiene_dependientes = org.hijos.filter(activo=True).exists()
@@ -291,17 +310,25 @@ def _reemplazar_filas(consolidado, filas_payload):
 
 
 def _reemplazar_situaciones(consolidado, payload):
+    # Solo columnas válidas de SituacionEspecial — bloquear mass-assignment.
+    SITUACION_PERMITIDO = {"tipo_evento", "comunidad", "casos", "muertes", "descripcion", "medidas_tomadas"}
     consolidado.situaciones_especiales.all().delete()
     for item in (payload or []):
         SituacionEspecial.objects.create(consolidado=consolidado, **{
-            k: v for k, v in item.items() if k != "id"
+            k: v for k, v in item.items() if k != "id" and k in SITUACION_PERMITIDO
         })
 
 
 def _reemplazar_alertas(consolidado, payload):
+    # Solo columnas válidas de AlertaEpidemia — bloquear mass-assignment.
+    ALERTA_PERMITIDO = {
+        "clase", "enfermedad", "casos", "muertes", "grave", "inusitado",
+        "impacto_nacional", "fecha_inicio", "fecha_fin", "unidad_geografica", "unidad_sanitaria",
+    }
+
     consolidado.alertas_epidemias.all().delete()
     for item in (payload or []):
-        valores = {k: v for k, v in item.items() if k not in ("id", "evento")}
+        valores = {k: v for k, v in item.items() if k not in ("id", "evento") and k in ALERTA_PERMITIDO}
         evento_id = item.get("evento")
         if evento_id:
             valores["evento_id"] = evento_id
@@ -318,9 +345,12 @@ class ConsolidadoSemanalExportView(APIView):
         semana = request.query_params.get("semana", "").strip()
         tipo = request.query_params.get("tipo", "").strip().upper()
         if anio:
-            qs = qs.filter(anio=int(anio))
-        if semana:
-            qs = qs.filter(semana=int(semana))
+            anio_i = _int_param(anio)
+            if anio_i is not None:
+                qs = qs.filter(anio=anio_i)
+        semana_i = _int_param(semana)
+        if semana_i is not None:
+            qs = qs.filter(semana=semana_i)
         if tipo in ("MORBILIDAD", "MORTALIDAD"):
             qs = qs.filter(tipo=tipo)
 
@@ -368,9 +398,12 @@ class Epi15ListView(APIView):
         anio = request.query_params.get("anio", "").strip()
         semana = request.query_params.get("semana", "").strip()
         if anio:
-            qs = qs.filter(anio=int(anio))
-        if semana:
-            qs = qs.filter(semana=int(semana))
+            anio_i = _int_param(anio)
+            if anio_i is not None:
+                qs = qs.filter(anio=anio_i)
+        semana_i = _int_param(semana)
+        if semana_i is not None:
+            qs = qs.filter(semana=semana_i)
         qs = qs.order_by("-anio", "-semana", "organizacion__nombre")
         data = ConsolidadoEpi15Serializer(qs, many=True).data
         return ok(data, count=qs.count())
@@ -447,9 +480,12 @@ class Epi15ExportView(APIView):
         anio = request.query_params.get("anio", "").strip()
         semana = request.query_params.get("semana", "").strip()
         if anio:
-            qs = qs.filter(anio=int(anio))
-        if semana:
-            qs = qs.filter(semana=int(semana))
+            anio_i = _int_param(anio)
+            if anio_i is not None:
+                qs = qs.filter(anio=anio_i)
+        semana_i = _int_param(semana)
+        if semana_i is not None:
+            qs = qs.filter(semana=semana_i)
 
         cabeceras = ["organizacion", "anio", "semana", "codigo", "evento", "casosp", "casoss", "casosx", "total"]
         buffer = io.StringIO()

@@ -100,6 +100,10 @@ export default function Despacho({ usuario }) {
 
   async function guardar(e) {
     e.preventDefault()
+    if (esMulticentro && !form.centro) {
+      avisar("error", "Seleccione el centro de salud al que se asigna el talonario.")
+      return
+    }
     const payload = {
       tipo: form.tipo,
       centro: form.centro,

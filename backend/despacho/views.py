@@ -8,7 +8,8 @@ from despacho.models import NovedadCertificado, Talonario
 from despacho.serializers import NovedadCertificadoSerializer, TalonarioSerializer
 from despacho.services import detalle_certificados, persona_registro, resumen_talonario
 from registros.models import Defuncion, Nacimiento
-from seguridad.services import alcance_registros, permisos_de
+from seguridad.models import Organizacion
+from seguridad.services import alcance_registros, organizacion_destino_valida, permisos_de
 from sisv_backend.api import error, ok
 
 MODELO_POR_TIPO = {
@@ -33,6 +34,25 @@ def _por_alcance(qs, request, campo="centro"):
     return qs
 
 
+def _en_alcance(request, centro_id):
+    """Lectura: el centro del talonario está dentro del alcance del usuario.
+
+    Además del caso directo (su centro / su estado), un usuario de centro puede
+    leer un talonario entregado a un ancestro (p. ej. la regional), porque el
+    cruce de certificados usa el subárbol del centro del talonario.
+    """
+    if organizacion_destino_valida(request.user, centro_id):
+        return True
+    alc = alcance_registros(request.user)
+    if isinstance(alc, dict) and alc["tipo"] == "CENTRO":
+        org = Organizacion.objects.filter(pk=alc["organizacion_id"]).first()
+        while org is not None:
+            if org.pk == centro_id:
+                return True
+            org = org.padre
+    return False
+
+
 class TalonariosView(APIView):
     def get(self, request):
         qs = Talonario.objects.select_related("centro").prefetch_related("novedades")
@@ -54,7 +74,19 @@ class TalonariosView(APIView):
     def post(self, request):
         if not permisos_de(request.user)["puede_despachar"]:
             return _denegar()
-        datos = request.data or {}
+        datos = dict(request.data or {})
+        alc = alcance_registros(request.user)
+        if isinstance(alc, dict) and alc["tipo"] == "CENTRO":
+            # El centro se fuerza al del usuario.
+            datos["centro"] = alc["organizacion_id"]
+        if not datos.get("centro"):
+            return error(
+                "Debe indicar el centro de salud al que se asigna el talonario.",
+                {"centro": "Obligatorio."},
+                400,
+            )
+        if not organizacion_destino_valida(request.user, datos["centro"]):
+            return error("El centro de salud elegido está fuera de su alcance geográfico.", status=403)
         s = TalonarioSerializer(data=datos)
         if not s.is_valid():
             return error("Datos inválidos", s.errors, 400)
@@ -71,7 +103,7 @@ class TalonarioDetalleView(APIView):
 
     def get(self, request, pk):
         obj = self._get(pk)
-        if obj is None:
+        if obj is None or not _en_alcance(request, obj.centro_id):
             return error("Talonario no encontrado", status=404)
         return ok(TalonarioSerializer(obj).data)
 
@@ -85,9 +117,16 @@ class TalonarioDetalleView(APIView):
         if not permisos_de(request.user)["puede_despachar"]:
             return _denegar()
         obj = self._get(pk)
-        if obj is None:
+        if obj is None or not _en_alcance(request, obj.centro_id):
             return error("Talonario no encontrado", status=404)
-        s = TalonarioSerializer(obj, data=request.data or {}, partial=parcial)
+        # La escritura es estricta: solo se modifica el talonario propio (o,
+        # en regional, uno de su estado), no el entregado a un ancestro.
+        if not organizacion_destino_valida(request.user, obj.centro_id):
+            return _denegar()
+        datos = dict(request.data or {})
+        if "centro" in datos and not organizacion_destino_valida(request.user, datos["centro"]):
+            return error("El centro de salud elegido está fuera de su alcance geográfico.", status=403)
+        s = TalonarioSerializer(obj, data=datos, partial=parcial)
         if not s.is_valid():
             return error("Datos inválidos", s.errors, 400)
         obj = s.save()
@@ -97,8 +136,10 @@ class TalonarioDetalleView(APIView):
         if not permisos_de(request.user)["puede_despachar"]:
             return _denegar()
         obj = self._get(pk)
-        if obj is None:
+        if obj is None or not _en_alcance(request, obj.centro_id):
             return error("Talonario no encontrado", status=404)
+        if not organizacion_destino_valida(request.user, obj.centro_id):
+            return _denegar()
         obj.delete()
         return ok(message="Talonario eliminado")
 
@@ -110,6 +151,8 @@ class TalonarioCertificadosView(APIView):
         try:
             talonario = Talonario.objects.select_related("centro").get(pk=pk)
         except Talonario.DoesNotExist:
+            return error("Talonario no encontrado", status=404)
+        if not _en_alcance(request, talonario.centro_id):
             return error("Talonario no encontrado", status=404)
         filas = detalle_certificados(talonario)
         return ok({
@@ -137,6 +180,9 @@ class NovedadesView(APIView):
         s = NovedadCertificadoSerializer(data=request.data or {})
         if not s.is_valid():
             return error("Datos inválidos", s.errors, 400)
+        talonario = s.validated_data.get("talonario")
+        if talonario is not None and not organizacion_destino_valida(request.user, talonario.centro_id):
+            return error("El talonario está fuera de su alcance geográfico.", status=403)
         obj = s.save()
         return ok(NovedadCertificadoSerializer(obj).data, message="Novedad registrada", status=201)
 
@@ -148,12 +194,25 @@ class NovedadDetalleView(APIView):
         except NovedadCertificado.DoesNotExist:
             return None
 
-    def patch(self, request, pk):
-        obj = self._get(pk)
-        if obj is None:
+    def _autorizar(self, request, obj):
+        """La novedad solo toca talonarios dentro del alcance del usuario.
+
+        La escritura es estricta (`organizacion_destino_valida`): un centro no
+        modifica novedades de un talonario entregado a un ancestro.
+        """
+        if obj is None or not _en_alcance(request, obj.talonario.centro_id):
             return error("Novedad no encontrada", status=404)
         if not permisos_de(request.user)["puede_despachar"]:
             return _denegar()
+        if not organizacion_destino_valida(request.user, obj.talonario.centro_id):
+            return _denegar()
+        return None
+
+    def patch(self, request, pk):
+        obj = self._get(pk)
+        denia = self._autorizar(request, obj)
+        if denia is not None:
+            return denia
         s = NovedadCertificadoSerializer(obj, data=request.data or {}, partial=True)
         if not s.is_valid():
             return error("Datos inválidos", s.errors, 400)
@@ -161,10 +220,9 @@ class NovedadDetalleView(APIView):
 
     def delete(self, request, pk):
         obj = self._get(pk)
-        if obj is None:
-            return error("Novedad no encontrada", status=404)
-        if not permisos_de(request.user)["puede_despachar"]:
-            return _denegar()
+        denia = self._autorizar(request, obj)
+        if denia is not None:
+            return denia
         obj.delete()
         return ok(message="Novedad eliminada")
 

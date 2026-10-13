@@ -54,5 +54,7 @@ centros_lara_status_I.csv
 # Extracciones de respaldo con datos personales (certificados legacy: nombres/cédulas)
 salida_mm_mn_*/
 lara_2019_2020.xlsx
+legancy/*.xlsx
+legancy/*.xls
 # Exportaciones de análisis puntuales (certificados con nombres/cédulas)
 nacimientos_semana*.csv

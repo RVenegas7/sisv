@@ -161,7 +161,7 @@ export default function App() {
             )
           )}
         </nav>
-        <a className="api-enlace" href="http://127.0.0.1:8000/api/" target="_blank" rel="noreferrer" onClick={cerrarMenu}>
+        <a className="api-enlace" href="/api/" target="_blank" rel="noreferrer" onClick={cerrarMenu}>
           Documentación API
         </a>
       </aside>

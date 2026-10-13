@@ -10,7 +10,7 @@ import {
 import CIESearch from "../components/CIESearch"
 import SeccionCIE from "../components/SeccionCIE"
 import { Boton, Campo, Input, Select } from "../components/ui"
-import { validarCIE } from "../utils/cie"
+import { seleccionDesdeRegistro, validarCIE } from "../utils/cie"
 
 const MODULOS = [
   ["defunciones", "Defunciones"],
@@ -122,12 +122,11 @@ export default function Codificacion({ usuario }) {
     cargar(1, m, "", "todos")
   }
 
-  function aplicar(reg) {
+  async function aplicar(reg) {
     setSeleccionado(reg)
-    let sel = CERO
-    if (reg.version_cie === "CIE10") sel = { c10: true, ...CERO, cie10: { id: reg.cie10, codigo: reg.cie10_detalle?.codigo, descripcion: reg.cie10_detalle?.descripcion } }
-    else if (reg.version_cie === "CIE11") sel = { ...CERO, cie11: { id: reg.cie11, codigo: reg.cie11_detalle?.codigo, titulo: reg.cie11_detalle?.titulo } }
-    setVerSeleccionado(sel)
+    // Misma precarga que las páginas de carga: conserva el subgrupo CIE-11
+    // (reg.cie11 = id del subgrupo cuando lo hay; cie11_detalle = categoría).
+    setVerSeleccionado(await seleccionDesdeRegistro(reg))
     setVersionManual(false)
     aviso("", "")
   }

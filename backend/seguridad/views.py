@@ -1,5 +1,7 @@
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.db.models.deletion import ProtectedError
 from django.middleware.csrf import get_token
 from rest_framework.permissions import AllowAny
@@ -9,8 +11,6 @@ from seguridad.models import Organizacion, Perfil
 from seguridad.services import perfil_de, permisos_de
 from seguridad.throttle import control_intentos, ip_del_request
 from sisv_backend.api import error, ok
-
-RolesView = None
 
 User = get_user_model()
 
@@ -130,6 +130,10 @@ class OrganizacionDetalleView(APIView):
 
 class UsuariosView(APIView):
     def get(self, request):
+        # El directorio de usuarios (roles, organizaciones, permisos) solo lo
+        # ve quien administra usuarios; no le sirve a los roles de lectura.
+        if not permisos_de(request.user)["puede_configurar"]:
+            return _denegar()
         qs = User.objects.select_related("perfil__organizacion").order_by("username")
         return ok([_serializar_usuario(u) for u in qs])
 
@@ -148,8 +152,14 @@ class UsuariosView(APIView):
                 },
                 400,
             )
+        try:
+            validate_password(clave)
+        except ValidationError as e:
+            return error("La contraseña no cumple los requisitos de seguridad.", {"password": e.messages}, 400)
         if User.objects.filter(username=username).exists():
             return error("El usuario ya existe.", {"username": "Ya existe un usuario con este nombre."}, 400)
+        if datos.get("es_superusuario") and not request.user.is_superuser:
+            return error("Solo un superusuario puede crear otro superusuario.", status=403)
         user = User.objects.create_user(username=username, password=clave)
         user.first_name = str(datos.get("nombre", "")).strip()
         user.is_superuser = bool(datos.get("es_superusuario", False))
@@ -166,6 +176,8 @@ class UsuarioDetalleView(APIView):
         return User.objects.filter(pk=pk).select_related("perfil__organizacion").first()
 
     def get(self, request, pk):
+        if not permisos_de(request.user)["puede_configurar"]:
+            return _denegar()
         u = self._obtener(pk)
         if u is None:
             return error("Usuario no encontrado", status=404)
@@ -178,6 +190,11 @@ class UsuarioDetalleView(APIView):
         if u is None:
             return error("Usuario no encontrado", status=404)
         datos = request.data or {}
+        # Solo un superusuario puede tocar la cuenta de otro superusuario
+        # (cambio de clave incluido); de lo contrario un DIRECTOR podría
+        # secuestrar la cuenta de acceso total.
+        if u.is_superuser and not request.user.is_superuser:
+            return error("No puede modificar la cuenta de un superusuario.", status=403)
         if "username" in datos and str(datos.get("username", "")).strip():
             nuevo = str(datos["username"]).strip()
             if nuevo != u.username and User.objects.filter(username=nuevo).exists():
@@ -186,7 +203,12 @@ class UsuarioDetalleView(APIView):
         if "nombre" in datos:
             u.first_name = str(datos.get("nombre", "")).strip()
         if "password" in datos and str(datos.get("password", "")):
-            u.set_password(str(datos["password"]))
+            clave_nueva = str(datos["password"])
+            try:
+                validate_password(clave_nueva, user=u)
+            except ValidationError as e:
+                return error("La contraseña no cumple los requisitos de seguridad.", {"password": e.messages}, 400)
+            u.set_password(clave_nueva)
         if "activo" in datos:
             u.is_active = bool(datos["activo"])
         if "es_superusuario" in datos and request.user.is_superuser:
@@ -218,6 +240,8 @@ class UsuarioDetalleView(APIView):
         u = self._obtener(pk)
         if u is None:
             return error("Usuario no encontrado", status=404)
+        if u.is_superuser and not request.user.is_superuser:
+            return error("No puede eliminar la cuenta de un superusuario.", status=403)
         if u.pk == request.user.pk:
             return error("No puede eliminar su propia cuenta.", status=400)
         u.delete()

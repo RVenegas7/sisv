@@ -73,6 +73,14 @@ Idioma de trabajo: **responder siempre en español**.
     configurar** → solo DIRECTOR y superusuario; **EPIDEMIÓLOGO** y **SECRETARIA** son solo lectura.
     El frontend deshabilita el formulario (bloqueo con `fieldset disabled`) y oculta los botones según
     `usuario.permisos`.
+  - **Gestión de usuarios endurecida (12/10/2026):** listar/ver usuarios (`/api/seguridad/usuarios/`)
+    exige `puede_configurar` (DIRECTOR/superusuario); solo un **superusuario** puede crear, modificar
+    (clave incluida) o eliminar la cuenta de otro superusuario (evita secuestro de cuenta por un
+    DIRECTOR), y las contraseñas (alta y cambio) pasan por `validate_password` además del mínimo de 6.
+  - **Frontera regional en escritura (12/10/2026):** `seguridad/services.py::organizacion_destino_valida`
+    valida que la organización destino esté dentro del alcance (CENTRO: solo la suya; REGIONAL: mismo
+    estado). Se aplica en POST/PATCH de registros (`registros/views.py`), consolidados (`vigilancia`)
+    y talonarios/novedades (`despacho`).
   - **Usuarios demo (clave `Sisv.2026!`, cambiar en producción):** `admin` (superusuario, acceso total),
     `laraepid` (transcriptor direcc. regional Lara), `codificadora` (codificadora regional, no elimina),
     `hbcentral` (transcriptor Hospital Central de Barquisimeto), `epi` (epidemiólogo, solo lectura),
@@ -316,8 +324,13 @@ Idioma de trabajo: **responder siempre en español**.
   `reportes/pendientes/` (entregados no retornados/justificados; CSV), respetando `alcance_registros`.
   **Rol nuevo `JEFE_UNIDAD` («Jefe de Unidad»)** en `seguridad.Perfil` y permiso `puede_despachar` en
   `permisos_de` (superusuario / JEFE_UNIDAD / DIRECTOR) para crear/editar/eliminar; leer y reportes, cualquier
-  autenticado. Frontend `/despacho` (`Despacho.jsx`). **Nota:** el reporte 1 de nacimientos usa el nombre
-  del **recién nacido** (`nino_nombres`/`nino_apellidos`, rotulado `persona: "Recién nacido"`) y cae al de
+  autenticado. Frontend `/despacho` (`Despacho.jsx`). **(12/10/2026)** alta de talonario: el **centro de salud es
+  obligatorio** (400 «Debe indicar el centro…») y se **fuerza al del usuario CENTRO**; niveles superiores eligen un
+  centro dentro de su alcance (`organizacion_destino_valida`) y el frontend lo exige en el formulario
+  (`CentroSelector`). Los detalles (`/talonarios/<id>/`, `/talonarios/<id>/certificados/`, `/novedades/<id>/`)
+  respetan el alcance (404 si está fuera); la **lectura** tolera talonarios entregados a un ancestro (el cruce usa
+  el subárbol) pero la **escritura** es estricta. **Nota:** el reporte 1 de nacimientos usa el nombre del
+  **recién nacido** (`nino_nombres`/`nino_apellidos`, rotulado `persona: "Recién nacido"`) y cae al de
   la **madre** (`persona: "Madre"`) cuando el registro no lo trae (importados antes del EV-25 sin backfill);
   el CSV lleva columna **Persona**. Pruebas: `despacho/tests.py` (18). El certificado de nacimiento ya
   se amplió al EV-25 (§23.3).
@@ -333,7 +346,8 @@ Idioma de trabajo: **responder siempre en español**.
   suplente a la vez), por eso la consulta devuelve todos los vigentes. Endpoints `/api/registradores/`:
   `registros-civiles/` y `/<id>/`, `registradores/` y `/<id>/`, `designaciones/` y `/<id>/` (filtros
   `registro_civil`, `registrador`, `cargo`, `vigente=1`). Escribe quien `puede_despachar`; leer, cualquier
-  autenticado; alcance igual al despacho. **Borrado protegido** (`PROTECT` → 400) con designaciones.
+  autenticado; alcance igual al despacho. **(12/10/2026)** las vistas de detalle (`/<id>/` GET/PATCH/DELETE de
+  registros civiles y designaciones) verifican el alcance (404 si está fuera). **Borrado protegido** (`PROTECT` → 400) con designaciones.
   Frontend `/registradores` (`Registradores.jsx`). Pruebas `registradores/tests.py` (22). **Catálogo
   sembrado del legacy** con `manage.py sembrar_registradores_legacy [--ejecutar] [--limite N]` (dry-run,
   idempotente): lee `sismai.CERTIFICADO.NOMREGISTRADOR`/`CIREGISTRADOR`/`NACREGISTRADOR` (167.447 filas,
@@ -547,6 +561,7 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
   (origin configurado). La llave SSH es `~/.ssh/oficina` (misma que entra al servidor de la oficina;
   está en el agente, y **no** existe `~/.ssh/sisv_github`). `git push origin main` basta.
   Antes de commitear revisar `.gitignore` (dumps legacy, `legancy_conf/*.env`, `salida_mm_mn_*/`,
+  `legancy/*.xlsx` — el «BASE UN PARA LOS ESTADOS.xlsx» se sacó del índice el 12/10/2026,
   `lara_2019_2020.xlsx`, etc.).
 - Código base Django/React ya creado: backend con serializers + vistas de datos reales y frontend con los
   formularios de carga de Nacimientos, Defunciones y Fichas de Vigilancia, más el buscador CIE
@@ -555,9 +570,9 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
 - Componentes frontend clave: `CIESearch` (autocomplete + cascada CIE-11 + subgrupos obligatorios),
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
-- **Pruebas automatizadas (24/09/2026):** backend con `DJANGO_DB_ENGINE=sqlite manage.py test`
+- **Pruebas automatizadas (12/10/2026):** backend con `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
   (**correr desde `backend/`** — desde la raíz descubre 0 tests),
-  (**227 pruebas a 06/10/2026** (verificado): 115 de `backend/tests_sisv.py` + 18 de `backend/despacho/tests.py`
+  (**253 pruebas a 12/10/2026** (verificado): 115 de `backend/tests_sisv.py` + 18 de `backend/despacho/tests.py`
   + 22 de `backend/registradores/tests.py`
   + 33 de `conciliacion` (16 ENO +
   9 neonatal + 8 materna) + 27 de `registros/tests.py` (2 EV-14, 7 de las secciones del
