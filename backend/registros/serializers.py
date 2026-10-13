@@ -218,7 +218,7 @@ class DefuncionSerializer(_VaciosANullMixin, _CIEDetalleMixin, _OrganizacionMixi
             "diagnostico_examen_cadaver", "diagnostico_examen_laboratorio", "diagnostico_historia_clinica",
             "diagnostico_interrogatorio_familiar", "cirugia", "fecha_ultima_cirugia", "descripcion_cirugia",
             "intervalo_enf_muerte", "correo_contacto", "matricula_mpps",
-            "registro_civil_nombre", "folio_defuncion", "numero_acta_defuncion", "fecha_registro",
+            "registro_civil_nombre", "folio_defuncion", "numero_acta_defuncion", "numero_certificado", "fecha_registro",
             "declarante_nombres", "declarante_cedula", "registrador_civil_nombres", "registrador_civil_cedula",
             "gaceta", "resolucion",
             "etnia", "edad", "edad_unidad", "nacimiento_entidad", "nacimiento_pais",

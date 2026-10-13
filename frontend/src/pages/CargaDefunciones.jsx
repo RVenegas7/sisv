@@ -78,6 +78,7 @@ const VACIO = {
   registro_civil_nombre: "",
   folio_defuncion: "",
   numero_acta_defuncion: "",
+  numero_certificado: "",
   fecha_registro: "",
   declarante_nombres: "",
   declarante_cedula: "",
@@ -748,6 +749,9 @@ export default function CargaDefunciones({ usuario }) {
           </Campo>
           <Campo label="Entidad del registro civil" htmlFor="registro_civil_entidad">
             <Input id="registro_civil_entidad" value={form.registro_civil_entidad} onChange={(e) => cambiar("registro_civil_entidad", e.target.value)} />
+          </Campo>
+          <Campo label="Nº del certificado físico (MSDS)" htmlFor="numero_certificado">
+            <Input id="numero_certificado" value={form.numero_certificado} onChange={(e) => cambiar("numero_certificado", e.target.value)} />
           </Campo>
           <Campo label="Número del acta de defunción" htmlFor="numero_acta_defuncion">
             <Input id="numero_acta_defuncion" value={form.numero_acta_defuncion} onChange={(e) => cambiar("numero_acta_defuncion", e.target.value)} />

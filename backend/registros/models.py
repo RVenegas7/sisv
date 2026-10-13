@@ -476,6 +476,10 @@ class Defuncion(RegistroConCIE):
     registro_civil_nombre = models.CharField("Nombre del registro civil", max_length=150, blank=True, default="")
     folio_defuncion = models.CharField("Folio del acta", max_length=20, blank=True, default="")
     numero_acta_defuncion = models.CharField("Número del acta de defunción", max_length=30, blank=True, default="")
+    # Número impreso en el certificado físico (legacy CERTIFICADO."NUMEROMSDS"). El
+    # `registro_numero` legacy (LEG-CERT-<id>) es la PK de Oracle, no este número;
+    # el cruce de talonarios de `despacho` usa este campo cuando está presente.
+    numero_certificado = models.CharField("Nº del certificado físico (MSDS)", max_length=30, blank=True, default="")
     fecha_registro = models.DateField("Fecha de registro", null=True, blank=True)
     declarante_nombres = models.CharField("Apellidos y nombres del declarante", max_length=200, blank=True, default="")
     declarante_cedula = models.CharField("Cédula del declarante", max_length=20, blank=True, default="")

@@ -187,7 +187,7 @@ class Command(BaseCommand):
                    r."PESO", r."TALLA", r."HSEXO", r."HFORMAPARTO", r."HSITIOPARTO",
                    r."VIVO_MUERTO", r."SEMANAGESTACION",
                    c."FECHACERTIFICADO", c."HESTABLECIMIENTO", c."HLOCALIDADOC",
-                   c."TOMO", c."FOLIO", c."LIBRO",
+                   c."TOMO", c."FOLIO", c."LIBRO", c."NROPLANILLA",
                    m."CEDULA", m."NOMBRES", m."APELLIDOS", m."EDADM", m."ESTADOCIVIL",
                    m."HRESIDENCIA", m."PNOMBRES", m."PCEDULA"
             FROM sismai."NAC_RNACIDO" r
@@ -214,6 +214,7 @@ class Command(BaseCommand):
         for f in filas:
             (rn_id, cert_id, nombres, fecha_nac, hora, peso, talla, sexo, fparto, sitio,
              vivo, sem_gest, fecha_cert, estable_id, geo_id, tomo, folio, libro,
+             nroplanilla,
              madre_ci, madre_nom, madre_ape, madre_edad, madre_ec, madre_geo,
              padre_nom, padre_ci) = f
             fecha = fecha_nac or fecha_cert
@@ -262,6 +263,8 @@ class Command(BaseCommand):
                     padre_cedula=(padre_ci or "").strip()[:20],
                     libro=(str(tomo) if tomo else "")[:20],
                     folio=rango(folio, 0, 2000000000),
+                    # Nº impreso en la planilla física del certificado (EV-25).
+                    numero_planilla=(str(nroplanilla).strip() if nroplanilla else "")[:30],
                     version_cie=version_cie_por_fecha(fecha),
                     codificacion_pendiente=False,
                 )
@@ -283,7 +286,7 @@ class Command(BaseCommand):
             SELECT c."ID", c."NOMBRE", c."APELLIDO", c."CEDULA", c."SEXO", c."FECHA_M",
                    c."FECHA_N", c."HORAMUERTE", c."HSITIO_M", c."HESTABLECIMIENTO_OCUR",
                    c."HESTABLECIMIENTO", c."HLOCARESIDENCIA", c."HPRESENCIAEMBARAZO",
-                   c."AUTOPSIA", c."OTROMEDFIRMANTE", c."HCAUSABASICA"
+                   c."AUTOPSIA", c."OTROMEDFIRMANTE", c."HCAUSABASICA", c."NUMEROMSDS"
             FROM sismai."CERTIFICADO" c
             WHERE c."FECHA_M" IS NOT NULL AND c."FECHA_M" >= DATE '1900-01-01'
             ORDER BY c."ID"
@@ -304,7 +307,7 @@ class Command(BaseCommand):
         procesados = set()
         for f in filas:
             (cid, nombre, apellido, cedula, sexo, fecha_m, fecha_n, hora, sitio,
-             est_ocur, est_cert, geo_id, embarazo, autopsia, otro_med, causa_bas) = f
+             est_ocur, est_cert, geo_id, embarazo, autopsia, otro_med, causa_bas, msds) = f
             fecha = fecha_m.date() if hasattr(fecha_m, "date") else fecha_m
             legacy_id = str(int(cid))
             if legacy_id in existentes or legacy_id in procesados:
@@ -329,6 +332,9 @@ class Command(BaseCommand):
                     lote_id=LOTE_DEF,
                     legacy_tabla="CERTIFICADO",
                     legacy_id=legacy_id,
+                    # Nº impreso en el certificado físico (legacy NUMEROMSDS); es el
+                    # que compara el despacho de talonarios, no la PK de Oracle.
+                    numero_certificado=(str(msds).strip() if msds else "")[:30],
                     fecha_evento=fecha,
                     hora_defuncion=parse_hora(hora),
                     fallecido_nombres=(nombre or "").strip()[:150] or "SIN NOMBRE",

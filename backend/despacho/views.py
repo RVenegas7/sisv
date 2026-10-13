@@ -279,6 +279,68 @@ class ReporteCertificadosView(APIView):
         })
 
 
+class ReporteCentrosView(APIView):
+    """Reporte por centro: certificados entregados vs regresados (procesados).
+
+    Agrega los talonarios de cada centro (y tipo) dentro del alcance del
+    usuario: entregados = suma de `cantidad`; regresados = certificados de la
+    serie ya cargados en la BD; el resto (dañado/devuelto/transito/faltante)
+    explica lo todavía no procesado.
+    """
+
+    def get(self, request):
+        qs = Talonario.objects.select_related("centro").prefetch_related("novedades")
+        qs = _por_alcance(qs, request)
+        tipo = request.query_params.get("tipo", "").strip()
+        if tipo:
+            qs = qs.filter(tipo=tipo)
+        centro = request.query_params.get("centro", "").strip()
+        if centro:
+            qs = qs.filter(centro_id=centro)
+        anio = request.query_params.get("anio", "").strip()
+        if anio:
+            try:
+                qs = qs.filter(fecha_entrega__year=int(anio))
+            except ValueError:
+                pass
+
+        agregados = {}
+        for talonario in qs:
+            clave = (talonario.centro_id, talonario.tipo)
+            fila = agregados.setdefault(clave, {
+                "centro_id": talonario.centro_id,
+                "centro": talonario.centro.nombre,
+                "tipo": talonario.tipo,
+                "tipo_label": talonario.get_tipo_display(),
+                "talonarios": 0,
+                "entregados": 0,
+                "regresados": 0,
+                "danados": 0,
+                "devueltos": 0,
+                "en_transito": 0,
+                "faltantes": 0,
+            })
+            resumen = resumen_talonario(talonario)
+            fila["talonarios"] += 1
+            fila["entregados"] += resumen["cantidad"]
+            fila["regresados"] += resumen["usados"]
+            fila["danados"] += resumen["danados"]
+            fila["devueltos"] += resumen["devueltos"]
+            fila["en_transito"] += resumen["en_transito"]
+            fila["faltantes"] += resumen["faltantes_total"]
+
+        filas = sorted(agregados.values(), key=lambda f: (f["centro"], f["tipo"]))
+        if request.query_params.get("formato", "").lower() == "csv":
+            return _csv_response(
+                "despacho_por_centro.csv",
+                ["Centro", "Tipo", "Talonarios", "Entregados", "Regresados (procesados)",
+                 "Danados", "Devueltos", "En transito", "Faltantes"],
+                [[f["centro"], f["tipo_label"], f["talonarios"], f["entregados"], f["regresados"],
+                  f["danados"], f["devueltos"], f["en_transito"], f["faltantes"]] for f in filas],
+            )
+        return ok({"total": len(filas), "items": filas})
+
+
 class ReportePendientesView(APIView):
     """Reporte 2: certificados entregados y todavía no retornados ni justificados."""
 

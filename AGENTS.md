@@ -334,8 +334,19 @@ Idioma de trabajo: **responder siempre en español**.
   el subárbol) pero la **escritura** es estricta. **Nota:** el reporte 1 de nacimientos usa el nombre del
   **recién nacido** (`nino_nombres`/`nino_apellidos`, rotulado `persona: "Recién nacido"`) y cae al de
   la **madre** (`persona: "Madre"`) cuando el registro no lo trae (importados antes del EV-25 sin backfill);
-  el CSV lleva columna **Persona**. Pruebas: `despacho/tests.py` (18). El certificado de nacimiento ya
+  el CSV lleva columna **Persona**. Pruebas: `despacho/tests.py`. El certificado de nacimiento ya
   se amplió al EV-25 (§23.3).
+  **(13/10/2026, §31) Número físico del certificado y cruce real:** `Defuncion.numero_certificado`
+  (migración `0011`, ← espejo `CERTIFICADO."NUMEROMSDS"`) y `Nacimiento.numero_planilla`
+  (← `CERTNACIMIENTO."NROPLANILLA"`) guardan el número impreso; el `registro_numero` legacy es la
+  PK de Oracle, no la serie física. El cruce (`despacho/services.py::numero_en_serie`) prioriza el
+  número físico y cae al sufijo de `registro_numero` (capturas manuales). El ETL ya los trae y
+  `manage.py completar_numero_certificado [--ejecutar] [--solo defunciones|nacimientos]` hace el
+  backfill (dry-run, solo campos vacíos, idempotente). Nuevo reporte `GET /api/despacho/reportes/centros/`
+  (JSON/CSV): **entregados vs regresados por centro y tipo**, con alcance. **⚠ Pendiente en la
+  oficina:** correr el backfill tras el próximo refresco del espejo (el de casa llega a 173.976
+  defunciones). **⚠ Por evaluar:** la búsqueda principal por número debe ser la física, no
+  `registro_numero` (§31).
 
 - `registradores`: **control de registradores civiles con historial de vigencias** (02/10/2026, §24.2).
   App propia porque el dominio (quién firma) no es el de los talonarios. Modelos: `RegistroCivil`
@@ -574,7 +585,8 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
 - **Pruebas automatizadas (12/10/2026):** backend con `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
   (**correr desde `backend/`** — desde la raíz descubre 0 tests),
-  (**255 pruebas a 12/10/2026** (verificado): 115 de `backend/tests_sisv.py` + 20 de `backend/despacho/tests.py`
+  (**263 pruebas a 13/10/2026** (verificado): 115 de `backend/tests_sisv.py` + 24 de `backend/despacho/tests.py`
+  + 4 de `registros/tests_completar_numero_certificado.py`
   + 22 de `backend/registradores/tests.py`
   + 33 de `conciliacion` (16 ENO +
   9 neonatal + 8 materna) + 27 de `registros/tests.py` (2 EV-14, 7 de las secciones del

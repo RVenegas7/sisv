@@ -69,7 +69,7 @@ _GRUPOS = {
             "telefono_medico", "destino_cadaver", "numero_permiso")},
         **{c: "Registro civil" for c in (
             "registro_civil_nombre", "registro_civil_entidad", "numero_acta_defuncion",
-            "folio_defuncion", "fecha_registro", "gaceta", "resolucion", "declarante_nombres",
+            "folio_defuncion", "numero_certificado", "fecha_registro", "gaceta", "resolucion", "declarante_nombres",
             "declarante_cedula", "declarante_nacionalidad", "registrador_civil_nombres",
             "registrador_civil_cedula", "registrador_civil_nacionalidad",
             "padre_fallecido_nombres", "padre_fallecido_cedula")},

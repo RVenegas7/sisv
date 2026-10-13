@@ -3206,9 +3206,10 @@ cuándo, qué se sugirió (código + JSON completo) y qué se confirmó.
   OMS: la valida quien codifica.
 - Para registrar la confirmación **basta la consulta por número**: la bandeja antigua (lista de
   pendientes + PATCH) se conserva para los roles que editan (transcriptor/director).
-- El número real del certificado (`NUMEROMSDS`/`NROPLANILLA`, §27.16) todavía no se usa como número
-  de consulta: sigue `registro_numero`. Si se decide poblar `numero_certificado`, el flujo de
-  consulta por número puede buscarlo también.
+- ~~El número real del certificado (`NUMEROMSDS`/`NROPLANILLA`, §27.16) todavía no se usa~~ →
+  **resuelto el 13/10/2026 (§31)**: `numero_certificado`/`numero_planilla` ya se pueblan del
+  espejo y el cruce de `despacho` los usa. Queda como mejora posible que la consulta por número
+  (§28) también acepte el número físico.
 
 ## 29. [HECHO 11/10/2026] El consolidado semanal ahora muestra lo que YA está cargado (resumen por semana)
 
@@ -3262,3 +3263,39 @@ SISV del PAI**. Hipótesis a confirmar:
 - ¿Coberturas, población diana, vacunas vencidas/perdidas, cadena de frío?
 - ¿Con qué instrumento papel oficial se reporta hoy y quién lo consolida (centro → ASIC →
   regional)?
+
+## 31. [HECHO 13/10/2026 — backfill probado aquí; **repetir en la oficina tras el próximo refresco del espejo**] Número físico del certificado (§27.16 cerrado)
+
+> Petición del usuario: el despacho de talonarios debe cruzar contra el número real ya
+> identificado en el espejo, no rehacer el trabajo ni cargar talonarios históricos inventados.
+
+**Implementado:**
+
+- Modelo: `registros.Defuncion.numero_certificado` (migración `0011`); nacimiento usa el
+  `numero_planilla` que ya existía (EV-25). Serializer y consulta por número los exponen;
+  `CargaDefunciones.jsx` tiene el campo «Nº del certificado físico (MSDS)».
+- ETL (`importar_legacy_registros`): las importaciones futuras ya traen
+  `NUMEROMSDS` (defunción) y `NROPLANILLA` (nacimiento).
+- Backfill: `manage.py completar_numero_certificado [--ejecutar] [--solo defunciones|nacimientos]`
+  — dry-run por defecto, un UPDATE por bloque, **solo campos vacíos**, idempotente, reporta las
+  anomalías conocidas (NUMEROMSDS repetidos / los que parecen fecha).
+- Despacho: `despacho/services.py::numero_en_serie` cruza la serie del talonario contra el
+  número físico real; si no está cargado (capturas manuales nuevas), cae a los dígitos finales
+  del `registro_numero`. Nuevo reporte `GET /api/despacho/reportes/centros/` (también CSV):
+  **entregados vs regresados (procesados) por centro y tipo**, respetando alcance.
+
+**Verificación aquí (espejo local):** backfill ejecutado — defunciones 173.976 (todas),
+nacimientos 438.852; ejemplo real §27.16 `LEG-CERT-999473093` → `5143453` confirma el join.
+Suite backend **263 pruebas OK**, frontend 13 OK, build OK.
+
+**⚠ Pendiente en la oficina** (el espejo de casa no está al día): después del próximo
+refresco del espejo, correr `./.venv/bin/python backend/manage.py completar_numero_certificado --ejecutar`
+en el equipo de la oficina para recuperar los números de los certificados cargados después.
+Es idempotente: seguro correrlo las veces que haga falta (también vale incorporarlo al flujo
+del refresco del espejo).
+
+**⚠ Por evaluar luego:** la **búsqueda principal debe ser por el número del certificado
+físico** (`numero_certificado`/`numero_planilla`), no por `registro_numero` (hoy
+`/api/registros/consulta/?numero=` busca por el `LEG-CERT-…`/`LEG-RN-…`, que el operario no
+conoce). Evaluar: buscar por ambos, y si el número físico pasa a ser la referencia visible en
+las listas de nacimientos/defunciones y en el despacho.

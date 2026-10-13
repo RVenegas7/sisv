@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from tests_sisv import SISVBase
 
 from despacho.models import NovedadCertificado, Talonario
+from despacho.services import resumen_talonario
 from registros.models import Defuncion, Nacimiento
 from seguridad.models import Perfil
 
@@ -149,6 +150,26 @@ class DespachoCruceTests(DespachoBase):
 
 
 class DespachoNovedadTests(DespachoBase):
+    def test_cruce_usa_numero_fisico_real_cuando_existe(self):
+        """LEG-CERT-<id> es la PK de Oracle: sin numero_certificado no cuadra con la
+        serie física; con él sí (§27.16)."""
+        tal = self.crear_talonario(desde=250, hasta=259)
+        d = self.crear_defuncion("LEG-CERT-999473093")
+        self.assertEqual(resumen_talonario(tal)["usados"], 0)  # PK de Oracle, fuera de serie
+        d.numero_certificado = "253"
+        d.save(update_fields=["numero_certificado"])
+        resumen = resumen_talonario(self.crear_talonario(desde=260, hasta=269))
+        self.assertEqual(resumen["usados"], 0)
+        tal.refresh_from_db()
+        self.assertEqual(resumen_talonario(tal)["usados"], 1)
+
+    def test_cruce_nacimiento_usa_numero_planilla(self):
+        tal = self.crear_talonario(desde=70, hasta=79, tipo=Talonario.TIPO_NACIMIENTO)
+        n = self.crear_nacimiento("LEG-RN-55")
+        n.numero_planilla = "0072"
+        n.save(update_fields=["numero_planilla"])
+        self.assertEqual(resumen_talonario(tal)["usados"], 1)
+
     def test_novedad_fuera_de_serie(self):
         tal = self.crear_talonario(desde=1, hasta=5)
         self.login(self.u_jefe)
@@ -246,3 +267,32 @@ class DespachoReportesTests(DespachoBase):
         items = r.json()["data"]["items"]
         self.assertEqual(len(items), 2)
         self.assertEqual({i["numero"] for i in items}, {1, 3})
+
+    def test_reporte_centros_entregados_vs_regresados(self):
+        self.crear_talonario(desde=1, hasta=10)
+        self.crear_talonario(desde=100, hasta=109, tipo=Talonario.TIPO_NACIMIENTO)
+        self.crear_defuncion("DEF-2026-000003")
+        self.login(self.u_jefe)
+        r = self.client.get("/api/despacho/reportes/centros/")
+        self.assertEqual(r.status_code, 200)
+        items = r.json()["data"]["items"]
+        self.assertEqual(len(items), 2)
+        defunciones = next(i for i in items if i["tipo"] == "DEFUNCION")
+        self.assertEqual(defunciones["centro_id"], self.org_hcb.pk)
+        self.assertEqual(defunciones["talonarios"], 1)
+        self.assertEqual(defunciones["entregados"], 10)
+        self.assertEqual(defunciones["regresados"], 1)
+        self.assertEqual(defunciones["faltantes"], 9)
+        nacimientos = next(i for i in items if i["tipo"] == "NACIMIENTO")
+        self.assertEqual(nacimientos["entregados"], 10)
+        self.assertEqual(nacimientos["regresados"], 0)
+
+    def test_reporte_centros_respeta_alcance(self):
+        self.crear_talonario(desde=1, hasta=5)
+        self.login(self.u_trans_hcb)
+        r = self.client.get("/api/despacho/reportes/centros/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.json()["data"]["items"]), 1)
+        self.login(self.u_trans_cabudare)
+        r = self.client.get("/api/despacho/reportes/centros/")
+        self.assertEqual(r.json()["data"]["items"], [])

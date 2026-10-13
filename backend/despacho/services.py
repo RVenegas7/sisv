@@ -50,22 +50,38 @@ def persona_registro(modelo, registro):
     return nombres, apellidos, etiqueta
 
 
+def numero_en_serie(modelo, registro):
+    """Consecutivo físico del certificado para ubicarlo en la serie del talonario.
+
+    Prioriza el número impreso real (``numero_certificado`` en defunción,
+    ``numero_planilla`` en nacimiento — §27.16); si no está cargado, cae a los
+    dígitos finales del ``registro_numero`` (certificados capturados a mano).
+    """
+    real = registro.numero_certificado if modelo is Defuncion else registro.numero_planilla
+    if real is not None:
+        real = str(real).strip()
+        if real.isdigit():
+            return int(real)
+    return numero_de_registro(registro.registro_numero)
+
+
 def certificados_usados(talonario):
     """Certificados de la serie que ya están cargados, indexados por consecutivo.
 
     Devuelve `{numero: registro}`. Solo mira dentro del subárbol del centro y dentro
-    del rango de la serie; el `registro_numero` que no termina en dígitos se ignora
-    (no se puede ubicar en la serie, así que no se cuenta como usado ni como faltante
-    — queda fuera del cálculo y el reporte lo advierte).
+    del rango de la serie; el certificado cuyo número no se puede ubicar en la serie
+    se ignora (no se cuenta como usado ni como faltante — queda fuera del cálculo y
+    el reporte lo advierte).
     """
     modelo = MODELO_POR_TIPO[talonario.tipo]
     ids = _ids_organizaciones(talonario.centro)
     qs = modelo.objects.filter(organizacion_id__in=ids).only(
-        "id", "registro_numero", "organizacion_id"
+        "id", "registro_numero", "organizacion_id", "numero_certificado"
+        if modelo is Defuncion else "numero_planilla"
     )
     usados = {}
     for registro in qs.iterator():
-        numero = numero_de_registro(registro.registro_numero)
+        numero = numero_en_serie(modelo, registro)
         if numero is not None and talonario.serie_desde <= numero <= talonario.serie_hasta:
             usados[numero] = registro
     return usados
