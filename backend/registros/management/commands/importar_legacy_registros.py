@@ -17,6 +17,21 @@ LOTE_DEF = "LEGACY-CERTIFICADO"
 SEXO = {1: "F", 2: "M", 3: "I", 0: "I"}
 FORMAPARTO = {1: "VAGINAL", 2: "CESAREA", 3: "INSTRUMENTAL", 4: "OTRO", 5: "OTRO"}
 SITIO_PARTO = {1: "ESTABLECIMIENTO", 2: "ESTABLECIMIENTO", 5: "ESTABLECIMIENTO", 3: "DOMICILIO"}
+def split_nombres(n):
+    n = (n or '').strip()
+    if not n: return ('','')
+    parts = n.split()
+    if len(parts) == 1: return (n,'')
+    if len(parts) == 2: return (parts[0], parts[1])
+    return (' '.join(parts[:-1]), parts[-1])
+
+def split_apellidos(a):
+    a = (a or '').strip()
+    if not a: return ('','')
+    parts = a.split()
+    if len(parts) == 1: return (a,'')
+    if len(parts) == 2: return (parts[0], parts[1])
+    return (parts[0], ' '.join(parts[1:]))
 ESTADO_CIVIL = {
     1: "SOLTERA", 2: "CASADA", 3: "DIVORCIADA", 4: "UNION_LIBRE",
     5: "DIVORCIADA", 6: "SOLTERA", 7: "VIUDA", 8: "SOLTERA",
@@ -339,6 +354,8 @@ class Command(BaseCommand):
                     hora_defuncion=parse_hora(hora),
                     fallecido_nombres=(nombre or "").strip()[:150] or "SIN NOMBRE",
                     fallecido_apellidos=(apellido or "").strip()[:150],
+                    segundo_nombre="",
+                    segundo_apellido="",
                     fallecido_cedula=(cedula or "").strip()[:20],
                     sexo=SEXO.get(como_entero(sexo), "I"),
                     fecha_nacimiento=(fecha_n.date() if hasattr(fecha_n, "date") else fecha_n) if fecha_n else None,
