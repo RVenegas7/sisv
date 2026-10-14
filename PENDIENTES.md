@@ -3394,3 +3394,133 @@ llega a **53** (semana epidemiológica). El origen lo confirma: el ETL saca el p
   `?anio=2026&mes=8` da 165 consolidados y el CSV sale con cabecera `mes`. Suite **263 pruebas OK**,
   `makemigrations --check` sin cambios, `npm test` 13 OK y `npm run build` OK.
 
+## 34. [PENDIENTE OFICINA 14/10/2026] Por qué el sobre al central sale con 4 archivos y no 5
+
+Se ejecutó el reconocimiento de solo lectura `migracion/recon_repllar1.sh` contra `192.168.5.200`
+(reporte en `auditoria/recon_repllar1_20261014.txt`) y el diagnóstico
+`migracion/diagnostico_certnaci.sql` (`auditoria/diagnostico_certnaci_20261014.txt`). **Hallazgos:**
+
+- **El orquestador NO está en el Linux.** El único cron del servidor es el `exp` del respaldo a las
+  13:00 (`/home/respaldo/bin/expbdsismai.bat`). No hay cron/`at`/`init` que lance la fase `repl`, y
+  `/home/salud/bin` está vacío. El sobre lo arma **`SistemaTransferencia.exe`** (share
+  `\\SRVSIS\Salud\SISMAI\`) desde el **cliente Windows `192.168.5.133`**; los `cr_repli_*.sql`
+  escriben sus logs en unidades **`T:\`/`C:\`** de ese Windows (p. ej. `cr_repli.sql` → `T:\routlar1\repllar1.log`,
+  `cr_repli_nata.sql` → `C:\sincfich\nata\replla1_nata.log`). Por eso `repllar1.log` no aparece en Linux.
+  Guía oficial en el share: `SISMAI/GUIAS/Guia_Transferencia_Y_Sincronizaciones_Win.pdf`.
+- **`TEMP.T_*` SÍ se recrearon completos el 06/10/2026 13:20:19-22** (40 tablas; es el estado de la última
+  replicación). **Pero falta `TEMP.T_CERTNACI`**: existen `T_MADRNACI` (241), `T_RNACNACI` (241),
+  `T_RNACANUL`, `T_CERTMORT`, `T_CAUMMEDI`, `T_EVENTOS`. Se verificó que **ninguna columna** de la lista
+  de `T_CERTNACI` falta en `SISMAI.CERTNACIMIENTO` (no es un `ORA-00904`): queda por explicar por qué el
+  paso de natalidad no dejó esa tabla (¿el `CREATE` se saltó o falló en el cliente?).
+- **Hay DOS colas y la viva es `SISMAI.EVENTOS`, no `EVENTOS_SINC`** (14/10/2026):
+  - `SISMAI.EVENTOS` **sí se alimenta a diario**: `CERTIFICADO` 431, `CERTNACIMIENTO` 228, `NAC_MADRE` 228,
+    `NAC_RNACIDO` 228, `RENGLONTELE` 6.115, … con fecha **hasta el 2026-10-14 10:57 (hoy)**. Es la que usa
+    el **`cr_repli.sql` maestro** (`CREATE TABLE TEMP.T_EVENTOS AS SELECT * FROM SISMAI.EVENTOS WHERE STATUS=0`).
+    Su mínimo es **2026-10-06 14:48** → la cola se vació/reconstruyó el 06/10 (tras un repl), lo normal si se
+    purga al enviar.
+  - `SISMAI.EVENTOS_SINC` es la **cola vieja**: congelada desde el **21/09/2026 09:08** (el DROP+recreate de
+    §16), 16.741 filas de solo 3 tablas (`PACIENTE_COND_ESPE`, `PACIENTE_FICHA_EPI`, `REG_VACUNACION`). Es la
+    que usaría `cr_repli_nata.sql`, que es la **variante obsoleta** (usa `EVENTOS_SINC`). **No es la que corre.**
+  - **Consecuencia:** la captura **sí** está encolando natalidad/mortalidad nueva (en `SISMAI.EVENTOS`);
+    el problema no es "no se encola", sino que **no se arma/envía el sobre semanal**.
+- `HISTORICO.ERRORES_SINC` **sin filas** → el motor no dejó bitácora del fallo.
+- El origen sí tiene datos: **439.942** certificados de nacimiento, **10.400 en 2026** con fecha hasta el
+  **2026-10-14**. Se captura todos los días; lo que falta es que viaje.
+
+**Qué falta para que salgan los 5 archivos (trabajo de oficina):**
+
+1. **Ejecutar la fase `repl` que arma `TEMP.T_*`** (desde `SISMAI.EVENTOS`, la cola viva). Hoy `TEMP.T_*`
+   existe (creado el 06/10) pero **le falta `T_CERTNACI`** y está desfasado. El `repl` lo lanza el cliente
+   Windows (`SistemaTransferencia.exe`) con los `SincFich/*/cr_repli*.sql`; el `exp` de `TEMP` + armado del
+   ZIP de 5 es el paso siguiente.
+2. **Restaurar el orquestador en el cliente Windows `192.168.5.133`** (RDP 3389 cerrado → habilitarlo o
+   ir al equipo): abrir `SistemaTransferencia.exe`, revisar la unidad `T:` (`T:\routlar1\`), el paso `repl`
+   y la tarea programada semanal; con la guía oficial `Guia_Transferencia_Y_Sincronizaciones_Win.pdf`.
+3. **Reparar `TEMP.T_CERTNACI`**: se verificó que **todas sus columnas existen** en `SISMAI.CERTNACIMIENTO`
+   (no es `ORA-00904`), así que el `CREATE` falló por otra razón o el paso no corrió. Correr el `repl` de
+   natalidad y **capturar el ORA real** (el cliente no aborta: sigue con el resto de tablas).
+4. **Verificar el próximo martes:** ZIP con **5 archivos**, `repllar1.log` presente y con contenido,
+   `T_CERTNACI` existente. Si el central no lo recibe, escalar a soporte SIS/Centura.
+5. **Backfill del hueco** (si se decide): los eventos nuevos entran a `SISMAI.EVENTOS`; lo anterior al
+   06/10 ya no está en la cola. Si hace falta reenviar ese tramo, el candidato preparado es
+   `migracion/encolar_natalidad_legacy.sql` (dry-run por defecto, requiere usuario de aplicación/DBA y
+   respaldo de la cola), pero hoy **no es el cuello de botella**: la cola viva funciona.
+
+**Repetir tras la actualización del servidor** (mismo reconocimiento, solo lectura):
+`./migracion/recon_repllar1.sh` y `diagnostico_certnaci.sql`; comparar `LAST_DDL_TIME` de `TEMP.T_*`,
+si aparece `T_CERTNACI`, y el pulso de la cola viva `SISMAI.EVENTOS` (debe crecer a diario con
+`CERTIFICADO`/`CERTNACIMIENTO`).
+
+## 35. [HECHO 14/10/2026 — informe de calidad] Duplicados, transcripción y caracteres raros en el número real del certificado
+
+Auditoría pedida sobre el **campo real del certificado** de nacimiento y defunción. Reporte completo y
+evidencia fila por fila en `auditoria/reporte_certificados_20261014/` (carpeta **ignorada por git**;
+el resumen es este §35). Consultas en `reporte_*.sql`, salidas en `reporte_*.txt`, CSVs
+`dup_defunciones.csv`, `dup_nacimientos.csv`, `nombres_raros_defunciones.csv`,
+`nombres_raros_nacimientos.csv`, `numeros_raros.csv`.
+
+**Antecedente — el campo estaba VACÍO:** en la BD local `numero_certificado` (defunción, ←
+`CERTIFICADO.NUMEROMSDS`) y `numero_planilla` (nacimiento, ← `CERTNACIMIENTO.NROPLANILLA`) estaban en
+blanco en el **100 %** de las filas (0/174.095 y 0/439.476): el backfill de §31 nunca se había corrido
+aquí. **Se ejecutó `manage.py completar_numero_certificado --ejecutar`** (acción 5 pendiente):
+**174.095 defunciones** y **439.046 nacimientos** ya tienen su número físico; quedan **430 nacimientos**
+sin número recuperable (el espejo no lo trae). *Repetir en la oficina tras el próximo refresco del
+espejo, igual que el resto del flujo de §32.*
+
+**1. Duplicados por el número real.**
+
+| Tabla | Total | Con número | Distintos | Nº repetidos | Filas excedentes | Mismo año |
+| --- | --- | --- | --- | --- | --- | --- |
+| Defunciones | 174.095 | 174.095 | 174.033 | **61** | 62 | 56 |
+| Nacimientos | 439.476 | 439.046 | 438.694 | **343** | 352 | 337 |
+
+- Defunciones: casi todos de **2009** (algunos 2010-2011), mismo centro. El nº `1655448` aparece en
+  **3 certificados de personas distintas**; `1416389` en dos neonatos distintos con la misma fecha;
+  `1650803` en **2 establecimientos**.
+- Nacimientos: concentrados en **2009 (124) y 2010 (200)**, mismo centro (`2548223`, `3367012`,
+  `4058419` se repiten 3 veces).
+- No es fallo de SISV: **el número físico no era único en el legacy** (se reutilizaba).
+
+**2. Errores de transcripción en nombres/apellidos** (el legacy los tecleó a mano sin validación):
+
+- **Dígitos incrustados en letras** (~50 en nacimientos): `0CTAVIA`, `C0LMENAREZ`, `3PERAZA`,
+  `DIAZ MOZ0`, `RI8VERO`, `JOSE4`, `BETTY CELEST5E`, `DARGUIN ROJAS3`.
+- **Cédula pegada al nombre**: `SANCHEZ ADRIANA JOSEFINA15776495`,
+  `LOPEZ VASQUEZ GEDY MARIA 14245310`, `MAYELA COROMOTO MALVACIA 13345765`.
+- **Símbolos en lugar de letras**: `SANCHE<` (→SANCHEZ), `COLMENAREZ<`, `YANEZ<`, `GI¡UTIERREZ`
+  (→GUTIERREZ), `SA¡INDY`, `OVIEDO KATHERINW¡E`, `MARIANNT¡Y`, `MARLE¨S`, `|CARMEN AMERICA`,
+  `JOSLEY JESUS}`.
+- **`certificador_nombres` (defunciones, 644 registros)** con datos que no son nombre: `2`, `R2`,
+  `MEDICO 2`, `PATOLOGO0`, `RESIDENTE CR6`, `CPT3 LUIS RAMON REYES REYES`, `NO MEDICO(ENFERMERA)`,
+  `ESPECIALISTA MEDICINA FAMILIAR(MGi)`, `MEDICO INTEGRAL/UNEFM`.
+- **Campos compuestos sin dividir (modelo/ETL)**: en nacimientos `madre_nombres` guarda
+  «APELLIDOS, NOMBRES» completo y **`madre_apellidos` está vacío en los 439.476**; igual
+  `padre_apellidos` y **`nino_nombres`/`nino_apellidos` (439.476 vacío)**. `padre_nombres` vacío en
+  **66.703**; `fallecido_apellidos` vacío en **11** defunciones.
+
+**3. Caracteres raros:** `¡` (10), `<` (6), `¿` (1), `}` (1), `)` (2), `(` (2), `¨` (1), `|` (1),
+tabulador (1), todos en nombres de nacimientos (en defunciones, en apellidos). **No hay mojibake**
+(`Ã`/`Â`/`�`): el UTF-8 está correcto. Las 4.056 comas de `madre_nombres` son **falso positivo**
+(formato «APELLIDOS, NOMBRES»); el «carácter 0» contado 66.703 veces es el **campo vacío**, no un
+carácter.
+
+**4. Números de certificado mal formados.**
+
+| Tabla | «Parecen fecha» | Coinciden EXACTO con la fecha del evento | No numéricos |
+| --- | --- | --- | --- |
+| Defunciones | 30 | **16** | 5 |
+| Nacimientos | 819 | 2 | 19 |
+
+- Defunciones: **16 con la fecha del evento escrita en el número** (`16032021` en la del 2021-03-16,
+  `08012023`, `05092023`, `24082023`, `09062024`, `25052024`, `03032025`, `05032026`…). No numéricos:
+  `.141409`, `.223487`, `11/10/2`, `7.449.2` y **`C85.9` = ¡un código CIE-10 en el campo del número!**.
+- Nacimientos: los 819 son casi todos **falso positivo** (planillas de 8 dígitos que empiezan por 0-3);
+  solo 2 coinciden con la fecha. No numéricos: `.4061847`, `.766617`, `01-05-60`, `042625.08`,
+  `047 07745`, `3.931400`, `3765252º`, `38/73944`, `4004162º`, `421294+9`, `ABRAHAM JESUS`, `H`, `H`,
+  `HY`, `Q`, `gh4211897`, `q`, `º3600145`, `º3765445`.
+
+**Conclusión:** todo es dato histórico del **legacy Oracle**, no de SISV (que lo refleja fielmente),
+concentrado en **2009-2011**. La mayoría de los «raros» viene de captura manual con teclado hispano/OCR
+y sin validación. **Decisión pendiente del usuario:** si se quiere un filtro en la app para detectarlos
+y/o corregirlos.
+

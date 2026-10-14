@@ -82,11 +82,23 @@ SELECT 'T_RNACNACI' AS TABLA, COUNT(*) AS FILAS FROM TEMP.T_RNACNACI;
 PROMPT
 PROMPT ====================================================================
 PROMPT [3] LA COLA: ¿hay eventos de CERTNACIMIENTO que replicar?
-PROMPT cr_repli_nata.sql:12-15 arma T_CERTNACI con
-PROMPT   FROM SISMAI.CERTNACIMIENTO A, SISMAI.EVENTOS_SINC B
-PROMPT   WHERE B.TABLA='CERTNACIMIENTO' AND B.ID=A.ID
-PROMPT Si hay eventos pero la tabla no existe, el fallo fue del script.
+PROMPT OJO: hay DOS colas.
+PROMPT   - SISMAI.EVENTOS      = la VIVA (la usa el cr_repli.sql maestro).
+PROMPT       T_EVENTOS := SELECT * FROM SISMAI.EVENTOS WHERE STATUS=0
+PROMPT   - SISMAI.EVENTOS_SINC = la VIEJA (congelada 21/09; solo la usa la
+PROMPT       variante obsoleta cr_repli_nata.sql). NO es la que corre.
+PROMPT Si la VIVA tiene eventos y T_CERTNACI no existe, el fallo fue del paso
+PROMPT de replicacion (el cliente no aborta: sigue con el resto de tablas).
 PROMPT ====================================================================
+PROMPT --- [3a] COLA VIVA: SISMAI.EVENTOS (por STATUS) ---
+SELECT TABLA, STATUS, COUNT(*) AS FILAS,
+       TO_CHAR(MIN(FECHA),'YYYY-MM-DD HH24:MI') AS FECHA_MIN,
+       TO_CHAR(MAX(FECHA),'YYYY-MM-DD HH24:MI') AS FECHA_MAX
+  FROM SISMAI.EVENTOS
+ GROUP BY TABLA, STATUS
+ ORDER BY TABLA, STATUS;
+
+PROMPT --- [3b] COLA VIEJA: SISMAI.EVENTOS_SINC (por EVENTO) ---
 SELECT TABLA, EVENTO, COUNT(*) AS FILAS,
        TO_CHAR(MIN(FECHA),'YYYY-MM-DD HH24:MI') AS FECHA_MIN,
        TO_CHAR(MAX(FECHA),'YYYY-MM-DD HH24:MI') AS FECHA_MAX
@@ -133,12 +145,12 @@ PROMPT
 PROMPT ====================================================================
 PROMPT [6] ¿QUE CUENTA CORRE LA REPLICACION?
 PROMPT Si el `exp` lo hace el usuario de aplicacion, el mismo usuario
-PROMPT tendria que poder leer SISMAI.EVENTOS_SINC y escribir en TEMP.
+PROMPT tendria que poder leer la cola viva SISMAI.EVENTOS y escribir en TEMP.
 PROMPT ====================================================================
 SELECT GRANTEE, TABLE_SCHEMA, TABLE_NAME, PRIVILEGE
   FROM ALL_TAB_PRIVS
  WHERE TABLE_SCHEMA IN ('TEMP','SISMAI')
-   AND TABLE_NAME IN ('T_CERTNACI','T_MADRNACI','T_CERTMORT','EVENTOS_SINC')
+   AND TABLE_NAME IN ('T_CERTNACI','T_MADRNACI','T_CERTMORT','EVENTOS','EVENTOS_SINC')
  ORDER BY TABLE_SCHEMA, TABLE_NAME, GRANTEE;
 
 PROMPT
