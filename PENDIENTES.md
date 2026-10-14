@@ -3299,3 +3299,71 @@ físico** (`numero_certificado`/`numero_planilla`), no por `registro_numero` (ho
 `/api/registros/consulta/?numero=` busca por el `LEG-CERT-…`/`LEG-RN-…`, que el operario no
 conoce). Evaluar: buscar por ambos, y si el número físico pasa a ser la referencia visible en
 las listas de nacimientos/defunciones y en el despacho.
+
+## 32. [HECHO 13/10/2026] Flujo semanal oficina→casa con dos scripts, y separación de los dos «PASTOR OROPEZA»
+
+Contexto: la transición del sistema legacy al nuevo será **semanal y repetitiva** hasta el corte
+controlado. Se definió un flujo de dos pasos, cada uno con su script, para no tener que recordar
+qué traer cada vez.
+
+### 32.1 El flujo (opción A: el ETL corre en casa)
+
+| Paso | Dónde | Script | Qué hace |
+| --- | --- | --- | --- |
+| 1 | **oficina** | `migracion/oficina_refrescar_y_exportar.sh` | Oracle vivo → espejo crudo en PG + `espejo_extra` → `pg_dump` para llevar a casa |
+| 2 | **casa** | `migracion/aplicar_dump_oficina.sh` | Toma el dump, refresca el espejo crudo local y **corre el ETL aquí** (aditivo) |
+
+- **Script 1** (opcional `HACER_RESPALDO=1` para exportar el Oracle con `respaldo_total.sh`):
+  refresca el espejo con `migracion/actualizar_espejo_pg.sh`, carga `espejo_extra` con
+  `migracion/cargar_lara_2019_2020_pg.py` si está el `.xlsx`, y hace `pg_dump -Fc` del app DB
+  a `descarga/` con su `SHA256SUMS`. **No corre ETL ni toca la app.**
+- **Script 2** (dry-run por defecto, `--ejecutar` aplica): verifica SHA256, restaura el dump en
+  la base temporal `sis_salud_db_oficina`, **guarda contra regresión** (si el espejo de la
+  oficina trae menos filas que el local en tablas clave, aborta salvo `--forzar`), **reemplaza
+  el espejo crudo local** (`sismai`/`inbdlar1`/`historico`; el esquema `legacy` se conserva
+  porque no viene del Oracle vivo y el local va por delante), copia `espejo_extra` y corre el
+  ETL: `importar_legacy_registros`, `importar_legacy_vigilancia`,
+  `recuperar_establecimiento_defuncion --ejecutar`, `asignar_organizacion_legacy --ejecutar`,
+  `completar_numero_certificado --ejecutar`, `completar_nacimiento_legacy --ejecutar` y
+  `sembrar_registradores_legacy --ejecutar`. Modo rápido `--solo-certificados` (fusiona
+  certificados sin tocar el espejo, con `migracion/aplicar_dump_oficina.py`).
+
+**Lista negra (nunca se trae):** la base de distribución geográfica `territorio_apn` (estática,
+va en otro dump y se reproduce con `exportar_territorio_pg`); el esquema `legacy`; y nada de la
+app (fichas, consolidados, conciliaciones, registradores, despacho, usuarios/perfiles, ASIC,
+territorio). Estos se **conservan** en casa; por eso el refresco es aditivo y no un reemplazo.
+
+**Por qué aditivo:** casa tiene tablas que la oficina no, todas **derivadas** o de trabajo
+local: fichas (100 % legacy), consolidados ENO/EPI-15 (100 % legacy, `creado_por = 0`),
+conciliaciones (auditoría), registradores (sembrado), y sobre todo **124.500 defunciones ya
+codificadas** (49.840 pendientes) más la configuración. Un reemplazo las perdería.
+
+### 32.2 Los dos «HOSP. DR. PASTOR OROPEZA» (IVSS/Barquisimeto vs Carora)
+
+No son el mismo centro: el **IVSS está en Barquisimeto (Iribarren)** y el otro en **Carora
+(Torres)**. El certificado los distingue en el campo `establecimiento`, pero la organización los
+tenía juntos (la oficina en su org 800 y casa en la org 22, con los mismos totales 19.061 def /
+110.383 nac). Se **separaron** por `establecimiento`:
+
+| Org | Nombre | Def | Nac |
+| --- | --- | --- | --- |
+| 22 | HOSP. DR. PASTOR OROPEZA (Carora) | 5.461 | 26.987 |
+| 426 | HOSP. DR. PASTOR OROPEZA (IVSS) (Barquisimeto) | 13.600 | 83.396 |
+
+Causa raíz del error original: `asignar_organizacion_legacy.normalizar()` **borra el contenido
+entre paréntesis** (`re.sub(r"\([^)]*\)", "", …)`), así que `…OROPEZA (IVSS)` y `…OROPEZA`
+colapsaban en una sola organización. **Corregido**: la resolución de centro ahora prioriza el
+**nombre exacto** sobre el normalizado, y registra el nombre exacto al crear. Sin esto, cada
+refresco volvería a juntarlos.
+
+### 32.3 Hallazgos del refresco
+
+- La oficina trae `espejo_extra.lara_2019_2020` (22.147 filas): la data cruda de defunciones
+  Lara 2019-2020 que pasó el **nivel central** (§22.9). Casa no la tenía; el script 2 la trae.
+  Casa tiene `ref.eventos_se32` (9.862 filas, derivada) que la oficina no tiene.
+- **⚠ El `sismai.RENGLONTELE` de la oficina viene 11.020 filas ATRÁS del de casa**
+  (2.663.432 vs 2.674.452); el resto de tablas clave van adelante (CERTIFICADO +119,
+  NAC_RNACIDO +144, CERTNACIMIENTO +194, DOCUMENTO +356, CASOS_MMI +6). La guardia del script 2
+  lo detecta y no reemplaza el espejo hasta que la oficina refresque de verdad desde el Oracle.
+  **Verificar en la oficina** por qué su `RENGLONTELE` quedó corto (posible carga parcial del CSV).
+

@@ -40,6 +40,10 @@ auditoria/
 dumps/
 *.dump
 
+# Copias que llegan de la oficina por pendrive (dumps + globals con hash de
+# contraseña + SHA256SUMS); datos personales, no versionar
+descarga/
+
 # Respaldo del Oracle de producción (dumps binarios .dmp de ~1,2 GB, no versionar)
 respaldo/
 

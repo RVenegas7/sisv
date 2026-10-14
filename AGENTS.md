@@ -443,6 +443,29 @@ Idioma de trabajo: **responder siempre en español**.
 - `extraer_datos_csv.sh`: exporta cada tabla a CSV (separador `;`). Validar encoding
   (WE8MSWIN1252 vs AL32UTF8) antes de importar a PostgreSQL.
 
+**Flujo semanal oficina↔casa (13/10/2026, §32 de PENDIENTES.md):** la transición legacy→nuevo es
+semanal y repetitiva. Dos scripts, uno por lado, con lista negra explícita para no tener que
+recordar qué traer:
+
+- **`oficina_refrescar_y_exportar.sh`** (corre en la **oficina**): Oracle vivo → espejo crudo en
+  PG + `espejo_extra` → `pg_dump -Fc` a `descarga/` con `SHA256SUMS`. No corre ETL ni toca la app
+  (con `HACER_RESPALDO=1` exporta el Oracle con `respaldo_total.sh`).
+- **`aplicar_dump_oficina.sh`** (corre en **casa**, `newgrp docker -c "..."`; dry-run por defecto,
+  `--ejecutar` aplica): verifica SHA256, restaura en `sis_salud_db_oficina`, **guarda contra
+  regresión** (aborta si el espejo de la oficina viene con menos filas, salvo `--forzar`),
+  reemplaza el espejo crudo local (`sismai`/`inbdlar1`/`historico`; conserva `legacy`), copia
+  `espejo_extra` y **corre el ETL en casa** (importar_legacy_registros/vigilancia,
+  recuperar_establecimiento_defuncion, asignar_organizacion_legacy, completar_numero_certificado,
+  completar_nacimiento_legacy, sembrar_registradores_legacy). `--solo-certificados` es el camino
+  rápido aditivo (`aplicar_dump_oficina.py`, resuelve centro por `establecimiento`).
+  **Nunca trae** `territorio_apn` (estática) ni tablas de la app; el refresco es aditivo y
+  conserva la codificación CIE (124.500 codificadas / 49.840 pendientes) y la configuración.
+- **Centros que la oficina agrupa y el certificado separa:** los dos `HOSP. DR. PASTOR OROPEZA`
+  (IVSS/Barquisimeto vs Carora) comparten la org 800 de la oficina; casa los separa por
+  `establecimiento` (org 22 Carora / org 426 IVSS). `asignar_organizacion_legacy` ahora prioriza
+  el nombre **exacto** sobre el normalizado (su `normalizar()` borra los paréntesis y colapsaba
+  ambos centros en uno).
+
 ### Recuperación del hueco MM/MN (ventana del martes 29/09/2026)
 
 La captura se cortó el 02/08/2026; el centro siguió generando los sobres semanales, así que los

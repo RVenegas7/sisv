@@ -103,17 +103,26 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("No se asignó nada. Use --ejecutar para aplicar."))
             return
 
-        existentes_por_nombre = {normalizar(o.nombre): o for o in Organizacion.objects.filter(padre=padre)}
+        hijos = list(Organizacion.objects.filter(padre=padre))
+        existentes_por_nombre = {normalizar(o.nombre): o for o in hijos}
+        # El nombre EXACTO manda sobre el normalizado: `normalizar` borra el
+        # contenido entre paréntesis, y sin esta prioridad dos centros distintos
+        # que solo difieren en el sufijo (p. ej. «HOSP. DR. PASTOR OROPEZA» vs
+        # «HOSP. DR. PASTOR OROPEZA (IVSS)») colapsarían en una sola organización.
+        existentes_exactos = {(o.nombre or "").strip(): o for o in hijos}
         creadas = reutilizadas = 0
 
         def _org_para(nombre_establecimiento, indice):
             nonlocal creadas, reutilizadas
-            org = existentes_por_nombre.get(normalizar(nombre_establecimiento))
+            nombre = nombre_establecimiento.strip()[:150]
+            org = existentes_exactos.get(nombre)
+            if org is None:
+                org = existentes_por_nombre.get(normalizar(nombre_establecimiento))
             if org is not None:
                 reutilizadas += 1
                 return org
             org = Organizacion.objects.create(
-                nombre=nombre_establecimiento.strip()[:150],
+                nombre=nombre,
                 codigo=f"LEG-CENTRO-{indice:03d}",
                 nivel="CENTRO",
                 estado="Lara",
@@ -122,6 +131,7 @@ class Command(BaseCommand):
                 activo=True,
             )
             existentes_por_nombre[normalizar(nombre_establecimiento)] = org
+            existentes_exactos[nombre] = org
             creadas += 1
             return org
 
