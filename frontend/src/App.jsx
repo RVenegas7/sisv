@@ -26,6 +26,11 @@ const NAVEGACION = [
       { enlace: "/nacimientos", rotulo: "Nacimientos" },
       { enlace: "/defunciones", rotulo: "Defunciones" },
       { enlace: "/codificacion", rotulo: "Codificación" },
+    ],
+  },
+  {
+    grupo: "Vigilancia",
+    items: [
       { enlace: "/vigilancia", rotulo: "Consolidado semanal", exacto: true },
       { enlace: "/vigilancia/fichas", rotulo: "Fichas de vigilancia" },
       { enlace: "/vigilancia/epi15", rotulo: "Consolidado EPI-15" },

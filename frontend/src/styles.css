@@ -118,6 +118,12 @@ body {
   padding: 0 0.8rem 0.3rem;
 }
 
+/* Los enlaces de un grupo van sangrados respecto al título del grupo (y a los
+   enlaces sueltos como «Tablero»), para que el submenú se vea como tal. */
+.grupo-menu a {
+  padding-left: 1.55rem;
+}
+
 .api-enlace {
   color: #d9ffe9;
   font-size: 0.8rem;
