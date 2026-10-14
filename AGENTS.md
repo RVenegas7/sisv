@@ -142,11 +142,15 @@ Idioma de trabajo: **responder siempre en español**.
   Permisos: crear/editar TRANSCRIPTOR/CODIFICADOR/DIRECTOR; eliminar DIRECTOR/superusuario; EPIDEMIÓLOGO lectura
   (igual que `permisos_de`). Frontend: `/vigilancia` (resumen por semana del año; «Ver detalle» abre la semana con
   vista por centro → matriz editable 13×2, o por evento con totales H/M; pestañas situaciones/alertas, estados,
-  exportar CSV); `/vigilancia/epi15` (resumen por semana + detalle por centro → matriz
+  exportar CSV); `/vigilancia/epi15` (resumen por **mes** + detalle por mes → matriz
   primeras/subsiguientes/X); `/vigilancia/fichas` conserva la carga individual heredada. El org en POST se fuerza
   desde `organizacion_por_defecto` (CENTRO) o del payload (niveles superiores eligen centro destino); utilidades en
   `vigilancia/services.py` (`semana_epidemiologica`, `organizaciones_descendientes`, `sembrar_filas`).
-  `epi15/resumen/?anio=` expone el mismo agregado para el EPI-15 (solo lectura, `ConsolidadoEpi15`/`FilaEpi15`).
+  `epi15/resumen/?anio=` expone el agregado del EPI-15 **por mes** (solo lectura, `ConsolidadoEpi15`/`FilaEpi15`).
+  **El EPI-15 es MENSUAL, no semanal (13/10/2026):** su periodo va de 1 a 12 y sale de `DOCUMENTO.PERIODO`
+  con `TIPO=2`, así que el campo es `mes` (antes `semana`, migración `vigilancia/0003_epi15_mensual`) y el
+  filtro es `?mes=`; el frontend rotula «Mes N (nombre del mes)». La semana 1-53 es del EPI-12/EPI-14
+  (`ConsolidadoSemanal`), no de este formulario; compararlos por número de periodo es un error.
 - Las tablas de hechos **persisten en PostgreSQL** (ya no son mock): nacimientos/defunciones/fichas con CRUD
   (GET/POST/PUT/PATCH/DELETE) vía ORM, scoping por alcance y validación CIE por fecha; `/dashboard/` y
   `/reportes/` leen de la BD; `/reportes/exportar/` descarga CSV (UTF-8 BOM para Excel) respetando alcance

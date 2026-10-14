@@ -228,7 +228,7 @@ class ConsolidadoResumenTests(SISVBase):
 class ConsolidadoEpi15Tests(SISVBase):
     def test_crear_con_traza_legacy(self):
         c = ConsolidadoEpi15.objects.create(
-            organizacion=self.org_hcb, anio=2019, semana=12,
+            organizacion=self.org_hcb, anio=2019, mes=12,
             estado="CERRADO", origen="PROPIO", legacy_tabla="RENGLON_EPI15",
         )
         f = FilaEpi15.objects.create(
@@ -237,15 +237,15 @@ class ConsolidadoEpi15Tests(SISVBase):
         )
         self.assertEqual(f.total, 4)
         self.assertEqual(c.anio, 2019)
-        self.assertEqual(str(c), f"EPI-15 2019-S12 @ {self.org_hcb}")
+        self.assertEqual(str(c), f"EPI-15 2019-M12 @ {self.org_hcb}")
 
-    def test_unique_org_anio_semana(self):
-        ConsolidadoEpi15.objects.create(organizacion=self.org_hcb, anio=2019, semana=12)
+    def test_unique_org_anio_mes(self):
+        ConsolidadoEpi15.objects.create(organizacion=self.org_hcb, anio=2019, mes=12)
         with self.assertRaises(Exception):
-            ConsolidadoEpi15.objects.create(organizacion=self.org_hcb, anio=2019, semana=12)
+            ConsolidadoEpi15.objects.create(organizacion=self.org_hcb, anio=2019, mes=12)
 
     def test_evento_puede_ser_nulo(self):
-        c = ConsolidadoEpi15.objects.create(organizacion=self.org_hcb, anio=2019, semana=13)
+        c = ConsolidadoEpi15.objects.create(organizacion=self.org_hcb, anio=2019, mes=7)
         f = FilaEpi15.objects.create(
             consolidado=c, legacy_id=99999, nombre_legacy="SÍNDROME VIRAL",
             evento=None, casosp=5,
@@ -255,15 +255,15 @@ class ConsolidadoEpi15Tests(SISVBase):
 
 
 class Epi15ResumenTests(SISVBase):
-    """Resumen por semana del EPI-15 (solo lectura del legado)."""
+    """Resumen por mes del EPI-15 (solo lectura del legado)."""
 
-    def test_resumen_por_semana(self):
-        c = ConsolidadoEpi15.objects.create(organizacion=self.org_hcb, anio=2019, semana=12)
+    def test_resumen_por_mes(self):
+        c = ConsolidadoEpi15.objects.create(organizacion=self.org_hcb, anio=2019, mes=12)
         FilaEpi15.objects.create(
             consolidado=c, legacy_id=1, nombre_legacy="CÓLERA",
             evento=self.ev_dengue, casosp=3, casoss=1, casosx=0,
         )
-        c2 = ConsolidadoEpi15.objects.create(organizacion=self.org_cabudare, anio=2019, semana=12)
+        c2 = ConsolidadoEpi15.objects.create(organizacion=self.org_cabudare, anio=2019, mes=12)
         FilaEpi15.objects.create(
             consolidado=c2, legacy_id=2, nombre_legacy="DENGUE",
             evento=self.ev_dengue, casosp=2,
@@ -273,7 +273,7 @@ class Epi15ResumenTests(SISVBase):
         self.assertEqual(r.status_code, 200)
         data = r.json()["data"]
         self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]["semana"], 12)
+        self.assertEqual(data[0]["mes"], 12)
         self.assertEqual(data[0]["casos"], 6)
         self.assertEqual(data[0]["consolidados"], 2)
         self.assertEqual(data[0]["establecimientos"], 2)

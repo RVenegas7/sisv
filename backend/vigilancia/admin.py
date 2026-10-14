@@ -48,7 +48,7 @@ class FilaEpi15Inline(admin.TabularInline):
 
 @admin.register(ConsolidadoEpi15)
 class ConsolidadoEpi15Admin(admin.ModelAdmin):
-    list_display = ["anio", "semana", "organizacion", "estado", "origen"]
+    list_display = ["anio", "mes", "organizacion", "estado", "origen"]
     list_filter = ["estado", "origen", "anio", "organizacion"]
     search_fields = ["organizacion__nombre"]
     inlines = [FilaEpi15Inline]

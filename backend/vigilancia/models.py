@@ -211,11 +211,16 @@ class FilaConsolidado(models.Model):
 
 
 class ConsolidadoEpi15(models.Model):
-    """Consolidado semanal del formulario SIS-04/EPI-15 (enfermedades de notificación).
+    """Consolidado **mensual** del formulario SIS-04/EPI-15 (morbilidad registrada).
 
     El EPI-15 no usa la matriz de 13 grupos etarios del EPI-12/14: cada evento
     lleva sus propios renglones (con desglose de edad en el propio nombre) y no
     desglosa por sexo ni muertes. Se preserva con traza legacy.
+
+    El periodo es **mensual**: ``mes`` va de 1 a 12 y sale de ``DOCUMENTO.PERIODO``
+    con ``TIPO = 2`` en el legado, no de una semana epidemiológica. El EPI-12 y el
+    EPI-14 sí son semanales (``ConsolidadoSemanal``); compararlo con ellos por
+    número de periodo es un error.
     """
 
     ESTADO_CHOICES = ConsolidadoSemanal.ESTADO_CHOICES
@@ -228,7 +233,7 @@ class ConsolidadoEpi15(models.Model):
         verbose_name="Organización / establecimiento",
     )
     anio = models.PositiveSmallIntegerField("Año")
-    semana = models.PositiveSmallIntegerField("Semana epidemiológica (1-53)")
+    mes = models.PositiveSmallIntegerField("Mes (1-12)")
     estado = models.CharField("Estado", max_length=10, choices=ESTADO_CHOICES, default="BORRADOR")
     origen = models.CharField("Origen", max_length=22, choices=ORIGEN_CHOICES, default="PROPIO")
     legacy_tabla = models.CharField("Tabla legacy de origen", max_length=40, blank=True, db_index=True)
@@ -237,22 +242,22 @@ class ConsolidadoEpi15(models.Model):
     actualizado_en = models.DateTimeField("Actualizado en", auto_now=True)
 
     class Meta:
-        verbose_name = "Consolidado semanal EPI-15"
-        verbose_name_plural = "Consolidados semanales EPI-15"
-        ordering = ["-anio", "-semana"]
+        verbose_name = "Consolidado mensual EPI-15"
+        verbose_name_plural = "Consolidados mensuales EPI-15"
+        ordering = ["-anio", "-mes"]
         constraints = [
             models.UniqueConstraint(
-                fields=["organizacion", "anio", "semana"], name="uq_consolidado_epi15"
+                fields=["organizacion", "anio", "mes"], name="uq_consolidado_epi15"
             )
         ]
 
     def __str__(self):
-        return f"EPI-15 {self.anio}-S{self.semana:02d} @ {self.organizacion}"
+        return f"EPI-15 {self.anio}-M{self.mes:02d} @ {self.organizacion}"
 
     def clean(self):
         super().clean()
-        if not (1 <= self.semana <= 53):
-            raise ValidationError({"semana": "La semana debe estar entre 1 y 53."})
+        if not (1 <= self.mes <= 12):
+            raise ValidationError({"mes": "El mes debe estar entre 1 y 12."})
 
 
 class FilaEpi15(models.Model):

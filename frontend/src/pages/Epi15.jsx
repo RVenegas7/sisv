@@ -8,13 +8,26 @@ const ESTADO_LABEL = {
   CERRADO: "Cerrado",
 }
 
+// El EPI-15 es un consolidado MENSUAL: el periodo va de 1 (enero) a 12 (diciembre).
+// La semana epidemiológica (1-53) es del EPI-12/EPI-14, no de este formulario.
+const MESES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+]
+
+function etiquetaMes(valor) {
+  const numero = Number(valor)
+  const nombre = MESES[numero - 1]
+  return nombre ? `Mes ${numero} (${nombre})` : `Mes ${numero}`
+}
+
 export default function Epi15({ usuario }) {
   const hoy = new Date()
   const [resumen, setResumen] = useState([])
   const [anio, setAnio] = useState(hoy.getFullYear())
-  const [semana, setSemana] = useState("")
-  const [semanaAbierta, setSemanaAbierta] = useState(null)
-  const [detalleSemana, setDetalleSemana] = useState([])
+  const [mes, setMes] = useState("")
+  const [mesAbierto, setMesAbierto] = useState(null)
+  const [detalleMes, setDetalleMes] = useState([])
   const [seleccionado, setSeleccionado] = useState(null)
   const [filas, setFilas] = useState([])
   const [cargando, setCargando] = useState(true)
@@ -36,19 +49,19 @@ export default function Epi15({ usuario }) {
     }
   }
 
-  async function abrirSemana(valor) {
-    setSemanaAbierta(valor)
+  async function abrirMes(valor) {
+    setMesAbierto(valor)
     try {
-      setDetalleSemana(await listarEpi15({ anio, semana: valor }))
+      setDetalleMes(await listarEpi15({ anio, mes: valor }))
     } catch (err) {
       aviso("error", err.message)
-      setDetalleSemana([])
+      setDetalleMes([])
     }
   }
 
-  function cerrarSemana() {
-    setSemanaAbierta(null)
-    setDetalleSemana([])
+  function cerrarMes() {
+    setMesAbierto(null)
+    setDetalleMes([])
   }
 
   useEffect(() => {
@@ -60,7 +73,7 @@ export default function Epi15({ usuario }) {
       const detalle = await obtenerEpi15(cons.id)
       setSeleccionado(detalle)
       setFilas(detalle.filas || [])
-      aviso("ok", `Consolidado EPI-15 cargado: ${detalle.organizacion_nombre} — ${detalle.anio}-S${String(detalle.semana).padStart(2, "0")}.`)
+      aviso("ok", `Consolidado EPI-15 cargado: ${detalle.organizacion_nombre} — ${detalle.anio}-M${String(detalle.mes).padStart(2, "0")}.`)
     } catch (err) {
       aviso("error", err.message)
     }
@@ -70,7 +83,7 @@ export default function Epi15({ usuario }) {
     try {
       const params = {}
       if (anio) params.anio = anio
-      if (semana) params.semana = semana
+      if (mes) params.mes = mes
       const blob = await exportarEpi15(params)
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -89,16 +102,16 @@ export default function Epi15({ usuario }) {
   )
 
   const vistaResumen = useMemo(
-    () => (semana ? resumen.filter((r) => String(r.semana) === String(semana)) : resumen),
-    [resumen, semana]
+    () => (mes ? resumen.filter((r) => String(r.mes) === String(mes)) : resumen),
+    [resumen, mes]
   )
 
   return (
     <div className="pagina">
       <header className="cabecera-pagina">
-        <h1>Consolidado semanal EPI-15</h1>
+        <h1>Consolidado mensual EPI-15</h1>
         <p>
-          SIS-04/EPI-15 (morbilidad registrada): consolidados semanales por enfermedad/evento de notificación.
+          SIS-04/EPI-15 (morbilidad registrada): consolidados mensuales por enfermedad/evento de notificación.
           Datos leídos del legado SISMAI (RENGLON_EPI15/INFORME_EPI); solo lectura.
         </p>
       </header>
@@ -119,12 +132,12 @@ export default function Epi15({ usuario }) {
               onChange={(e) => setAnio(Number(e.target.value))}
             />
           </Campo>
-          <Campo label="Semana (1-53, opcional)" htmlFor="epi15-semana">
+          <Campo label="Mes (1-12, opcional)" htmlFor="epi15-mes">
             <Select
-              id="epi15-semana"
-              opciones={[["", "Todas"], ...Array.from({ length: 53 }, (_, i) => [`${i + 1}`, `Semana ${i + 1}`])]}
-              value={String(semana)}
-              onChange={(e) => setSemana(e.target.value)}
+              id="epi15-mes"
+              opciones={[["", "Todos"], ...MESES.map((nombre, i) => [`${i + 1}`, `Mes ${i + 1} (${nombre})`])]}
+              value={String(mes)}
+              onChange={(e) => setMes(e.target.value)}
             />
           </Campo>
         </div>
@@ -142,7 +155,7 @@ export default function Epi15({ usuario }) {
         <section className="panel" style={{ marginTop: "1rem" }}>
           <header className="cabecera-seccion">
             <h2>
-              {seleccionado.organizacion_nombre} — Año {seleccionado.anio} · Semana {seleccionado.semana}
+              {seleccionado.organizacion_nombre} — Año {seleccionado.anio} · {etiquetaMes(seleccionado.mes)}
               <span className="etiqueta">{ESTADO_LABEL[seleccionado.estado] || seleccionado.estado}</span>
             </h2>
             <p className="ayuda" style={{ margin: 0 }}>
@@ -198,7 +211,7 @@ export default function Epi15({ usuario }) {
         <>
           <section className="lista">
             <div className="cabecera-lista">
-              <h2>Resumen por semana — {anio} ({vistaResumen.length} semanas)</h2>
+              <h2>Resumen por mes — {anio} ({vistaResumen.length} meses)</h2>
               <button type="button" className="btn-mini" onClick={cargarResumen}>
                 Actualizar
               </button>
@@ -211,7 +224,7 @@ export default function Epi15({ usuario }) {
               <table>
                 <thead>
                   <tr>
-                    <th>Semana</th>
+                    <th>Mes</th>
                     <th>Casos</th>
                     <th>Establecimientos</th>
                     <th>Consolidados</th>
@@ -220,13 +233,13 @@ export default function Epi15({ usuario }) {
                 </thead>
                 <tbody>
                   {vistaResumen.map((r) => (
-                    <tr key={r.semana}>
-                      <td>Semana {r.semana}</td>
+                    <tr key={r.mes}>
+                      <td>{etiquetaMes(r.mes)}</td>
                       <td className="celda-total">{r.casos}</td>
                       <td className="celda-total">{r.establecimientos}</td>
                       <td className="celda-total">{r.consolidados}</td>
                       <td className="acciones">
-                        <button type="button" className="btn-mini" onClick={() => abrirSemana(r.semana)}>
+                        <button type="button" className="btn-mini" onClick={() => abrirMes(r.mes)}>
                           Ver detalle
                         </button>
                       </td>
@@ -237,11 +250,11 @@ export default function Epi15({ usuario }) {
             )}
           </section>
 
-          {semanaAbierta != null && (
+          {mesAbierto != null && (
             <section className="lista">
               <div className="cabecera-lista">
-                <h2>Semana {semanaAbierta} — {anio}</h2>
-                <button type="button" className="btn-mini" onClick={cerrarSemana}>
+                <h2>{etiquetaMes(mesAbierto)} — {anio}</h2>
+                <button type="button" className="btn-mini" onClick={cerrarMes}>
                   ← Volver al resumen
                 </button>
               </div>
@@ -256,12 +269,12 @@ export default function Epi15({ usuario }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {detalleSemana.length === 0 ? (
+                  {detalleMes.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="ayuda">Sin consolidados para esta semana.</td>
+                      <td colSpan={5} className="ayuda">Sin consolidados para este mes.</td>
                     </tr>
                   ) : (
-                    detalleSemana.map((c) => (
+                    detalleMes.map((c) => (
                       <tr key={c.id}>
                         <td>{c.organizacion_nombre}</td>
                         <td>{c.estado_label || c.estado}</td>

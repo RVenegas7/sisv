@@ -3367,3 +3367,30 @@ refresco volvería a juntarlos.
   lo detecta y no reemplaza el espejo hasta que la oficina refresque de verdad desde el Oracle.
   **Verificar en la oficina** por qué su `RENGLONTELE` quedó corto (posible carga parcial del CSV).
 
+## 33. [HECHO 13/10/2026] El EPI-15 es un consolidado MENSUAL, no semanal
+
+El usuario lo señaló al ver la pantalla: dice «Consolidado semanal EPI-15» y el EPI-15 no es semanal.
+Se verificó contra los datos y **tenía razón**: en `vigilancia_consolidadoepi15` el periodo va de **1 a 12**
+(12 valores distintos en todos los años completos), mientras que el EPI-12/EPI-14 (`vigilancia_consolidadosemanal`)
+llega a **53** (semana epidemiológica). El origen lo confirma: el ETL saca el periodo de
+`DOCUMENTO."PERIODO"` filtrando `TIPO = 2` (el EPI-15), y ahí `PERIODO` es el **mes**.
+
+- **Modelo:** `ConsolidadoEpi15.semana` → **`mes`** (`PositiveSmallIntegerField("Mes (1-12)")`), con
+  `clean()` de 1 a 12 (antes 1-53), `verbose_name` «Consolidado mensual EPI-15», `ordering` por `-mes` y
+  el `UniqueConstraint` `uq_consolidado_epi15` sobre `(organizacion, anio, mes)`. Migración
+  `vigilancia/0003_epi15_mensual` (RenameField + AlterField + Remove/AddConstraint + AlterModelOptions),
+  aplicada a PostgreSQL: **16.500 consolidados intactos**, la columna pasó de `semana` a `mes`.
+- **API:** el filtro del listado/CSV y la clave del resumen pasan de `semana` a **`mes`**
+  (`/api/vigilancia/epi15/?anio=&mes=`, `/epi15/exportar/?mes=`, `resumen` devuelve `{"mes": N, ...}`, cabecera
+  del CSV `…,anio,mes,…`). El serializer expone `mes`.
+- **ETL:** `importar_legacy_vigilancia._epi15/_claves_epi15/_filas_epi15` renombran la variable y validan
+  **1-12** (antes 1-53); el docstring aclara que el periodo es el mes y que `TIPO=2`.
+- **Frontend** (`/vigilancia/epi15`, `Epi15.jsx`): título «Consolidado mensual EPI-15», descripción
+  «consolidados mensuales», filtro **«Mes (1-12, opcional)»** con los 12 meses, columna «Mes» y las celdas
+  «Mes N (nombre del mes)» (enero…diciembre), resumen «por mes», «Sin consolidados para este mes». **No se
+  tocó el EPI-12/EPI-14**, que sí es semanal (menú `/vigilancia` → «Consolidado semanal»).
+- **No cambia la data**: solo el rótulo y el nombre del campo; el `VALOR` 1-12 es el mismo mes que ya estaba.
+- Verificado con el cliente de pruebas de Django sobre la BD real: `resumen 2026` devuelve `mes` 1-8,
+  `?anio=2026&mes=8` da 165 consolidados y el CSV sale con cabecera `mes`. Suite **263 pruebas OK**,
+  `makemigrations --check` sin cambios, `npm test` 13 OK y `npm run build` OK.
+

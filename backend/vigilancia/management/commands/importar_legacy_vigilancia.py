@@ -6,8 +6,10 @@ Qué importa y hacia dónde:
   - sismai.RENGLONTELE  (SIS-04/EPI-12 semanal, casos y muertes 13×2)
       → vigilancia.ConsolidadoSemanal tipo MORBILIDAD y MORTALIDAD
         con sus FilaConsolidado (matriz de 13 grupos etarios × 2 sexos).
-  - sismai.RENGLON_EPI15 (SIS-04/EPI-15 semanal) → nuevo vigilancia.ConsolidadoEpi15
+  - sismai.RENGLON_EPI15 (SIS-04/EPI-15 **mensual**) → nuevo vigilancia.ConsolidadoEpi15
         + FilaEpi15 (sin matriz de edad; desglose en el nombre del evento).
+        El periodo es el mes (1-12) tomado de DOCUMENTO.PERIODO con TIPO=2,
+        no una semana epidemiológica.
   - sismai.CASOS_MMI / M_VIOLENTA (casos individuales) → registros.FichaVigilancia
         con lote LEGACY-MMI / LEGACY-VIOLENTA.
 
@@ -376,11 +378,11 @@ class Command(BaseCommand):
                 if not filas:
                     break
                 for _, horigen, anno, periodo, _, cp, cs, cx in filas:
-                    semana = como_entero(periodo)
-                    if not anno or int(anno) < self.desde or not semana or not (1 <= semana <= 53):
+                    mes = como_entero(periodo)
+                    if not anno or int(anno) < self.desde or not mes or not (1 <= mes <= 12):
                         continue
                     if cp or cs or cx:
-                        claves.add((self._org_id_o_fallback(horigen), int(anno), semana))
+                        claves.add((self._org_id_o_fallback(horigen), int(anno), mes))
         return claves
 
     def _crear_epi15(self, sql, parametros):
@@ -390,24 +392,24 @@ class Command(BaseCommand):
                 organizacion_id__in={k[0] for k in claves},
                 anio__in={k[1] for k in claves},
                 legacy_tabla="RENGLON_EPI15",
-            ).values_list("organizacion_id", "anio", "semana")
+            ).values_list("organizacion_id", "anio", "mes")
         )
         faltantes = sorted(claves - existentes)
         mapa = {}
         for i in range(0, len(faltantes), 3000):
             lote = [
                 ConsolidadoEpi15(
-                    organizacion_id=org, anio=anno, semana=semana,
+                    organizacion_id=org, anio=anno, mes=mes,
                     estado="CERRADO", origen="PROPIO", legacy_tabla="RENGLON_EPI15",
                 )
-                for org, anno, semana in faltantes[i : i + 3000]
+                for org, anno, mes in faltantes[i : i + 3000]
             ]
             if not lote:
                 continue
             with transaction.atomic():
                 creados = ConsolidadoEpi15.objects.bulk_create(lote, batch_size=1000)
             for obj in creados:
-                mapa[(obj.organizacion_id, obj.anio, obj.semana)] = obj.id
+                mapa[(obj.organizacion_id, obj.anio, obj.mes)] = obj.id
         self.stdout.write(f"RENGLON_EPI15: consolidados creados={len(faltantes)}")
         return mapa
 
@@ -422,10 +424,10 @@ class Command(BaseCommand):
                 if not filas:
                     break
                 for doc_id, horigen, anno, periodo, enfermedad, cp, cs, cx in filas:
-                    semana = como_entero(periodo)
-                    if not anno or int(anno) < self.desde or not semana or not (1 <= semana <= 53):
+                    mes = como_entero(periodo)
+                    if not anno or int(anno) < self.desde or not mes or not (1 <= mes <= 12):
                         continue
-                    cons_id = mapa.get((self._org_id_o_fallback(horigen), int(anno), semana))
+                    cons_id = mapa.get((self._org_id_o_fallback(horigen), int(anno), mes))
                     if cons_id is None:
                         continue
                     leg = como_entero(enfermedad)

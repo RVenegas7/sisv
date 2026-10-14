@@ -93,7 +93,7 @@ class ConsolidadoEpi15Serializer(serializers.ModelSerializer):
     class Meta:
         model = ConsolidadoEpi15
         fields = [
-            "id", "organizacion", "organizacion_nombre", "anio", "semana",
+            "id", "organizacion", "organizacion_nombre", "anio", "mes",
             "estado", "estado_label", "origen", "legacy_tabla", "legacy_documento",
             "creado_en", "actualizado_en", "filas",
         ]

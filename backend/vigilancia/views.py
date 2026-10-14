@@ -388,7 +388,7 @@ class ConsolidadoSemanalExportView(APIView):
 
 
 class Epi15ListView(APIView):
-    """GET: lista de consolidados EPI-15 (SIS-04) visibles según alcance."""
+    """GET: lista de consolidados mensuales EPI-15 (SIS-04) visibles según alcance."""
 
     def get(self, request):
         qs = ConsolidadoEpi15.objects.select_related("organizacion").prefetch_related(
@@ -396,21 +396,21 @@ class Epi15ListView(APIView):
         )
         qs = _por_alcance_qs(qs, request)
         anio = request.query_params.get("anio", "").strip()
-        semana = request.query_params.get("semana", "").strip()
+        mes = request.query_params.get("mes", "").strip()
         if anio:
             anio_i = _int_param(anio)
             if anio_i is not None:
                 qs = qs.filter(anio=anio_i)
-        semana_i = _int_param(semana)
-        if semana_i is not None:
-            qs = qs.filter(semana=semana_i)
-        qs = qs.order_by("-anio", "-semana", "organizacion__nombre")
+        mes_i = _int_param(mes)
+        if mes_i is not None:
+            qs = qs.filter(mes=mes_i)
+        qs = qs.order_by("-anio", "-mes", "organizacion__nombre")
         data = ConsolidadoEpi15Serializer(qs, many=True).data
         return ok(data, count=qs.count())
 
 
 class Epi15ResumenView(APIView):
-    """Resumen del EPI-15 por semana epidemiológica del año (respeta alcance)."""
+    """Resumen del EPI-15 por mes del año (respeta alcance)."""
 
     def get(self, request):
         anio = request.query_params.get("anio", "").strip()
@@ -425,24 +425,24 @@ class Epi15ResumenView(APIView):
         acumulado = {}
         agrupado = (
             FilaEpi15.objects.filter(consolidado__in=base)
-            .values("consolidado__semana")
+            .values("consolidado__mes")
             .annotate(total=Sum(F("casosp") + F("casoss") + F("casosx")))
         )
         for fila in agrupado:
-            acumulado[fila["consolidado__semana"]] = {
-                "semana": fila["consolidado__semana"],
+            acumulado[fila["consolidado__mes"]] = {
+                "mes": fila["consolidado__mes"],
                 "casos": fila["total"] or 0,
             }
-        for c in base.values("semana").annotate(
+        for c in base.values("mes").annotate(
             consolidados=Count("id"), establecimientos=Count("organizacion_id", distinct=True)
         ):
-            reg = acumulado.setdefault(c["semana"], {"semana": c["semana"], "casos": 0})
+            reg = acumulado.setdefault(c["mes"], {"mes": c["mes"], "casos": 0})
             reg["consolidados"] = c["consolidados"]
             reg["establecimientos"] = c["establecimientos"]
 
         data = []
-        for semana in sorted(acumulado):
-            reg = acumulado[semana]
+        for mes in sorted(acumulado):
+            reg = acumulado[mes]
             reg.setdefault("consolidados", 0)
             reg.setdefault("establecimientos", 0)
             data.append(reg)
@@ -478,27 +478,27 @@ class Epi15ExportView(APIView):
         )
         qs = _por_alcance_qs(qs, request)
         anio = request.query_params.get("anio", "").strip()
-        semana = request.query_params.get("semana", "").strip()
+        mes = request.query_params.get("mes", "").strip()
         if anio:
             anio_i = _int_param(anio)
             if anio_i is not None:
                 qs = qs.filter(anio=anio_i)
-        semana_i = _int_param(semana)
-        if semana_i is not None:
-            qs = qs.filter(semana=semana_i)
+        mes_i = _int_param(mes)
+        if mes_i is not None:
+            qs = qs.filter(mes=mes_i)
 
-        cabeceras = ["organizacion", "anio", "semana", "codigo", "evento", "casosp", "casoss", "casosx", "total"]
+        cabeceras = ["organizacion", "anio", "mes", "codigo", "evento", "casosp", "casoss", "casosx", "total"]
         buffer = io.StringIO()
         escritor = csv.DictWriter(buffer, fieldnames=cabeceras)
         escritor.writeheader()
-        for cons in qs.order_by("organizacion__nombre", "anio", "semana"):
+        for cons in qs.order_by("organizacion__nombre", "anio", "mes"):
             for fila in cons.filas.select_related("evento").order_by(
                 "evento__orden_epi12", "evento__orden_epi14", "nombre_legacy"
             ):
                 escritor.writerow({
                     "organizacion": cons.organizacion.nombre if cons.organizacion_id else "",
                     "anio": cons.anio,
-                    "semana": cons.semana,
+                    "mes": cons.mes,
                     "codigo": fila.codigo_legacy,
                     "evento": fila.evento.nombre if fila.evento_id else (fila.nombre_legacy or ""),
                     "casosp": fila.casosp,
