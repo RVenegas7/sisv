@@ -1212,6 +1212,16 @@ main.contenido {
   background: #f0faf5;
 }
 
+/* Los modificadores de celda (`.col-enfermedad`, `.celda-total`, `.celda-orden`) pesan más que
+   `thead th` en la cascada y su fondo claro/color oscuro se aplicaba al encabezado, dejando los
+   títulos ilegibles (texto blanco sobre blanco). Aquí se les devuelve el contraste del encabezado. */
+.tabla-matriz thead th.col-enfermedad,
+.tabla-matriz thead th.celda-orden,
+.tabla-matriz thead th.celda-total {
+  background: var(--verde-oscuro);
+  color: #fff;
+}
+
 .tabla-matriz tbody tr:nth-child(even) td {
   background: #fbfdfc;
 }

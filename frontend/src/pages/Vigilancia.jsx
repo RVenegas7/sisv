@@ -832,7 +832,7 @@ function InformePorEnfermedad({ filas, bloqueado, onCambiarCelda }) {
             <button
               type="button"
               className="btn-mini"
-              disabled={bloqueado || idxClamp <= 0}
+              disabled={idxClamp <= 0}
               onClick={() => setIndice(idxClamp - 1)}
             >
               ← Anterior
@@ -843,7 +843,7 @@ function InformePorEnfermedad({ filas, bloqueado, onCambiarCelda }) {
             <button
               type="button"
               className="btn-mini"
-              disabled={bloqueado || idxClamp >= coincidencias.length - 1}
+              disabled={idxClamp >= coincidencias.length - 1}
               onClick={() => setIndice(idxClamp + 1)}
             >
               Siguiente →
