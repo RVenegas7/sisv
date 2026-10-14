@@ -36,17 +36,27 @@ Idioma de trabajo: **responder siempre en español**.
 - Base de datos de Django: **PostgreSQL 18.6 por defecto ya operativa** (driver `psycopg` v3);
   `DJANGO_DB_ENGINE=sqlite` para pruebas aisladas sin contenedor.
 - Migraciones existentes aplicadas en PostgreSQL (catalogos + registros).
-- Arrancar backend: `./.venv/bin/python backend/manage.py runserver 127.0.0.1:8000`.
-- Arrancar frontend: `npm run dev` dentro de `frontend/` (proxy `/api` → puerto 8000; puerto 5173).
+- Arrancar backend: `DJANGO_DEBUG=1 ./.venv/bin/python backend/manage.py runserver 127.0.0.1:8000`.
+  **`DJANGO_DEBUG=1` es obligatorio en local**: sin él `settings.py` aborta por el `SECRET_KEY` de
+  desarrollo y las cookies de sesión salen con `Secure`, así que el login por HTTP falla. Ojo: el **8000
+  puede estar ocupado** por el contenedor `banco_sangre-app-1` (otro proyecto) → arrancar en 8001 y usar
+  `VITE_API_PROXY=http://127.0.0.1:8001`.
+- Arrancar frontend: `npm run dev` dentro de `frontend/` (proxy `/api` → `VITE_API_PROXY` o 8000 por
+  defecto; puerto 5173).
 - Mover el servidor en segundo plano dentro de una llamada a Bash de OpenCode **cuelga la sesión
   de hasta 120s**: verificar endpoints con el cliente de pruebas de Django
   (`manage.py shell -c "from django.test import Client; ..."`), no con `curl` a un proceso `&`.
-- **Acceso desde la red local (casa/oficina):** `./iniciar_lan.sh` levanta Django en `0.0.0.0:8000`
-  y Vite con `--host 0.0.0.0` (puerto 5173); cualquier dispositivo de la red entra por `http://<IP>:5173`
-  (todo el tráfico `/api` pasa por el proxy de Vite, misma-origen). `settings.py` detecta automáticamente
-  la IP local y la añade a `CSRF_TRUSTED_ORIGINS`/`CORS_ALLOWED_ORIGINS` (por eso el login funciona desde
-  el celular); también se puede fijar con env `DJANGO_CSRF_TRUSTED_ORIGINS`. Vite tiene `server.host: true`
-  en `vite.config.js`. En oficina la IP fija es `192.168.5.202`; en casa es DHCP. La BD vive en el contenedor
+- **Acceso desde la red local (casa/oficina):** `./iniciar_lan.sh` levanta Django y Vite con `--host 0.0.0.0`
+  **detectando el primer puerto libre** (parte de 8000/5173; en este equipo el **8000 lo ocupa el contenedor
+  `banco_sangre-app-1`** de otro proyecto, así que cae a 8001/5174, 8002/5175, …). Arranca con `DJANGO_DEBUG=1`
+  (sin él no hay login por HTTP), exporta `VITE_API_PROXY` hacia el backend elegido y añade los orígenes
+  `http://<IP>:<puerto>` a `DJANGO_CSRF_TRUSTED_ORIGINS`. Cualquier dispositivo de la red entra por
+  `http://<IP>:<puerto-frontend>` (todo el tráfico `/api` pasa por el proxy de Vite, misma-origen).
+  `settings.py` también detecta automáticamente la IP local y la añade a `CSRF_TRUSTED_ORIGINS`/
+  `CORS_ALLOWED_ORIGINS` (por eso el login funciona desde el celular); también se puede fijar con env
+  `DJANGO_CSRF_TRUSTED_ORIGINS`. Vite tiene `server.host: true` y, si no viene `VITE_API_PROXY`, `vite.config.js`
+  sondea los puertos 8000–8003 al hacer `npm run dev` para hallar el backend SISV (`npm test` y `npm run build`
+  no sondean). En oficina la IP fija es `192.168.5.202`; en casa es DHCP. La BD vive en el contenedor
   `sis_postgres_dev` (puerto 5436), no se necesita exponerla en la red.
 
 ### Estructura de apps (backend/)
