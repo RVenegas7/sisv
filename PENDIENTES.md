@@ -3661,3 +3661,74 @@ talonario redondeado y el CSV trae el observado).
 Suite backend **301 OK**.
 
 
+## 37. [HECHO 14/10/2026] El alta de talonario no pedía el centro (superusuario sin organización) y el catálogo de registradores se amplía con los jefes civiles
+
+Dos reclamos del usuario, con la misma raíz que `§24.2`: **lo que no está en el legacy no
+existe, y la interfaz no debe callarlo.**
+
+### 37.1 «En *Registrar entrega de talonario* no está pidiendo el centro médico»
+
+El campo del centro **sí estaba implementado** (`despacho/views.py`: el POST sin `centro` devuelve
+400 «Debe indicar el centro de salud al que se asigna el talonario»), pero el formulario no lo
+mostraba para el usuario con el que se probó: **`admin` es superusuario y no tiene organización**.
+
+- `CentroSelector.jsx` calculaba `esMulticentro = ["REGIONAL","GOBERNACION","MINISTERIO"].includes(org?.nivel)`
+  y luego `if (!esMulticentro || !org) return null`: con `organizacion = null` (superusuario) el
+  selector **desaparecía**, y el POST fallaba con un 400 que el usuario no podía resolver.
+- Igual pasaba con `esMulticentro` de `Despacho.jsx` (también gobernaba el filtro de centro de los
+  reportes) y, por el mismo componente, en `/nacimientos`, `/defunciones` y `/vigilancia/fichas`.
+- **Corrección:** sin organización se trata como **multicentro** (ve todos los centros, igual que
+  ya hacía `Vigilancia.jsx` para el caso `!orgUsuario`): en `CentroSelector.jsx` y en `Despacho.jsx`
+  `esMulticentro = !org || [REGIONAL, GOBERNACION, MINISTERIO].includes(org.nivel)`. En esta base son
+  **421 centros** los que aparecen en el selector del superusuario.
+- Prueba que fija el contrato del backend:
+  `despacho/tests.py::DespachoTalonarioTests::test_superusuario_sin_organizacion_debe_elegir_centro`
+  (400 sin `centro`, 201 con él).
+- **⚠ El backend corría con `--noreload`**: los cambios de Python no se ven hasta reiniciar
+  (`pkill -f "runserver 0.0.0.0:8001"` + relanzar); el frontend sí recarga solo (Vite).
+
+### 37.2 «En Registradores Civiles no se ven los cambios»
+
+Los cambios **estaban en el código y se servían** (el módulo servido por Vite traía
+`Ver registradores`, `En funciones`, `Cesantes (historial)`), pero la base tenía
+**0 registros civiles y 0 designaciones** con **3.857 registradores**: la tabla que agrupa por
+oficina no tenía ni una fila y el componente, con `registros.length === 0`, ocultaba la tabla entera.
+Y las oficinas **no se pueden sacar del legacy**: no existe ninguna columna con la oficina de
+registro civil (buscado en `sismai`/`inbdlar1`/`historico`/`legacy`: ni juzgado, ni notaría, ni
+municipio de la oficina; solo la **persona** que firmaba).
+
+Lo que sí había, y no se había usado, es el **jefe civil de los nacimientos**:
+`sismai.CERTNACIMIENTO.JEFECIVIL`/`JEFECIVILCI` (+ `FECHAREGCIVIL`): **110.848 filas, 1.572 nombres,
+400 cédulas**. Se amplió el comando con `--origen`:
+
+| `--origen` | Fuente | Filas | Resultado |
+| --- | --- | --- | --- |
+| `defunciones` (defecto) | `CERTIFICADO.NOMREGISTRADOR`/`CIREGISTRADOR`/`NACREGISTRADOR` | 167.447 | 3.857 (02/10/2026) |
+| `nacimientos` | `CERTNACIMIENTO.JEFECIVIL`/`JEFECIVILCI`/`FECHAREGCIVIL` | 110.848 | **233 nuevos** (166 cédulas ya estaban) |
+
+- **Ejecutado:** el catálogo pasa de 3.857 a **4.090** registradores. Descartados: 31.912 sin cédula
+  y 1 con cédula inválida (`<5` dígitos, constante `MIN_DIGITOS_CEDULA`).
+- La deduplicación es **por cédula sola** (no por `(nacionalidad, cédula)`): el legacy de nacimientos
+  no guarda la nacionalidad del jefe civil, así que una misma persona con `V` en un lado y `E` en el
+  otro no debe duplicarse.
+- **Periodo observado (migración `registradores/0003`):** dos campos nuevos, `firmo_desde`/`firmo_hasta`,
+  con la primera y última fecha en que esa persona aparece firmando (`FECHAREGCIVIL`). **No es una
+  designación**: es lo único que el legacy dice de su vigencia, y sirve para fechar la designación a
+  mano. `consolidar_registradores` acepta ahora filas de 4 elementos `(nac, cédula, nombre, fecha)` y
+  los 3 antiguos siguen funcionando. La tabla de `/registradores` muestra la columna «Firmó entre».
+- **La oficina sigue sin existir**: el comando **no** inventa `RegistroCivil` ni `DesignacionRegistrador`.
+  En su lugar la página explica el vacío (`aviso aviso-info` con el conteo real de registradores y
+  designaciones) y dice cómo cargarlos. **Pendiente real del usuario:** entregar la lista oficial de
+  registros civiles (Excel/CSV) para importarla; ahí sí se podrán crear también las designaciones.
+- **Calidad del dato heredado:** entre las cédulas que se descartan y las que entran hay basura
+  típica del legacy (cédulas que en realidad son fechas: `09072017`, `01052024`; y erratas que crean
+  la misma persona dos veces: `V-1004584` / `V-10044584`). Se conserva tal cual (editable a mano);
+  una pasada de calidad sobre este catálogo, al estilo de `registros/calidad.py` (§35), queda como
+  pendiente.
+
+Pruebas: `registradores/tests.py` pasa a **26** (periodo observado en la consolidación, cédulas
+inválidas, `--origen nacimientos` sin espejo y exposición del periodo en la API).
+Suite backend **306 OK**; `npm test` 13 OK; `npm run build` OK.
+
+
+

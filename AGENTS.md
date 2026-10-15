@@ -361,7 +361,13 @@ Idioma de trabajo: **responder siempre en español**.
   autenticado. Frontend `/despacho` (`Despacho.jsx`). **(12/10/2026)** alta de talonario: el **centro de salud es
   obligatorio** (400 «Debe indicar el centro…») y se **fuerza al del usuario CENTRO**; niveles superiores eligen un
   centro dentro de su alcance (`organizacion_destino_valida`) y el frontend lo exige en el formulario
-  (`CentroSelector`). Los detalles (`/talonarios/<id>/`, `/talonarios/<id>/certificados/`, `/novedades/<id>/`)
+  (`CentroSelector`). **(14/10/2026) ese campo no aparecía para un superusuario sin organización** (el
+  `CentroSelector` devolvía `null` con `organizacion = null`, y el POST fallaba con un 400 irresoluble):
+  ahora **sin organización se trata como multicentro** en `CentroSelector.jsx` y en `Despacho.jsx`
+  (`esMulticentro = !org || [REGIONAL, GOBERNACION, MINISTERIO].includes(org.nivel)`, igual que ya hacía
+  `Vigilancia.jsx`), así que el superusuario elige entre los 421 centros y también ve los filtros de
+  centro de los reportes; afecta igual a `/nacimientos`, `/defunciones` y `/vigilancia/fichas`, que usan
+  el mismo componente. Los detalles (`/talonarios/<id>/`, `/talonarios/<id>/certificados/`, `/novedades/<id>/`)
   respetan el alcance (404 si está fuera); la **lectura** tolera talonarios entregados a un ancestro (el cruce usa
   el subárbol) pero la **escritura** es estricta. **Nota:** el reporte 1 de nacimientos usa el nombre del
   **recién nacido** (`nino_nombres`/`nino_apellidos`, rotulado `persona: "Recién nacido"`) y cae al de
@@ -420,12 +426,21 @@ Idioma de trabajo: **responder siempre en español**.
   Frontend `/registradores` (`Registradores.jsx`). Pruebas `registradores/tests.py` (22). **(14/10/2026)**
   la tabla de registros civiles muestra **nº de registradores** (distintos), el **registrador vigente**
   (o «—») y un botón **«Ver registradores»** que despliega el detalle agrupado: *en funciones* vs
-  *cesantes (historial)*, calculado en el cliente desde las designaciones ya cargadas (`d.vigente`). **Catálogo
-  sembrado del legacy** con `manage.py sembrar_registradores_legacy [--ejecutar] [--limite N]` (dry-run,
-  idempotente): lee `sismai.CERTIFICADO.NOMREGISTRADOR`/`CIREGISTRADOR`/`NACREGISTRADOR` (167.447 filas,
-  12.713 variantes), agrupa por `(nacionalidad, cédula)`, elige el nombre más frecuente y ejecutado creó
-  **3.857 registradores** (3.845 V + 12 E; 11.184 sin cédula descartados). **No** crea registros civiles
-  ni designaciones (el legacy no los modela); la división nombres/apellidos es heurística (asume apellidos
+  *cesantes (historial)*, calculado en el cliente desde las designaciones ya cargadas (`d.vigente`).
+  **⚠ Esa tabla está vacía en la base local (0 registros civiles, 0 designaciones)**, así que la página
+  muestra un aviso explicando el vacío (con el conteo real) en vez de la tabla. **Catálogo
+  sembrado del legacy** con `manage.py sembrar_registradores_legacy [--ejecutar] [--limite N] [--origen defunciones|nacimientos]`
+  (dry-run, idempotente): `--origen defunciones` (defecto) lee
+  `sismai.CERTIFICADO.NOMREGISTRADOR`/`CIREGISTRADOR`/`NACREGISTRADOR` (167.447 filas, 12.713 variantes)
+  y creó **3.857 registradores** (3.845 V + 12 E; 11.184 sin cédula descartados);
+  `--origen nacimientos` lee `sismai.CERTNACIMIENTO.JEFECIVIL`/`JEFECIVILCI` + `FECHAREGCIVIL`
+  (110.848 filas, 400 cédulas) y creó **233 más** el 14/10/2026 → catálogo de **4.090**. Agrupa por
+  cédula y elige el nombre más frecuente; **desde la cédula sola** en nacimientos (ese legacy no guarda
+  la nacionalidad) y descarta cédulas de menos de 5 dígitos (`MIN_DIGITOS_CEDULA`). **Periodo observado**
+  (`firmo_desde`/`firmo_hasta`, migración `0003`): primera y última fecha en que aparece firmando; **no es
+  una designación** (columna «Firmó entre» en `/registradores`). **No** crea registros civiles
+  ni designaciones (el legacy no los modela: ninguna columna tiene la oficina); la división nombres/apellidos
+  es heurística (asume apellidos
   primero) y `apellidos` quedó opcional (migración `0002`).
 
 - `legacy`: **mapa de modelos del legado SISMAI** (no altera el flujo). App con `models_legacy.py`
@@ -667,10 +682,11 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
 - **Pruebas automatizadas (14/10/2026):** backend con `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
   (**correr desde `backend/`** — desde la raíz descubre 0 tests),
-  (**301 pruebas a 14/10/2026** (verificado): 115 de `backend/tests_sisv.py` + 45 de `backend/despacho/tests.py`
-  (24 + 3 del reporte agrupado + 11 de las series deducidas + 7 del redondeo al corte de decena, §36)
+  (**306 pruebas a 14/10/2026** (verificado): 115 de `backend/tests_sisv.py` + 46 de `backend/despacho/tests.py`
+  (24 + 3 del reporte agrupado + 11 de las series deducidas + 7 del redondeo al corte de decena, §36
+  + 1 del centro obligatorio sin organización, §37)
   + 4 de `registros/tests_completar_numero_certificado.py`
-  + 22 de `backend/registradores/tests.py`
+  + 26 de `backend/registradores/tests.py` (§37)
   + 33 de `conciliacion` (16 ENO +
   9 neonatal + 8 materna) + 27 de `registros/tests.py` (2 EV-14, 7 de las secciones del
   certificado EV-14, 6 del EV-25, 7 del reporte semanal MM/MN y 5 de meses degradados) + 6 de `registros/tests_recuperar_establecimiento.py`
