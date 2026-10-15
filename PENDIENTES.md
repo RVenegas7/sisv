@@ -3718,8 +3718,17 @@ Lo que sí había, y no se había usado, es el **jefe civil de los nacimientos**
   los 3 antiguos siguen funcionando. La tabla de `/registradores` muestra la columna «Firmó entre».
 - **La oficina sigue sin existir**: el comando **no** inventa `RegistroCivil` ni `DesignacionRegistrador`.
   En su lugar la página explica el vacío (`aviso aviso-info` con el conteo real de registradores y
-  designaciones) y dice cómo cargarlos. **Pendiente real del usuario:** entregar la lista oficial de
-  registros civiles (Excel/CSV) para importarla; ahí sí se podrán crear también las designaciones.
+  designaciones) y dice cómo cargarlos. **Pendiente real del usuario:** enviar el requerimiento y
+  entregar la lista oficial de registros civiles para importarla; ahí sí se podrán crear también las
+  designaciones.
+  - **Requerimiento (15/10/2026):** `docs/requerimiento-registros-civiles.md` — por qué se pide, las
+    columnas exactas de las 3 hojas, reglas de llenado, qué se hará con la lista (§5, el contrato del
+    importador futuro) y el **mensaje listo para enviar** (§8). Plantilla para la oficina:
+    `docs/plantillas/registros_civiles_plantilla.xlsx` (hojas `Instrucciones`, `1-Registros civiles`,
+    `2-Registradores`, `3-Designaciones`, con listas desplegables de nacionalidad/cargo/Sí-No),
+    regenerable con `./.venv/bin/python migracion/plantilla_registros_civiles.py` (solo librería
+    estándar; validada abriéndola con LibreOffice). Alcance esperado: **9 municipios / 57 parroquias**
+    de Lara → ≈57 oficinas como mínimo.
 - **Calidad del dato heredado:** entre las cédulas que se descartan y las que entran hay basura
   típica del legacy (cédulas que en realidad son fechas: `09072017`, `01052024`; y erratas que crean
   la misma persona dos veces: `V-1004584` / `V-10044584`). Se conserva tal cual (editable a mano);

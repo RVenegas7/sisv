@@ -442,6 +442,11 @@ Idioma de trabajo: **responder siempre en español**.
   ni designaciones (el legacy no los modela: ninguna columna tiene la oficina); la división nombres/apellidos
   es heurística (asume apellidos
   primero) y `apellidos` quedó opcional (migración `0002`).
+  **(15/10/2026)** el **requerimiento para pedir la lista oficial a la oficina** está en
+  `docs/requerimiento-registros-civiles.md`, con la plantilla Excel de 3 hojas
+  (`docs/plantillas/registros_civiles_plantilla.xlsx`, regenerable con
+  `migracion/plantilla_registros_civiles.py`, sin dependencias) y el contrato exacto de columnas
+  que leerá el importador (todavía por escribir).
 
 - `legacy`: **mapa de modelos del legado SISMAI** (no altera el flujo). App con `models_legacy.py`
   **generado** (modelos `managed=False`, solo lectura) para las **430 tablas/vistas** de
