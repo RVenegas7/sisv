@@ -3524,3 +3524,140 @@ concentrado en **2009-2011**. La mayoría de los «raros» viene de captura manu
 y sin validación. **Decisión pendiente del usuario:** si se quiere un filtro en la app para detectarlos
 y/o corregirlos.
 
+### 35.1 Implementado (14/10/2026): informe + filtro + backfill de los campos compuestos
+
+La decisión del usuario fue **ambos**: un informe/comando y un filtro en las listas, más **corregir los
+datos** de los campos compuestos (no los caracteres raros, que son dato del legacy y quedan a revisión
+manual).
+
+**Informe y filtro (no destructivo):**
+
+- `manage.py auditar_certificados [--modulo defunciones|nacimientos|todos] [--csv DIR] [--limite N]` —
+  **solo lectura**, CSV con BOM. Redacta duplicados por el número real, números no numéricos (marcando
+  los que son la fecha del evento) y nombres con dígitos. Corrido aquí: *defunciones* 61 duplicados /
+  5 no numéricos / 10 nombres con dígitos; *nacimientos* 343 duplicados / 19 no numéricos / 108 nombres.
+- **Filtro `?sospechosos=1`** en `/api/registros/nacimientos/` y `/api/registros/defunciones/`
+  (`registros/calidad.py::q_sospechosos`, **portable** PostgreSQL/SQLite — usa `__regex`, el campo vacío
+  no cuenta). Casilla «Solo con datos sospechosos» en `/nacimientos` (`CargaNacimientos.jsx`) y
+  `/defunciones` (`CargaDefunciones.jsx`).
+- El legacy **no tiene el número en el 100 %** de las filas: el informe solo ve las que lo traen.
+
+**Backfill ejecutado aquí (corrige la inversión Nombres/Apellidos y la fecha en blanco):**
+
+- `manage.py dividir_nombres_nacimiento [--ejecutar] [--solo madre|padre|nino] [--limite N]` — separa
+  «APELLIDOS + NOMBRES» (el legacy lo guardaba junto) → **439.470 nacimientos** actualizados
+  (madre 438.906, padre 372.941, recién nacido 433.410). Heurística
+  `registros/services.py::dividir_nombre_compuesto`: con coma es inequívoco (`«APELLIDOS, NOMBRES»`);
+  2-3 palabras → 1 apellido; 4 o más → 2 apellidos. **Solo rellena apellidos vacíos**, idempotente,
+  nunca borra. ⚠ La división de un nombre de **3 palabras es ambigua** (2 apellidos + 1 nombre vs
+  1 apellido + 2 nombres); los de 4+ sí se resuelven bien.
+- `manage.py completar_nacimiento_legacy` se extendió con **`fecha_emision`** ←
+  `CERTNACIMIENTO."FECHACERTIFICADO"` (se llega por `NAC_RNACIDO."HCERTIFICADO"`). Aquí estaba en blanco
+  en el **100 %**: **438.832** recuperadas (ejecutado). Solo campos vacíos e idempotente.
+  *(Bug corregido: el filtro del `UPDATE` iba sin el `AND` de enlace; las pruebas no lo detectaban
+  porque usan un cursor falso — se validó el SQL contra PostgreSQL real.)*
+
+Pruebas: `registros/tests_calidad.py` (helpers + filtro + comando) y `registros/tests_dividir_nombres.py`
+(división + idempotencia). Suite backend **283 OK**.
+
+**Frontend (correcciones de `Por_correir.md`, 14/10/2026):** `/nacimientos` preselecciona Nacionalidad
+«Venezolana», Residencia «Venezuela» y Estado «Lara», deduce la nacionalidad del prefijo de la cédula
+(V/E/P) y rotula «Sin información» los campos vacíos de la Sección I; en `/registradores` la tabla de
+registros civiles muestra **nº de registradores, el vigente y un detalle con los cesantes**; el
+**Reporte 1** de `/despacho` pasó a **consolidado por centro** (`?agrupado=1`, con «Ver detalle» y CSV).
+
+## 36. [HECHO 14/10/2026] Deducir los talonarios desde la BD (rango de serie por centro)
+
+Cierra la parte que quedaba abierta del ítem 3 de `Por_correir.md` («se debe poblar la información de
+los talonarios según la data registrada en la base de datos… y el rango de la serie (evaluar si es
+posible esto)»). **Respuesta: es posible de forma parcial, y se implementó como inferencia revisable,
+no como dato automático.**
+
+**Qué se descubrió al mirar los números impresos** (`registros.Defuncion.numero_certificado` ←
+`sismai.CERTIFICADO."NUMEROMSDS"` y `Nacimiento.numero_planilla` ← `CERTNACIMIENTO."NROPLANILLA"`,
+§31):
+
+- El número es un **serial compartido**, no un consecutivo por centro: el mismo bloque de 1000 lo usan
+  decenas de centros (en un bloque típico, 20-45 organizaciones). El bloque es el «libro» y lo retiene
+  la **regional** (p. ej. `DES LARA`, org 87) que lo sub-asigna.
+- Dentro de un bloque, **cada centro ocupa un sub-rango contiguo** (p. ej. bloque `4860`: Baudilio
+  Lara pos. 504-537, Pastor Oropeza 571-650, PASTOR OROPEZA (IVSS) 652-700, Manuel Felipe Ponte
+  720-934). Ahí sí hay estructura explotable.
+- Los huecos entre consecutivos de un mismo centro son pequeños (medido en la org 22: el 76 % de los
+  huecos es 1; hasta 5 cubre el 92 %). Los huecos grandes separan asignaciones distintas.
+- ⚠ Los años de bajo volumen (2019-2026, §20) dejan series **pequeñas y fragmentadas** (3-18 usados);
+  en años de alto volumen (2009-2018) las series son más grandes y limpias. La inferencia es mejor
+  cuanto más certificados hay.
+
+**Cómo se deduce** (`despacho/services.py::series_deducidas`):
+
+1. Solo participan los certificados con **número impreso** (`numero_fisico`); el sufijo de
+   `registro_numero` (`LEG-CERT-<PK de Oracle>`) **no** se usa, ensuciaría la deducción.
+2. Por **centro**, se ordenan los números y se parten en corridas donde el hueco entre consecutivos
+   ≤ `tolerancia` (def. 10). Cada corrida es una **serie candidata** `[min, max]`.
+3. Se descartan las series con menos de `min_usados` (def. 3) o con **densidad** (usados/extensión) por
+   debajo de `densidad_minima` (def. 0,5): un rango salpicado es ruido de captura histórica, no un
+   talonario. (Con densidad 0 salen todas, para inspección.)
+4. El **centro** (el «centro médico a quien se le asigna el talonario») queda explícito en cada
+   candidata y en el `Talonario` que se cree de ella.
+
+**Superficie añadida:**
+
+- `GET /api/despacho/reportes/series-deducidas/?tipo=&centro=&anio=&tolerancia=&min_usados=&densidad=&redondeo=`
+  (`formato=csv` con BOM). Devuelve `centro_id`, `centro`, `serie_desde/hasta`, `usados`, `extension`,
+  `densidad`, `serie_desde/hasta_observada`, `densidad_observada`, `redondeado`, `fecha_desde/hasta` y `ya_registrado` (cierto
+  si un talonario ya cubre el rango). Respeta el alcance (`alcance_registros`) y **solo lee**: no crea
+  nada. Toda la BD en ~4 s (usa `values_list`; con instancias de modelo tardaba ~50 s, y consultar
+  `exists()` por candidata ~32 s).
+- `manage.py deducir_talonarios [--ejecutar] [--tipo todos|NACIMIENTO|DEFUNCION] [--centro] [--anio]
+  [--tolerancia] [--min-usados] [--densidad] [--redondeo] [--responsable-recibe] [--responsable-entrega]`
+  — **dry-run por defecto**; con `--ejecutar` crea los `Talonario` (serie = min-max observado,
+  `fecha_entrega` = fecha del certificado más antiguo de la corrida —cota superior—, `observaciones`
+  deja constancia de que es deducción automática) y **omite** las series ya cubiertas (reejecutable).
+- Frontend `/despacho` (`Despacho.jsx`): sección «Deducir talonarios desde la base de datos» con
+  filtros (tipo, año —por defecto el año en curso—, hueco, densidad, redondeo), tabla de series
+  propuestas (marca «redondeado (a–b)» cuando el rango se estiró) y, si
+  el usuario puede despachar, botón «Registrar talonario» por fila (pide el responsable que recibe).
+
+**Redondeo al corte de decena (`redondeo=0..9` / `--redondeo`, opt-in, apagado por defecto):** las
+asignaciones de libro se reparten en **decenas** —los sub-rangos van de «múltiplo de 10 + 1» a
+«múltiplo de 10» (`601–650`, `81–100`, `101–500`)—, así que el rango *observado* suele quedarse corto
+por arriba (el centro no agotó su talonario). Con `redondeo=N` cada extremo se estira hacia ese corte
+como máximo `N` números y **nunca** sobre un número que ya sepamos usado (por otro centro o por otra
+corrida): si el corte pertenece al vecino, el estirón se cancela (`_redondear_extremos`). El filtro de
+densidad sigue midiéndose sobre el **observado** (para que redondear no descarte series); la
+`extension`/`densidad` informadas son las del rango ya redondeado, y las observadas viajan aparte
+(`serie_desde/hasta_observada`, `densidad_observada`). Criterio medido en la BD real: en nacimientos el **50 %** de los topes de sub-rango caen en múltiplo de
+10 (10 % sería azar puro) y en defunciones el 26 %. Con `redondeo=5` se redondean **1.206 de 8.302**
+series de nacimientos (14 %) y **728 de 3.616** de defunciones (20 %), ampliando el rango total en
++2.737 y +1.485 certificados: una corrección **conservadora**, no un inflado.
+
+**Fuente confirmada con el usuario (14/10/2026):** el número impreso que la oficina anota en el
+certificado se corresponde con estas dos columnas, así que la deducción va sobre el campo correcto:
+defunciones → `sismai."CERTIFICADO"."NUMEROMSDS"` (7 dígitos, **100 %** lleno; p. ej. `2224295`) =
+`Defuncion.numero_certificado`; nacimientos → `sismai."CERTNACIMIENTO"."NROPLANILLA"` (7 dígitos,
+**99,9 %**; p. ej. `5643010`) = `Nacimiento.numero_planilla`. **No** se usan, y conviene no confundirlos:
+`CONSECUTIVO` (formato `000013-1032867`) es un **serial global único** —173.976/173.976 distintos en
+defunciones y 439.596/439.596 en nacimientos, con el mismo prefijo usado a la vez por decenas de
+establecimientos— o sea el **lote de imprenta**, no el libro del centro, así que **no** sirve para series
+por centro; `NUMEROPERMISO` («Nº Permiso» del EV-14) solo está lleno en el **20 %**; `NUMEROPARTIDA` en
+el 5 %; `TOMO`/`FOLIO`/`LIBRO` vacíos. En el EV-14 lo único «MPPS» es la **matrícula MPPS del médico**
+(`matricula_mpps`), que no es un número de certificado. El espejo **no** tiene columnas llamadas
+literalmente `MPPS` ni `NUMNAC` (son los rótulos de la oficina).
+
+**Caveats:** es una **inferencia**, no un dato del legacy (que nunca guardó el despacho). El rango
+deducido es el **observado** (lo que el centro efectivamente usó): si un centro usó solo parte de su
+asignación, la serie sale corta; los huecos internos aparecerán luego como «sin asignar» en el
+`resumen` del talonario. Por eso la creación es **opt-in** (dry-run / clic por fila) y no se
+autopuebla. Ejemplo de esta casa (dry-run): 8.302 series NACIMIENTO + 3.616 DEFUNCION en todo el
+histórico; 302 de defunciones en 2015.
+
+Pruebas: `despacho/tests.py::DespachoSeriesDeducidasTests` (11: detección por número físico, se ignora
+el `registro_numero`, filtro por densidad, separación por huecos, alcance, fuera de alcance, ya
+registrado, nacimientos por `numero_planilla`, CSV con BOM, comando dry-run y `--ejecutar`) y
+`DespachoRedondeoSeriesTests` (7: apagado por defecto, estirón al corte de decena, margen corto no
+estira, no pisa números del vecino, el filtro de densidad usa el rango observado, el comando crea el
+talonario redondeado y el CSV trae el observado).
+Suite backend **301 OK**.
+
+

@@ -196,12 +196,26 @@ Idioma de trabajo: **responder siempre en español**.
     que los FKs de residencia sean PARROQUIA/COMUNIDAD, y el serializer expone
     `madre_residencia_territorio`/`padre_residencia_territorio` (4 niveles) para que
     `SelectTerritorial` (props `destino`/`comunidadComoLista`) precargue la cascada. `/nacimientos`
-    (`CargaNacimientos.jsx`) se reorganizó por secciones. Reglas: **nada nuevo es obligatorio** y el
+    (`CargaNacimientos.jsx`) se reorganizó por secciones. **(14/10/2026)** el formulario **preselecciona**
+    Nacionalidad «Venezolana» (`V`), Residencia habitual «Venezuela» (`V`) y Estado «Lara» por defecto,
+    **deduce la nacionalidad del prefijo de la cédula** (V/E/P; solo dígitos = V) al teclearla, y rotula
+    **«Sin información»** los campos vacíos de la Sección I. Reglas: **nada nuevo es obligatorio** y el
     ETL no se toca. Pruebas en `registros/tests.py::NacimientoEV25Tests`;
-    **backfill** `manage.py completar_nacimiento_legacy` (dry-run; `--ejecutar`; `--solo nombres|residencia`)
-    recupera de `NAC_RNACIDO."NOMBRES"` (438.518) y `NAC_MADRE."HRESIDENCIA"` (416.706, por nombre
-    dentro del árbol), **solo campos vacíos** e idempotente; pruebas en
+    **backfill** `manage.py completar_nacimiento_legacy` (dry-run; `--ejecutar`; `--solo nombres|residencia|fecha_emision`)
+    recupera de `NAC_RNACIDO."NOMBRES"` (438.518), `NAC_MADRE."HRESIDENCIA"` (416.706, por nombre
+    dentro del árbol) y `CERTNACIMIENTO."FECHACERTIFICADO"` → `fecha_emision` (**438.832** ejecutados aquí
+    el 14/10/2026), **solo campos vacíos** e idempotente; pruebas en
     `registros/tests_completar_nacimiento.py`.
+  - **Calidad de datos del certificado (§35, 14/10/2026):** `registros/calidad.py` detecta números no
+    numéricos/nombres con dígitos; comando **`manage.py auditar_certificados`** (`--modulo`, `--csv`, `--limite`;
+    solo lectura, CSV con BOM) y filtro **`?sospechosos=1`** en `/api/registros/nacimientos/` y
+    `/api/registros/defunciones/` (portable vía `__regex`; el campo vacío no cuenta) con casilla «Solo con
+    datos sospechosos» en `/nacimientos` y `/defunciones`. **Backfill de campos compuestos:**
+    `manage.py dividir_nombres_nacimiento` (`--ejecutar`, `--solo madre|padre|nino`, `--limite`) separa
+    «APELLIDOS + NOMBRES» → **439.470 nacimientos** (madre 438.906, padre 372.941, recién nacido 433.410),
+    heurística `services.dividir_nombre_compuesto` (coma = inequívoco; 2-3 palabras → 1 apellido; 4+ → 2
+    apellidos; ⚠ 3 palabras es ambiguo), solo apellidos vacíos, idempotente. Pruebas
+    `registros/tests_calidad.py` y `registros/tests_dividir_nombres.py`. Detalle en PENDIENTES.md §35.1.
   - **Complemento EV-25 (10/10/2026, migración `0010_nacimiento_ev25_parto_ocupacion_registrocivil`):**
     al verificar el formato impreso contra el módulo faltaban campos que el certificado sí pide; se
     agregaron opcionales: `persona_atendio_parto` (Médico/Enfermera/Partera/Comadrona/Otro) y
@@ -338,6 +352,10 @@ Idioma de trabajo: **responder siempre en español**.
   `talonarios/<id>/` (GET/PATCH/DELETE), `talonarios/<id>/certificados/` (por certificado + resumen),
   `novedades/` y `novedades/<id>/`, `reportes/certificados/` (nº, nombres, apellidos, fecha, centro; CSV) y
   `reportes/pendientes/` (entregados no retornados/justificados; CSV), respetando `alcance_registros`.
+  **(14/10/2026)** el **Reporte 1** acepta **`?agrupado=1`**: devuelve el **consolidado por centro**
+  (`centro_id`/`centro`/`cantidad`, solo con organización) en vez del listado plano, y con `formato=csv`
+  exporta ese consolidado; en `/despacho` el Reporte 1 muestra la tabla consolidada con «Ver detalle»
+  por centro (que cae al listado plano filtrado por `centro`).
   **Rol nuevo `JEFE_UNIDAD` («Jefe de Unidad»)** en `seguridad.Perfil` y permiso `puede_despachar` en
   `permisos_de` (superusuario / JEFE_UNIDAD / DIRECTOR) para crear/editar/eliminar; leer y reportes, cualquier
   autenticado. Frontend `/despacho` (`Despacho.jsx`). **(12/10/2026)** alta de talonario: el **centro de salud es
@@ -361,6 +379,30 @@ Idioma de trabajo: **responder siempre en español**.
   oficina:** correr el backfill tras el próximo refresco del espejo (el de casa llega a 173.976
   defunciones). **⚠ Por evaluar:** la búsqueda principal por número debe ser la física, no
   `registro_numero` (§31).
+  **(14/10/2026, §36) Talonarios deducidos desde la BD:** el legacy nunca guardó el despacho, así que
+  el rango de serie se **infiere** de los certificados cargados. El número impreso es un **serial
+  compartido**: el bloque de 1000 es el «libro» (lo retiene la regional) y **dentro de él cada centro
+  ocupa un sub-rango contiguo**. `despacho/services.py::series_deducidas` toma los números **impresos**
+  (no el sufijo de `registro_numero`) por centro, los parte en corridas con hueco ≤ `tolerancia`
+  (def. 10) y descarta las series con menos de `min_usados` (def. 3) o densidad < 0,5. Endpoint
+  **solo-lectura** `GET /api/despacho/reportes/series-deducidas/?tipo=&centro=&anio=&tolerancia=&min_usados=&densidad=&redondeo=`
+  (`formato=csv`) con el centro explícito en cada candidata (`ya_registrado` si un talonario ya cubre el
+  rango); comando **`manage.py deducir_talonarios [--ejecutar] [...]`** (dry-run; crea los `Talonario`
+  opt-in, omite los ya cubiertos); sección «Deducir talonarios desde la base de datos» en `/despacho`
+  (botón «Registrar talonario» por fila si `puede_despachar`). Es una **inferencia revisable** (rango
+  *observado*, mejor con más volumen), no autopoblado. **Redondeo al corte de decena (`redondeo=0..9`,
+  apagado por defecto):** las asignaciones de libro van de «múltiplo de 10 + 1» a «múltiplo de 10»
+  (`601–650`, `81–100`, `101–500`), así que el rango observado suele quedarse corto por arriba; cada
+  extremo se estira como máximo `N` números y **nunca** sobre un número ya usado por otro centro (si el
+  corte es del vecino, se cancela). El filtro de densidad sigue midiendo el rango observado; `extension`/
+  `densidad` reportadas son del rango redondeado y el observado viaja en `serie_desde/hasta_observada`
+  (+`redondeado`). Con `redondeo=5` se redondean 1.206/8.302 nacimientos y 728/3.616 defunciones
+  (ampliación total +2.737 y +1.485). **Fuente confirmada con el usuario (14/10/2026):**
+  el número impreso que la oficina anota es `CERTIFICADO."NUMEROMSDS"` (defunciones, 100 %) y
+  `CERTNACIMIENTO."NROPLANILLA"` (nacimientos, 99,9 %). `CONSECUTIVO` (`000013-1032867`) es el **lote de
+  imprenta global** (único por fila, compartido por decenas de centros) → **no** sirve para series por
+  centro; en el EV-14 lo único «MPPS» es la matrícula del médico. El espejo no tiene columnas `MPPS`/`NUMNAC`
+  (son rótulos de la oficina).
 
 - `registradores`: **control de registradores civiles con historial de vigencias** (02/10/2026, §24.2).
   App propia porque el dominio (quién firma) no es el de los talonarios. Modelos: `RegistroCivil`
@@ -375,7 +417,10 @@ Idioma de trabajo: **responder siempre en español**.
   `registro_civil`, `registrador`, `cargo`, `vigente=1`). Escribe quien `puede_despachar`; leer, cualquier
   autenticado; alcance igual al despacho. **(12/10/2026)** las vistas de detalle (`/<id>/` GET/PATCH/DELETE de
   registros civiles y designaciones) verifican el alcance (404 si está fuera). **Borrado protegido** (`PROTECT` → 400) con designaciones.
-  Frontend `/registradores` (`Registradores.jsx`). Pruebas `registradores/tests.py` (22). **Catálogo
+  Frontend `/registradores` (`Registradores.jsx`). Pruebas `registradores/tests.py` (22). **(14/10/2026)**
+  la tabla de registros civiles muestra **nº de registradores** (distintos), el **registrador vigente**
+  (o «—») y un botón **«Ver registradores»** que despliega el detalle agrupado: *en funciones* vs
+  *cesantes (historial)*, calculado en el cliente desde las designaciones ya cargadas (`d.vigente`). **Catálogo
   sembrado del legacy** con `manage.py sembrar_registradores_legacy [--ejecutar] [--limite N]` (dry-run,
   idempotente): lee `sismai.CERTIFICADO.NOMREGISTRADOR`/`CIREGISTRADOR`/`NACREGISTRADOR` (167.447 filas,
   12.713 variantes), agrupa por `(nacionalidad, cédula)`, elige el nombre más frecuente y ejecutado creó
@@ -620,15 +665,17 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
 - Componentes frontend clave: `CIESearch` (autocomplete + cascada CIE-11 + subgrupos obligatorios),
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
-- **Pruebas automatizadas (12/10/2026):** backend con `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
+- **Pruebas automatizadas (14/10/2026):** backend con `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
   (**correr desde `backend/`** — desde la raíz descubre 0 tests),
-  (**263 pruebas a 13/10/2026** (verificado): 115 de `backend/tests_sisv.py` + 24 de `backend/despacho/tests.py`
+  (**301 pruebas a 14/10/2026** (verificado): 115 de `backend/tests_sisv.py` + 45 de `backend/despacho/tests.py`
+  (24 + 3 del reporte agrupado + 11 de las series deducidas + 7 del redondeo al corte de decena, §36)
   + 4 de `registros/tests_completar_numero_certificado.py`
   + 22 de `backend/registradores/tests.py`
   + 33 de `conciliacion` (16 ENO +
   9 neonatal + 8 materna) + 27 de `registros/tests.py` (2 EV-14, 7 de las secciones del
   certificado EV-14, 6 del EV-25, 7 del reporte semanal MM/MN y 5 de meses degradados) + 6 de `registros/tests_recuperar_establecimiento.py`
-  + 6 de `registros/tests_completar_nacimiento.py`; requiere
+  + 6 de `registros/tests_completar_nacimiento.py` + 7 de `registros/tests_calidad.py` (§35)
+  + 5 de `registros/tests_dividir_nombres.py`; requiere
   `__init__.py` en las
   apps — registros, seguridad, territorio y catalogos eran namespace packages y por eso el
   descubrimiento fallaba);
