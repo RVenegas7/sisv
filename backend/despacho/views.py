@@ -1,12 +1,18 @@
 import csv
 import io
 
+from django.db.models import Count, F
 from django.http import HttpResponse
 from rest_framework.views import APIView
 
 from despacho.models import NovedadCertificado, Talonario
 from despacho.serializers import NovedadCertificadoSerializer, TalonarioSerializer
-from despacho.services import detalle_certificados, persona_registro, resumen_talonario
+from despacho.services import (
+    detalle_certificados,
+    persona_registro,
+    resumen_talonario,
+    series_deducidas,
+)
 from registros.models import Defuncion, Nacimiento
 from seguridad.models import Organizacion
 from seguridad.services import alcance_registros, organizacion_destino_valida, permisos_de
@@ -227,12 +233,12 @@ class NovedadDetalleView(APIView):
         return ok(message="Novedad eliminada")
 
 
-def _filas_certificados_cargados(request):
-    """Reporte 1: certificados usados, por centro y tipo, con persona y fecha."""
+def _qs_certificados_cargados(request):
+    """Queryset base del reporte 1, ya filtrado por tipo, alcance, centro y fechas."""
     tipo = request.query_params.get("tipo", "").strip() or Talonario.TIPO_DEFUNCION
     modelo = MODELO_POR_TIPO.get(tipo)
     if modelo is None:
-        return None, None, []
+        return None, None, None
     qs = modelo.objects.select_related("organizacion")
     alc = alcance_registros(request.user)
     if isinstance(alc, dict):
@@ -249,10 +255,16 @@ def _filas_certificados_cargados(request):
         qs = qs.filter(fecha_evento__gte=desde)
     if hasta:
         qs = qs.filter(fecha_evento__lte=hasta)
-    qs = qs.order_by("organizacion__nombre", "fecha_evento")
+    return tipo, modelo, qs
 
+
+def _filas_certificados_cargados(request):
+    """Reporte 1 (detalle): certificados usados, uno por fila, con persona y fecha."""
+    tipo, modelo, qs = _qs_certificados_cargados(request)
+    if tipo is None:
+        return None, None, []
     filas = []
-    for r in qs.iterator():
+    for r in qs.order_by("organizacion__nombre", "fecha_evento").iterator():
         nombres, apellidos, persona = persona_registro(modelo, r)
         filas.append({
             "numero": r.registro_numero,
@@ -265,8 +277,44 @@ def _filas_certificados_cargados(request):
     return tipo, modelo, filas
 
 
+def _filas_certificados_por_centro(request):
+    """Reporte 1 (consolidado): cuántos certificados usó cada centro, sin el detalle."""
+    tipo, _modelo, qs = _qs_certificados_cargados(request)
+    if tipo is None:
+        return None, []
+    desde = request.query_params.get("desde", "").strip()
+    hasta = request.query_params.get("hasta", "").strip()
+    agregados = (
+        qs.exclude(organizacion__isnull=True)
+        .values(centro_id=F("organizacion_id"), centro=F("organizacion__nombre"))
+        .annotate(cantidad=Count("id"))
+        .order_by("centro")
+    )
+    return tipo, list(agregados)
+
+
 class ReporteCertificadosView(APIView):
+    """Reporte 1. Por defecto, el detalle uno por certificado; con ``agrupado=1``,
+    el consolidado por centro (cuántos certificados usó cada uno)."""
+
     def get(self, request):
+        agrupado = request.query_params.get("agrupado", "").lower() in ("1", "true", "si")
+        if agrupado:
+            tipo, filas = _filas_certificados_por_centro(request)
+            if tipo is None:
+                return error("Tipo inválido. Use NACIMIENTO o DEFUNCION.", status=400)
+            if request.query_params.get("formato", "").lower() == "csv":
+                return _csv_response(
+                    f"certificados_por_centro_{tipo.lower()}.csv",
+                    ["Centro", "Cantidad"],
+                    [[f["centro"], f["cantidad"]] for f in filas],
+                )
+            return ok({
+                "tipo": tipo,
+                "agrupado": True,
+                "total": sum(f["cantidad"] for f in filas),
+                "items": filas,
+            })
         tipo, _modelo, filas = _filas_certificados_cargados(request)
         if tipo is None:
             return error("Tipo inválido. Use NACIMIENTO o DEFUNCION.", status=400)
@@ -274,6 +322,7 @@ class ReporteCertificadosView(APIView):
             return _csv_certificados(tipo, filas)
         return ok({
             "tipo": tipo,
+            "agrupado": False,
             "total": len(filas),
             "items": filas,
         })
@@ -378,6 +427,114 @@ class ReportePendientesView(APIView):
         if request.query_params.get("formato", "").lower() == "csv":
             return _csv_pendientes(filas)
         return ok({"total": len(filas), "items": filas})
+
+
+def _ids_organizaciones_alcance(request):
+    """Ids de organizaciones dentro del alcance del usuario (None = todas)."""
+    alc = alcance_registros(request.user)
+    if not isinstance(alc, dict):
+        return None
+    if alc["tipo"] == "CENTRO":
+        return {alc["organizacion_id"]}
+    if alc["tipo"] == "REGIONAL" and alc.get("estado"):
+        return set(Organizacion.objects.filter(estado=alc["estado"]).values_list("id", flat=True))
+    return None
+
+
+class ReporteSeriesDeducidasView(APIView):
+    """Deducción del rango de serie de los talonarios a partir de la BD.
+
+    El legacy nunca guardó la entrega; aquí se **infiere** por centro desde los
+    certificados ya cargados (ver ``services.series_deducidas``). Es una
+    propuesta para que el operario la revise y registre el talonario, no un dato
+    del sistema antiguo.
+    """
+
+    def get(self, request):
+        tipo = request.query_params.get("tipo", "").strip() or Talonario.TIPO_DEFUNCION
+        modelo = MODELO_POR_TIPO.get(tipo)
+        if modelo is None:
+            return error("Tipo inválido. Use NACIMIENTO o DEFUNCION.", status=400)
+
+        ids = _ids_organizaciones_alcance(request)
+        centro = request.query_params.get("centro", "").strip()
+        if centro:
+            try:
+                centro_id = int(centro)
+            except ValueError:
+                return error("Centro inválido.", status=400)
+            if ids is not None and centro_id not in ids:
+                return error("El centro está fuera de su alcance geográfico.", status=403)
+            ids = {centro_id}
+
+        def _entero(nombre, defecto, minimo=0):
+            valor = request.query_params.get(nombre, "").strip()
+            if not valor:
+                return defecto
+            try:
+                return max(minimo, int(valor))
+            except ValueError:
+                return defecto
+
+        tolerancia = _entero("tolerancia", 10)
+        min_usados = _entero("min_usados", 3, minimo=1)
+        # Redondeo al corte de decena (0 = apagado, 1–9 = margen de estirón).
+        margen_redondeo = min(9, _entero("redondeo", 0))
+        densidad_minima = 0.5
+        valor_densidad = request.query_params.get("densidad", "").strip()
+        if valor_densidad:
+            try:
+                densidad_minima = max(0.0, float(valor_densidad))
+            except ValueError:
+                pass
+        anio = request.query_params.get("anio", "").strip()
+        try:
+            anio = int(anio) if anio else None
+        except ValueError:
+            anio = None
+
+        candidatas = series_deducidas(
+            modelo, tolerancia=tolerancia, min_usados=min_usados,
+            densidad_minima=densidad_minima, organizaciones=ids, anio=anio,
+            margen_redondeo=margen_redondeo,
+        )
+
+        # Marca las series que ya tienen un talonario que cubre el rango completo.
+        existentes = Talonario.objects.filter(tipo=tipo)
+        if ids is not None:
+            existentes = existentes.filter(centro_id__in=ids)
+        por_centro = {}
+        for tal in existentes.only("centro_id", "serie_desde", "serie_hasta"):
+            por_centro.setdefault(tal.centro_id, []).append((tal.serie_desde, tal.serie_hasta))
+        for candidata in candidatas:
+            candidata["ya_registrado"] = any(
+                desde <= candidata["serie_desde"] and hasta >= candidata["serie_hasta"]
+                for desde, hasta in por_centro.get(candidata["centro_id"], [])
+            )
+
+        if request.query_params.get("formato", "").lower() == "csv":
+            return _csv_response(
+                f"series_deducidas_{tipo.lower()}.csv",
+                ["Centro", "Serie desde", "Serie hasta", "Usados", "Extensión",
+                 "Densidad", "Fecha desde", "Fecha hasta", "Redondeado",
+                 "Observado desde", "Observado hasta", "Densidad observada",
+                 "Ya registrado"],
+                [[c["centro"], c["serie_desde"], c["serie_hasta"], c["usados"],
+                  c["extension"], c["densidad"], c["fecha_desde"], c["fecha_hasta"],
+                  "Sí" if c["redondeado"] else "No",
+                  c["serie_desde_observada"], c["serie_hasta_observada"],
+                  c["densidad_observada"],
+                  "Sí" if c["ya_registrado"] else "No"] for c in candidatas],
+            )
+        return ok({
+            "tipo": tipo,
+            "tolerancia": tolerancia,
+            "min_usados": min_usados,
+            "densidad_minima": densidad_minima,
+            "margen_redondeo": margen_redondeo,
+            "total": len(candidatas),
+            "items": candidatas,
+        })
 
 
 def _csv_response(nombre, cabecera, filas):

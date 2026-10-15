@@ -10,6 +10,7 @@ import {
   listarTalonarios,
   reporteCertificados,
   reportePendientes,
+  reporteSeriesDeducidas,
 } from "../api/sisv"
 import CentroSelector from "../components/CentroSelector"
 import { Boton, Campo, Input, Select } from "../components/ui"
@@ -67,9 +68,21 @@ export default function Despacho({ usuario }) {
   const [centros, setCentros] = useState([])
 
   const [repCert, setRepCert] = useState({ tipo: "DEFUNCION", centro: "", desde: "", hasta: "" })
+  const [porCentro, setPorCentro] = useState([])
   const [filasCert, setFilasCert] = useState([])
+  const [centroDetalle, setCentroDetalle] = useState(null)
   const [repPend, setRepPend] = useState({ tipo: "", centro: "", solo_pendientes: true })
   const [filasPend, setFilasPend] = useState([])
+
+  const [repSeries, setRepSeries] = useState({
+    tipo: "DEFUNCION",
+    anio: String(new Date().getFullYear()),
+    tolerancia: 10,
+    densidad: 0.5,
+    redondeo: 0,
+  })
+  const [series, setSeries] = useState([])
+  const [respRecibe, setRespRecibe] = useState("Por confirmar")
 
   function avisar(tipo, texto) {
     setEstado({ tipo, texto })
@@ -187,8 +200,26 @@ export default function Despacho({ usuario }) {
         centro: repCert.centro || undefined,
         desde: repCert.desde || undefined,
         hasta: repCert.hasta || undefined,
+        agrupado: 1,
+      })
+      setPorCentro(datos.items)
+      setFilasCert([])
+      setCentroDetalle(null)
+    } catch (err) {
+      avisar("error", err.message)
+    }
+  }
+
+  async function verDetalleCentro(centroId) {
+    try {
+      const datos = await reporteCertificados({
+        tipo: repCert.tipo,
+        centro: centroId,
+        desde: repCert.desde || undefined,
+        hasta: repCert.hasta || undefined,
       })
       setFilasCert(datos.items)
+      setCentroDetalle(porCentro.find((f) => String(f.centro_id) === String(centroId)) || null)
     } catch (err) {
       avisar("error", err.message)
     }
@@ -203,6 +234,47 @@ export default function Despacho({ usuario }) {
         solo_pendientes: repPend.solo_pendientes ? "1" : "0",
       })
       setFilasPend(datos.items)
+    } catch (err) {
+      avisar("error", err.message)
+    }
+  }
+
+  async function verSeries(e) {
+    e?.preventDefault()
+    try {
+      const datos = await reporteSeriesDeducidas({
+        tipo: repSeries.tipo,
+        anio: repSeries.anio || undefined,
+        tolerancia: repSeries.tolerancia,
+        densidad: repSeries.densidad,
+        redondeo: repSeries.redondeo,
+      })
+      setSeries(datos.items)
+      if (datos.items.length === 0) {
+        avisar("ok", "No se dedujo ninguna serie con esos parámetros.")
+      }
+    } catch (err) {
+      avisar("error", err.message)
+    }
+  }
+
+  async function crearDesdeSerie(c) {
+    if (!respRecibe.trim()) {
+      avisar("error", "Indique el responsable que recibe antes de registrar el talonario.")
+      return
+    }
+    try {
+      await crearTalonario({
+        tipo: repSeries.tipo,
+        centro: c.centro_id,
+        fecha_entrega: c.fecha_desde,
+        serie_desde: c.serie_desde,
+        serie_hasta: c.serie_hasta,
+        responsable_recibe: respRecibe,
+      })
+      avisar("ok", `Talonario ${c.serie_desde}–${c.serie_hasta} registrado para ${c.centro}.`)
+      await verSeries()
+      await cargar()
     } catch (err) {
       avisar("error", err.message)
     }
@@ -528,47 +600,87 @@ export default function Despacho({ usuario }) {
             onChange={(e) => setRepCert((r) => ({ ...r, hasta: e.target.value }))}
           />
           <button type="submit" className="btn-mini">
-            Ver
+            Ver consolidado
           </button>
           <button
             type="button"
             className="btn-mini"
             onClick={() =>
-              exportar(
-                "certificados",
-                { tipo: repCert.tipo, centro: repCert.centro || undefined, desde: repCert.desde || undefined, hasta: repCert.hasta || undefined },
-                `certificados_${repCert.tipo.toLowerCase()}.csv`,
-              )
+              centroDetalle
+                ? exportar(
+                    "certificados",
+                    { tipo: repCert.tipo, centro: centroDetalle.centro_id, desde: repCert.desde || undefined, hasta: repCert.hasta || undefined },
+                    `certificados_${repCert.tipo.toLowerCase()}_${centroDetalle.centro_id}.csv`,
+                  )
+                : exportar(
+                    "certificados",
+                    { tipo: repCert.tipo, centro: repCert.centro || undefined, desde: repCert.desde || undefined, hasta: repCert.hasta || undefined, agrupado: 1 },
+                    `certificados_por_centro_${repCert.tipo.toLowerCase()}.csv`,
+                  )
             }
           >
             CSV
           </button>
         </form>
-        {filasCert.length > 0 && (
+
+        {!centroDetalle && porCentro.length > 0 && (
           <table>
             <thead>
               <tr>
-                <th>Nº Certificado</th>
-                <th>Persona</th>
-                <th>Nombres</th>
-                <th>Apellidos</th>
-                <th>Fecha</th>
                 <th>Centro</th>
+                <th>Certificados usados</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {filasCert.map((f, i) => (
-                <tr key={`${f.numero}-${i}`}>
-                  <td>{f.numero}</td>
-                  <td>{f.persona || "—"}</td>
-                  <td>{f.nombres}</td>
-                  <td>{f.apellidos}</td>
-                  <td>{f.fecha}</td>
+              {porCentro.map((f) => (
+                <tr key={f.centro_id ?? f.centro}>
                   <td>{f.centro}</td>
+                  <td>{f.cantidad}</td>
+                  <td>
+                    <button type="button" className="btn-mini" onClick={() => verDetalleCentro(f.centro_id)}>
+                      Ver detalle
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        )}
+
+        {centroDetalle && (
+          <>
+            <p className="detalle-titulo">
+              Certificados usados · <strong>{centroDetalle.centro}</strong> ({filasCert.length})
+              <button type="button" className="btn-mini" onClick={() => { setCentroDetalle(null); setFilasCert([]) }}>
+                ← Volver al consolidado
+              </button>
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Nº Certificado</th>
+                  <th>Persona</th>
+                  <th>Nombres</th>
+                  <th>Apellidos</th>
+                  <th>Fecha</th>
+                  <th>Centro</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filasCert.map((f, i) => (
+                  <tr key={`${f.numero}-${i}`}>
+                    <td>{f.numero}</td>
+                    <td>{f.persona || "—"}</td>
+                    <td>{f.nombres}</td>
+                    <td>{f.apellidos}</td>
+                    <td>{f.fecha}</td>
+                    <td>{f.centro}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
       </section>
 
@@ -637,6 +749,140 @@ export default function Despacho({ usuario }) {
                     </span>
                   </td>
                   <td>{f.fecha_entrega}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="lista">
+        <h2>Deducir talonarios desde la base de datos</h2>
+        <p className="ayuda">
+          El sistema anterior nunca registró la entrega de talonarios, así que la serie de cada
+          centro se <strong>infiere</strong> de los certificados ya cargados (su número impreso).
+          Revise las series propuestas y registre el talonario del centro correspondiente.
+          Con <strong>Redondeo</strong> el rango se estira hasta el corte de decena más cercano
+          (las series van de «múltiplo de 10 + 1» a «múltiplo de 10»), sin pisar números que ya
+          sabemos usados por otro centro.
+        </p>
+        <form onSubmit={verSeries} className="filtros">
+          <Select
+            opciones={TIPOS}
+            value={repSeries.tipo}
+            onChange={(e) => setRepSeries((r) => ({ ...r, tipo: e.target.value }))}
+          />
+          <Input
+            placeholder="Año"
+            value={repSeries.anio}
+            onChange={(e) => setRepSeries((r) => ({ ...r, anio: e.target.value }))}
+          />
+          <Campo label="Hueco máximo">
+            <Input
+              type="number"
+              min="1"
+              value={repSeries.tolerancia}
+              onChange={(e) => setRepSeries((r) => ({ ...r, tolerancia: e.target.value }))}
+            />
+          </Campo>
+          <Campo label="Densidad mínima">
+            <Input
+              type="number"
+              step="0.1"
+              min="0"
+              max="1"
+              value={repSeries.densidad}
+              onChange={(e) => setRepSeries((r) => ({ ...r, densidad: e.target.value }))}
+            />
+          </Campo>
+          <Campo label="Redondeo (0–9)">
+            <Input
+              type="number"
+              min="0"
+              max="9"
+              value={repSeries.redondeo}
+              onChange={(e) => setRepSeries((r) => ({ ...r, redondeo: e.target.value }))}
+            />
+          </Campo>
+          <button type="submit" className="btn-mini">
+            Deducir series
+          </button>
+          <button
+            type="button"
+            className="btn-mini"
+            onClick={() =>
+              exportar(
+                "series-deducidas",
+                {
+                  tipo: repSeries.tipo,
+                  anio: repSeries.anio || undefined,
+                  tolerancia: repSeries.tolerancia,
+                  densidad: repSeries.densidad,
+                  redondeo: repSeries.redondeo,
+                },
+                `series_deducidas_${repSeries.tipo.toLowerCase()}.csv`,
+              )
+            }
+          >
+            CSV
+          </button>
+        </form>
+
+        {puedeDespachar && series.length > 0 && (
+          <div className="filtros">
+            <Campo label="Responsable que recibe (para los que registre)" htmlFor="series-recibe">
+              <Input
+                id="series-recibe"
+                value={respRecibe}
+                onChange={(e) => setRespRecibe(e.target.value)}
+              />
+            </Campo>
+          </div>
+        )}
+
+        {series.length > 0 && (
+          <table>
+            <thead>
+              <tr>
+                <th>Centro</th>
+                <th>Serie propuesta</th>
+                <th>Usados</th>
+                <th>Extensión</th>
+                <th>Densidad</th>
+                <th>Fechas</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {series.map((c, i) => (
+                <tr key={`${c.centro_id}-${c.serie_desde}-${i}`}>
+                  <td>{c.centro}</td>
+                  <td>
+                    {c.serie_desde}–{c.serie_hasta}
+                    {c.redondeado && (
+                      <span className="etiqueta" title="Rango observado; estirado al corte de decena">
+                        {" "}
+                        redondeado ({c.serie_desde_observada}–{c.serie_hasta_observada})
+                      </span>
+                    )}
+                  </td>
+                  <td>{c.usados}</td>
+                  <td>{c.extension}</td>
+                  <td>{c.densidad}</td>
+                  <td>
+                    {c.fecha_desde} → {c.fecha_hasta}
+                  </td>
+                  <td className="acciones">
+                    {c.ya_registrado ? (
+                      <span className="etiqueta cargado">Ya registrado</span>
+                    ) : puedeDespachar ? (
+                      <button type="button" className="btn-mini" onClick={() => crearDesdeSerie(c)}>
+                        Registrar talonario
+                      </button>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

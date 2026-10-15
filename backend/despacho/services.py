@@ -12,6 +12,7 @@ import re
 
 from despacho.models import NovedadCertificado, Talonario
 from registros.models import Defuncion, Nacimiento
+from seguridad.models import Organizacion
 from vigilancia.services import organizaciones_descendientes
 
 _RE_DIGITOS_FINALES = re.compile(r"(\d+)\s*$")
@@ -117,6 +118,172 @@ def resumen_talonario(talonario, usados=None):
         "faltantes": faltantes,
         "faltantes_total": len(faltantes),
     }
+
+
+def _a_entero(valor):
+    """Número impreso como entero, o None si no es puramente numérico."""
+    if valor is None:
+        return None
+    texto = str(valor).strip()
+    return int(texto) if texto.isdigit() else None
+
+
+def numero_fisico(modelo, registro):
+    """Solo el número impreso del certificado, o None si no lo trae.
+
+    La deducción de series usa **exclusivamente** el número impreso
+    (``numero_certificado`` en defunción, ``numero_planilla`` en nacimiento):
+    el ``registro_numero`` legacy es la PK de Oracle y en los certificados
+    capturados a mano su sufijo no es la serie física, así que ensuciaría la
+    deducción. Los certificados sin número impreso simplemente no participan.
+    """
+    valor = registro.numero_certificado if modelo is Defuncion else registro.numero_planilla
+    return _a_entero(valor)
+
+
+def _partir_en_series(pares, tolerancia):
+    """Parte una lista de ``(numero, fecha)`` en corridas donde el hueco <= tolerancia.
+
+    Devuelve listas consecutivas (la serie no tiene que ser estrictamente
+    consecutiva: un certificado usado en otro centro o aún no cargado deja un
+    hueco pequeño que la tolerancia puentea).
+    """
+    series = []
+    actual = []
+    anterior = None
+    for numero, fecha in pares:
+        if anterior is not None and numero - anterior > tolerancia:
+            series.append(actual)
+            actual = []
+        actual.append((numero, fecha))
+        anterior = numero
+    if actual:
+        series.append(actual)
+    return series
+
+
+def _redondear_extremos(desde, hasta, usados_referencia, margen):
+    """Estira los extremos de una serie hacia el corte de decena más cercano.
+
+    Las asignaciones de libro se reparten en **decenas** (los sub-rangos van de
+    «múltiplo de 10 + 1» a «múltiplo de 10»: 601–650, 81–100, 101–500…), pero
+    un centro puede no haber agotado su talonario, así que el rango *observado*
+    suele quedarse corto por arriba. Aquí cada extremo se estira como mucho
+    ``margen`` números hacia ese corte, y **nunca** sobre un número que ya
+    sabemos usado (por otro centro o por otra corrida del mismo centro): si el
+    corte pertenece al vecino, el estirón se cancela.
+    """
+    if margen <= 0:
+        return desde, hasta
+    inicio = (desde - 1) // 10 * 10 + 1
+    if desde - inicio <= margen and all(
+        n not in usados_referencia for n in range(inicio, desde)
+    ):
+        desde = inicio
+    fin = (hasta + 9) // 10 * 10
+    if fin - hasta <= margen and all(
+        n not in usados_referencia for n in range(hasta + 1, fin + 1)
+    ):
+        hasta = fin
+    return desde, hasta
+
+
+def series_deducidas(modelo, tolerancia=10, min_usados=3, densidad_minima=0.5,
+                     organizaciones=None, anio=None, margen_redondeo=0):
+    """Deduce los talonarios (rango de serie) a partir de los certificados cargados.
+
+    El SISMAI legacy nunca guardó la entrega de talonarios, así que la serie
+    entregada se **infiere** de los certificados que la BD sí tiene, por centro:
+
+    - se toman los números **impresos** de cada centro (``numero_fisico``);
+    - se ordenan y se parten en corridas donde el hueco entre consecutivos no
+      supera ``tolerancia`` (los huecos nacen de certificados usados en otro
+      centro del mismo libro o todavía no cargados);
+    - cada corrida es una serie candidata ``[min, max]`` con sus certificados
+      usados, su extensión y sus fechas.
+
+    Se descartan las series con menos de ``min_usados`` certificados o cuya
+    densidad (usados / extensión) quede por debajo de ``densidad_minima``: un
+    rango salpicado no es un talonario, es ruido de captura histórica.
+
+    ``organizaciones`` limita a un subconjunto de centros (el alcance del
+    usuario); ``anio`` filtra por año del evento. **Es una inferencia**, no un
+    dato del legacy: el operario revisa y confirma antes de dar el talonario por
+    bueno.
+
+    ``margen_redondeo`` (0 = apagado) estira cada extremo hacia el corte de
+    decena más cercano, como mucho ``margen_redondeo`` números, para acercar el
+    rango observado a la serie realmente entregada (ver ``_redondear_extremos``).
+    El filtro de densidad sigue midiéndose sobre el rango **observado** (para que
+    redondear no descarte series); por eso se informan las dos: ``densidad`` es la
+    del rango ya redondeado y ``densidad_observada`` la que pasó el filtro.
+    """
+    campo = "numero_certificado" if modelo is Defuncion else "numero_planilla"
+    qs = modelo.objects.filter(organizacion__isnull=False)
+    if organizaciones is not None:
+        ids = list(organizaciones)
+        if not ids:
+            return []
+        qs = qs.filter(organizacion_id__in=ids)
+    if anio:
+        qs = qs.filter(fecha_evento__year=anio)
+
+    por_centro = {}
+    # Solo hace falta el censo de números usados (de todos los centros) cuando
+    # se redondea, porque es lo que impide estirar una serie sobre el vecino.
+    usados_referencia = set() if margen_redondeo > 0 else None
+    # values_list evita instanciar 600 000 modelos: la deducción recorre la tabla
+    # completa y con objetos tardaba ~50 s (aquí baja a unos pocos segundos).
+    filas = qs.values_list("organizacion_id", campo, "fecha_evento")
+    for centro_id, numero, fecha in filas.iterator():
+        entero = _a_entero(numero)
+        if entero is None:
+            continue
+        por_centro.setdefault(centro_id, []).append((entero, fecha))
+        if usados_referencia is not None:
+            usados_referencia.add(entero)
+
+    nombres = dict(
+        Organizacion.objects.filter(id__in=list(por_centro)).values_list("id", "nombre")
+    )
+
+    candidatas = []
+    for centro_id, pares in por_centro.items():
+        pares.sort(key=lambda p: p[0])
+        for corrida in _partir_en_series(pares, tolerancia):
+            usados = len(corrida)
+            if usados < min_usados:
+                continue
+            numeros = [n for n, _ in corrida]
+            desde_obs, hasta_obs = numeros[0], numeros[-1]
+            extension_obs = hasta_obs - desde_obs + 1
+            densidad_obs = round(usados / extension_obs, 2)
+            if densidad_obs < densidad_minima:
+                continue
+            desde, hasta = _redondear_extremos(
+                desde_obs, hasta_obs, usados_referencia, margen_redondeo
+            )
+            redondeado = (desde, hasta) != (desde_obs, hasta_obs)
+            extension = hasta - desde + 1
+            fechas = [f for _, f in corrida]
+            candidatas.append({
+                "centro_id": centro_id,
+                "centro": nombres.get(centro_id, ""),
+                "serie_desde": desde,
+                "serie_hasta": hasta,
+                "usados": usados,
+                "extension": extension,
+                "densidad": round(usados / extension, 2),
+                "densidad_observada": densidad_obs,
+                "serie_desde_observada": desde_obs,
+                "serie_hasta_observada": hasta_obs,
+                "redondeado": redondeado,
+                "fecha_desde": str(min(fechas)),
+                "fecha_hasta": str(max(fechas)),
+            })
+
+    candidatas.sort(key=lambda c: (c["centro"], c["serie_desde"]))
+    return candidatas
 
 
 def detalle_certificados(talonario, usados=None):

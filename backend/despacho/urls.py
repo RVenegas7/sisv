@@ -11,4 +11,5 @@ urlpatterns = [
     path("reportes/centros/", views.ReporteCentrosView.as_view()),
     path("reportes/certificados/", views.ReporteCertificadosView.as_view()),
     path("reportes/pendientes/", views.ReportePendientesView.as_view()),
+    path("reportes/series-deducidas/", views.ReporteSeriesDeducidasView.as_view()),
 ]

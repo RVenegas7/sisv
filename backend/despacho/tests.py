@@ -1,10 +1,13 @@
 """Pruebas del módulo de despacho de talonarios de certificados."""
 
+import io
+
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from tests_sisv import SISVBase
 
 from despacho.models import NovedadCertificado, Talonario
-from despacho.services import resumen_talonario
+from despacho.services import resumen_talonario, series_deducidas
 from registros.models import Defuncion, Nacimiento
 from seguridad.models import Perfil
 
@@ -247,6 +250,43 @@ class DespachoReportesTests(DespachoBase):
         self.assertEqual(items[0]["apellidos"], "Pérez")
         self.assertEqual(items[0]["persona"], "Madre")
 
+    def test_reporte_certificados_agrupado_por_centro(self):
+        self.crear_defuncion("DEF-2026-000001")
+        self.crear_defuncion("DEF-2026-000002")
+        self.crear_defuncion("DEF-2026-000003", organizacion=self.org_cabudare)
+        self.login(self.u_admin)
+        r = self.client.get("/api/despacho/reportes/certificados/?tipo=DEFUNCION&agrupado=1")
+        self.assertEqual(r.status_code, 200)
+        data = r.json()["data"]
+        self.assertTrue(data["agrupado"])
+        self.assertEqual(data["total"], 3)
+        por_centro = {f["centro"]: f["cantidad"] for f in data["items"]}
+        self.assertEqual(por_centro[self.org_hcb.nombre], 2)
+        self.assertEqual(por_centro[self.org_cabudare.nombre], 1)
+
+    def test_reporte_certificados_agrupado_respeta_centro(self):
+        self.crear_defuncion("DEF-2026-000001")
+        self.crear_defuncion("DEF-2026-000002", organizacion=self.org_cabudare)
+        self.login(self.u_admin)
+        r = self.client.get(
+            f"/api/despacho/reportes/certificados/?tipo=DEFUNCION&agrupado=1"
+            f"&centro={self.org_cabudare.pk}"
+        )
+        items = r.json()["data"]["items"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["cantidad"], 1)
+        self.assertEqual(items[0]["centro"], self.org_cabudare.nombre)
+
+    def test_reporte_certificados_agrupado_csv(self):
+        self.crear_defuncion("DEF-2026-000001")
+        self.login(self.u_jefe)
+        r = self.client.get(
+            "/api/despacho/reportes/certificados/?tipo=DEFUNCION&agrupado=1&formato=csv")
+        self.assertEqual(r.status_code, 200)
+        cuerpo = r.content.decode("utf-8")
+        self.assertTrue(cuerpo.startswith("\ufeff"))
+        self.assertIn(self.org_hcb.nombre, cuerpo)
+
     def test_reporte_pendientes_csv_con_bom(self):
         tal = self.crear_talonario(desde=1, hasta=3)
         self.crear_defuncion("DEF-2026-000002")
@@ -296,3 +336,230 @@ class DespachoReportesTests(DespachoBase):
         self.login(self.u_trans_cabudare)
         r = self.client.get("/api/despacho/reportes/centros/")
         self.assertEqual(r.json()["data"]["items"], [])
+
+
+class DespachoSeriesDeducidasTests(DespachoBase):
+    """Deducción del rango de serie de los talonarios desde la BD (§31)."""
+
+    def defuncion_fisica(self, numero_fisico, organizacion=None, fecha="2026-01-10"):
+        """Defunción con número impreso (``numero_certificado``) real."""
+        sufijo = organizacion.pk if organizacion else "x"
+        d = self.crear_defuncion(f"LEG-CERT-{numero_fisico}-{sufijo}",
+                                 organizacion=organizacion, fecha=fecha)
+        d.numero_certificado = str(numero_fisico)
+        d.save(update_fields=["numero_certificado"])
+        return d
+
+    def test_deduce_serie_desde_numeros_fisicos(self):
+        for numero in (101, 102, 103, 104):
+            self.defuncion_fisica(numero)
+        self.login(self.u_jefe)
+        r = self.client.get("/api/despacho/reportes/series-deducidas/?tipo=DEFUNCION")
+        self.assertEqual(r.status_code, 200)
+        items = r.json()["data"]["items"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["centro_id"], self.org_hcb.pk)
+        self.assertEqual(items[0]["serie_desde"], 101)
+        self.assertEqual(items[0]["serie_hasta"], 104)
+        self.assertEqual(items[0]["usados"], 4)
+        self.assertEqual(items[0]["extension"], 4)
+        self.assertFalse(items[0]["ya_registrado"])
+
+    def test_ignora_certificados_sin_numero_fisico(self):
+        """El sufijo de LEG-CERT-<id> es la PK de Oracle, no la serie física."""
+        self.crear_defuncion("DEF-2026-000123")
+        self.login(self.u_jefe)
+        r = self.client.get("/api/despacho/reportes/series-deducidas/?tipo=DEFUNCION")
+        self.assertEqual(r.json()["data"]["items"], [])
+
+    def test_descarta_series_dispersas(self):
+        """Un rango salpicado (baja densidad) no es una serie."""
+        for numero in (1, 11, 21):
+            self.defuncion_fisica(numero)
+        self.login(self.u_jefe)
+        r = self.client.get("/api/despacho/reportes/series-deducidas/?tipo=DEFUNCION")
+        self.assertEqual(r.json()["data"]["items"], [])
+        # Con densidad 0 se muestran (el filtro es configurable).
+        r = self.client.get("/api/despacho/reportes/series-deducidas/?tipo=DEFUNCION&densidad=0")
+        self.assertEqual(len(r.json()["data"]["items"]), 1)
+
+    def test_separa_series_por_hueco(self):
+        for numero in (10, 11, 12, 9000, 9001, 9002):
+            self.defuncion_fisica(numero)
+        self.login(self.u_jefe)
+        items = self.client.get(
+            "/api/despacho/reportes/series-deducidas/?tipo=DEFUNCION").json()["data"]["items"]
+        self.assertEqual([(i["serie_desde"], i["serie_hasta"]) for i in items],
+                         [(10, 12), (9000, 9002)])
+
+    def test_respeta_alcance_centro(self):
+        for numero in (101, 102, 103):
+            self.defuncion_fisica(numero, organizacion=self.org_hcb)
+        for numero in (201, 202, 203):
+            self.defuncion_fisica(numero, organizacion=self.org_cabudare)
+        self.login(self.u_trans_hcb)
+        items = self.client.get(
+            "/api/despacho/reportes/series-deducidas/?tipo=DEFUNCION").json()["data"]["items"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["centro_id"], self.org_hcb.pk)
+
+    def test_centro_fuera_de_alcance(self):
+        self.login(self.u_trans_hcb)
+        r = self.client.get(
+            f"/api/despacho/reportes/series-deducidas/?tipo=DEFUNCION&centro={self.org_cabudare.pk}")
+        self.assertEqual(r.status_code, 403)
+
+    def test_marca_ya_registrado(self):
+        for numero in (101, 102, 103):
+            self.defuncion_fisica(numero)
+        self.crear_talonario(desde=100, hasta=110)
+        self.login(self.u_jefe)
+        items = self.client.get(
+            "/api/despacho/reportes/series-deducidas/?tipo=DEFUNCION").json()["data"]["items"]
+        self.assertTrue(items[0]["ya_registrado"])
+
+    def test_deduce_nacimientos_por_numero_planilla(self):
+        for numero in ("0071", "0072", "0073"):
+            n = self.crear_nacimiento(f"LEG-RN-{numero}")
+            n.numero_planilla = numero
+            n.save(update_fields=["numero_planilla"])
+        self.login(self.u_jefe)
+        items = self.client.get(
+            "/api/despacho/reportes/series-deducidas/?tipo=NACIMIENTO").json()["data"]["items"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual((items[0]["serie_desde"], items[0]["serie_hasta"]), (71, 73))
+
+    def test_csv_con_bom(self):
+        for numero in (101, 102, 103):
+            self.defuncion_fisica(numero)
+        self.login(self.u_jefe)
+        r = self.client.get(
+            "/api/despacho/reportes/series-deducidas/?tipo=DEFUNCION&formato=csv")
+        cuerpo = r.content.decode("utf-8")
+        self.assertTrue(cuerpo.startswith("\ufeff"))
+        self.assertIn(self.org_hcb.nombre, cuerpo)
+
+    def test_comando_dry_run_no_crea(self):
+        for numero in (101, 102, 103):
+            self.defuncion_fisica(numero)
+        salida = io.StringIO()
+        call_command("deducir_talonarios", "--tipo", "DEFUNCION", stdout=salida)
+        self.assertEqual(Talonario.objects.count(), 0)
+        self.assertIn("Dry-run", salida.getvalue())
+
+    def test_comando_ejecutar_crea_talonario(self):
+        for numero in (101, 102, 103):
+            self.defuncion_fisica(numero)
+        salida = io.StringIO()
+        call_command("deducir_talonarios", "--tipo", "DEFUNCION", "--ejecutar",
+                     "--responsable-recibe", "Dra. Prueba", stdout=salida)
+        tal = Talonario.objects.get()
+        self.assertEqual((tal.serie_desde, tal.serie_hasta), (101, 103))
+        self.assertEqual(tal.centro_id, self.org_hcb.pk)
+        self.assertEqual(tal.responsable_recibe, "Dra. Prueba")
+        self.assertTrue(tal.observaciones.startswith("Deducido de la BD"))
+
+
+class DespachoRedondeoSeriesTests(DespachoBase):
+    """Redondeo del rango deducido al corte de decena (opt-in, §36)."""
+
+    def fisica(self, numero, organizacion=None):
+        """Defunción con número impreso (``numero_certificado``) real."""
+        d = self.crear_defuncion(
+            f"LEG-CERT-{numero}-{(organizacion or self.org_hcb).pk}",
+            organizacion=organizacion,
+        )
+        d.numero_certificado = str(numero)
+        d.save(update_fields=["numero_certificado"])
+        return d
+
+    def test_apagado_por_defecto(self):
+        """Sin ``redondeo`` la serie es el rango observado, como siempre."""
+        for numero in (105, 106, 107, 108, 109, 110):
+            self.fisica(numero)
+        self.login(self.u_jefe)
+        item = self.client.get(
+            "/api/despacho/reportes/series-deducidas/?tipo=DEFUNCION"
+        ).json()["data"]["items"][0]
+        self.assertEqual((item["serie_desde"], item["serie_hasta"]), (105, 110))
+        self.assertEqual(item["serie_desde_observada"], 105)
+        self.assertEqual(item["serie_hasta_observada"], 110)
+        self.assertFalse(item["redondeado"])
+
+    def test_estira_al_corte_de_decena(self):
+        """Con ``redondeo=5`` el extremo se corre a la decena si el hueco está libre."""
+        for numero in (105, 106, 107, 108, 109, 110):
+            self.fisica(numero)
+        self.login(self.u_jefe)
+        dato = self.client.get(
+            "/api/despacho/reportes/series-deducidas/?tipo=DEFUNCION&redondeo=5"
+        ).json()["data"]
+        item = dato["items"][0]
+        self.assertEqual(dato["margen_redondeo"], 5)
+        self.assertEqual((item["serie_desde"], item["serie_hasta"]), (101, 110))
+        self.assertEqual((item["serie_desde_observada"], item["serie_hasta_observada"]),
+                         (105, 110))
+        self.assertTrue(item["redondeado"])
+        self.assertEqual(item["usados"], 6)
+        self.assertEqual(item["extension"], 10)
+        self.assertEqual(item["densidad"], 0.6)
+        self.assertEqual(item["densidad_observada"], 1.0)
+
+    def test_margen_pequeno_no_estira(self):
+        """Si el corte de decena queda más lejos que el margen, no se toca."""
+        for numero in (105, 106, 107, 108, 109, 110):
+            self.fisica(numero)
+        self.login(self.u_jefe)
+        item = self.client.get(
+            "/api/despacho/reportes/series-deducidas/?tipo=DEFUNCION&redondeo=3"
+        ).json()["data"]["items"][0]
+        self.assertEqual((item["serie_desde"], item["serie_hasta"]), (105, 110))
+        self.assertFalse(item["redondeado"])
+
+    def test_no_pisa_numeros_del_vecino(self):
+        """El estirón se cancela si el corte pertenece a otro centro del libro."""
+        for numero in (105, 106, 107, 108):
+            self.fisica(numero, organizacion=self.org_hcb)
+        for numero in (109, 110, 111):
+            self.fisica(numero, organizacion=self.org_cabudare)
+        candidatas = series_deducidas(Defuncion, margen_redondeo=5)
+        por_centro = {c["centro_id"]: c for c in candidatas}
+        hcb = por_centro[self.org_hcb.pk]
+        cabudare = por_centro[self.org_cabudare.pk]
+        # El tope del HCB no puede pasar a 110: 109 y 110 son del otro centro.
+        self.assertEqual((hcb["serie_desde"], hcb["serie_hasta"]), (101, 108))
+        self.assertEqual((cabudare["serie_desde"], cabudare["serie_hasta"]), (109, 111))
+        self.assertFalse(cabudare["redondeado"])
+
+    def test_comando_crea_talonario_redondeado(self):
+        for numero in (105, 106, 107, 108, 109, 110):
+            self.fisica(numero)
+        salida = io.StringIO()
+        call_command("deducir_talonarios", "--tipo", "DEFUNCION", "--ejecutar",
+                     "--redondeo", "5", stdout=salida)
+        tal = Talonario.objects.get()
+        self.assertEqual((tal.serie_desde, tal.serie_hasta), (101, 110))
+        self.assertIn("redondeado", salida.getvalue())
+
+    def test_filtro_de_densidad_usa_el_rango_observado(self):
+        """Redondear no descarta una serie densa solo porque el rango se estiró."""
+        for numero in (103, 104, 105):
+            self.fisica(numero)
+        self.login(self.u_jefe)
+        item = self.client.get(
+            "/api/despacho/reportes/series-deducidas/?tipo=DEFUNCION&redondeo=9"
+        ).json()["data"]["items"][0]
+        self.assertEqual((item["serie_desde"], item["serie_hasta"]), (101, 110))
+        self.assertEqual(item["densidad_observada"], 1.0)
+        self.assertEqual(item["densidad"], 0.3)
+
+    def test_csv_trae_observado_y_redondeo(self):
+        for numero in (105, 106, 107, 108, 109, 110):
+            self.fisica(numero)
+        self.login(self.u_jefe)
+        cuerpo = self.client.get(
+            "/api/despacho/reportes/series-deducidas/?tipo=DEFUNCION&redondeo=5&formato=csv"
+        ).content.decode("utf-8")
+        self.assertIn("Observado desde", cuerpo)
+        self.assertIn("Densidad observada", cuerpo)
+        self.assertIn("Sí", cuerpo)

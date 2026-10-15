@@ -363,6 +363,11 @@ export async function reportePendientes(params = {}) {
   return r.data.data
 }
 
+export async function reporteSeriesDeducidas(params = {}) {
+  const r = await api.get("/despacho/reportes/series-deducidas/", { params })
+  return r.data.data
+}
+
 export async function exportarDespacho(ruta, params = {}) {
   const r = await api.get(`/despacho/reportes/${ruta}/`, {
     params: { ...params, formato: "csv" },
