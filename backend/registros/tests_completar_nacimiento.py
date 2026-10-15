@@ -25,11 +25,14 @@ class _LegacyFake:
     consulta de conteo devuelve el valor configurado; los UPDATE no aplican.
     """
 
-    def __init__(self, nombres=0, residencia=0):
-        self.valores = {"nombres": nombres, "residencia": residencia}
+    def __init__(self, nombres=0, residencia=0, fecha_emision=0):
+        self.valores = {"nombres": nombres, "residencia": residencia,
+                        "fecha_emision": fecha_emision}
         self.sql = []
 
     def _cual(self, sql):
+        if "fecha_emision" in sql:
+            return "fecha_emision"
         if 'sismai."NAC_MADRE"' in sql or "regexp_match" in sql:
             return "residencia"
         if 'sismai."NAC_RNACIDO"' in sql:

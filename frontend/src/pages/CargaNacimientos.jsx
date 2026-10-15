@@ -22,7 +22,7 @@ const VACIO = {
   nombre_persona_atendio: "",
   sitio_nacimiento: "ESTABLECIMIENTO",
   establecimiento: "",
-  estado: "",
+  estado: "Lara",
   municipio: "",
   parroquia: "",
   comunidad: "",
@@ -39,9 +39,9 @@ const VACIO = {
   madre_edad: "",
   madre_ocupacion: "",
   madre_estado_civil: "SOLTERA",
-  madre_nacionalidad: "",
+  madre_nacionalidad: "V",
   madre_pasaporte: "",
-  madre_residencia: "",
+  madre_residencia: "V",
   madre_residencia_pais: "",
   madre_residencia_direccion: "",
   madre_estado: "",
@@ -54,9 +54,9 @@ const VACIO = {
   padre_apellidos: "",
   padre_cedula: "",
   padre_ocupacion: "",
-  padre_nacionalidad: "",
+  padre_nacionalidad: "V",
   padre_pasaporte: "",
-  padre_residencia: "",
+  padre_residencia: "V",
   padre_residencia_pais: "",
   padre_residencia_direccion: "",
   padre_estado: "",
@@ -162,6 +162,22 @@ function territorioDesde(ubicacion) {
   }
 }
 
+/**
+ * Deduce la nacionalidad del certificado desde el prefijo de la cédula.
+ * V → Venezolana, E → Extranjera, P → Pasaporte; solo dígitos se toman como V.
+ * Devuelve null cuando no se puede inferir (deja la selección del operario).
+ */
+function nacionalidadDesdeCedula(valor) {
+  const texto = String(valor || "").trim().toUpperCase()
+  if (!texto) return null
+  const primera = texto[0]
+  if (primera === "V") return "V"
+  if (primera === "E") return "E"
+  if (primera === "P") return "P"
+  if (/^\d/.test(texto)) return "V"
+  return null
+}
+
 function validar(form, cieVersion, cieSeleccion) {
   const errores = {}
   for (const campo of REQUERIDOS) {
@@ -190,12 +206,18 @@ export default function CargaNacimientos({ usuario }) {
   const [lista, setLista] = useState([])
   const [paginacion, setPaginacion] = useState(null)
   const [anioLista, setAnioLista] = useState(ANIO_ACTUAL)
+  const [soloSospechosos, setSoloSospechosos] = useState(false)
   const [stats, setStats] = useState(null)
   const [editandoId, setEditandoId] = useState(null)
 
-  async function cargarLista(pagina = 1, anio = anioLista) {
+  async function cargarLista(pagina = 1, anio = anioLista, sospechosos = soloSospechosos) {
     try {
-      const resp = await listarNacimientos({ pagina, por_pagina: 100, anio })
+      const resp = await listarNacimientos({
+        pagina,
+        por_pagina: 100,
+        anio,
+        ...(sospechosos ? { sospechosos: 1 } : {}),
+      })
       setLista(resp.items)
       setPaginacion(resp.pagination)
       return resp.items
@@ -231,6 +253,14 @@ export default function CargaNacimientos({ usuario }) {
 
   function cambiar(campo, valor) {
     setForm((f) => ({ ...f, [campo]: valor }))
+  }
+
+  /** Al teclear la cédula, ajusta la nacionalidad si el prefijo la delata (V/E/P). */
+  function cambiarCedula(campo, campoNacionalidad, valor) {
+    setForm((f) => {
+      const nac = nacionalidadDesdeCedula(valor)
+      return { ...f, [campo]: valor, ...(nac ? { [campoNacionalidad]: nac } : {}) }
+    })
   }
 
   function cancelarEdicion() {
@@ -468,10 +498,10 @@ export default function CargaNacimientos({ usuario }) {
 
         <Seccion titulo="Sección I. Datos del nacimiento">
           <Campo label="Nombres del niño(a)" htmlFor="nino_nombres">
-            <Input id="nino_nombres" value={form.nino_nombres} onChange={(e) => cambiar("nino_nombres", e.target.value)} />
+            <Input id="nino_nombres" value={form.nino_nombres} onChange={(e) => cambiar("nino_nombres", e.target.value)} placeholder="Sin información" />
           </Campo>
           <Campo label="Apellidos del niño(a)" htmlFor="nino_apellidos">
-            <Input id="nino_apellidos" value={form.nino_apellidos} onChange={(e) => cambiar("nino_apellidos", e.target.value)} />
+            <Input id="nino_apellidos" value={form.nino_apellidos} onChange={(e) => cambiar("nino_apellidos", e.target.value)} placeholder="Sin información" />
           </Campo>
           <Campo label="Sexo" htmlFor="sexo" error={errores.sexo}>
             <Select id="sexo" opciones={OPCIONES.SEXO} value={form.sexo} onChange={(e) => cambiar("sexo", e.target.value)} />
@@ -498,7 +528,7 @@ export default function CargaNacimientos({ usuario }) {
             <Input id="talla_cm" type="number" step="0.1" value={form.talla_cm} onChange={(e) => cambiar("talla_cm", e.target.value)} />
           </Campo>
           <Campo label="Nº de historia clínica" htmlFor="numero_historia_clinica">
-            <Input id="numero_historia_clinica" value={form.numero_historia_clinica} onChange={(e) => cambiar("numero_historia_clinica", e.target.value)} />
+            <Input id="numero_historia_clinica" value={form.numero_historia_clinica} onChange={(e) => cambiar("numero_historia_clinica", e.target.value)} placeholder="Sin información" />
           </Campo>
           <Campo label="Tipo de parto" htmlFor="tipo_parto">
             <Select id="tipo_parto" opciones={OPCIONES.TIPO_PARTO} value={form.tipo_parto} onChange={(e) => cambiar("tipo_parto", e.target.value)} />
@@ -513,7 +543,7 @@ export default function CargaNacimientos({ usuario }) {
             <Select id="persona_atendio_parto" opciones={OPCIONES.PERSONA_ATENDIO} value={form.persona_atendio_parto} onChange={(e) => cambiar("persona_atendio_parto", e.target.value)} />
           </Campo>
           <Campo label="Apellidos y nombres de quien atendió el parto" htmlFor="nombre_persona_atendio">
-            <Input id="nombre_persona_atendio" value={form.nombre_persona_atendio} onChange={(e) => cambiar("nombre_persona_atendio", e.target.value)} />
+            <Input id="nombre_persona_atendio" value={form.nombre_persona_atendio} onChange={(e) => cambiar("nombre_persona_atendio", e.target.value)} placeholder="Sin información" />
           </Campo>
           <Campo label="Sitio del nacimiento" htmlFor="sitio_nacimiento">
             <Select id="sitio_nacimiento" opciones={OPCIONES.SITIO} value={form.sitio_nacimiento} onChange={(e) => cambiar("sitio_nacimiento", e.target.value)} />
@@ -538,13 +568,13 @@ export default function CargaNacimientos({ usuario }) {
             <Input id="madre_apellidos" value={form.madre_apellidos} error={errores.madre_apellidos} onChange={(e) => cambiar("madre_apellidos", e.target.value)} />
           </Campo>
           <Campo label="Cédula" htmlFor="madre_cedula" error={errores.madre_cedula}>
-            <Input id="madre_cedula" value={form.madre_cedula} error={errores.madre_cedula} onChange={(e) => cambiar("madre_cedula", e.target.value)} placeholder="V-12345678" />
+            <Input id="madre_cedula" value={form.madre_cedula} error={errores.madre_cedula} onChange={(e) => cambiarCedula("madre_cedula", "madre_nacionalidad", e.target.value)} placeholder="V-12345678" />
           </Campo>
           <Campo label="Edad" htmlFor="madre_edad" error={errores.madre_edad}>
             <Input id="madre_edad" type="number" min="10" max="60" value={form.madre_edad} error={errores.madre_edad} onChange={(e) => cambiar("madre_edad", e.target.value)} />
           </Campo>
           <Campo label="Ocupación" htmlFor="madre_ocupacion">
-            <Input id="madre_ocupacion" value={form.madre_ocupacion} onChange={(e) => cambiar("madre_ocupacion", e.target.value)} />
+            <Input id="madre_ocupacion" value={form.madre_ocupacion} onChange={(e) => cambiar("madre_ocupacion", e.target.value)} placeholder="Sin información" />
           </Campo>
           <Campo label="Estado civil" htmlFor="madre_estado_civil">
             <Select id="madre_estado_civil" opciones={OPCIONES.ESTADO_CIVIL} value={form.madre_estado_civil} onChange={(e) => cambiar("madre_estado_civil", e.target.value)} />
@@ -566,10 +596,10 @@ export default function CargaNacimientos({ usuario }) {
             <Input id="padre_apellidos" value={form.padre_apellidos} onChange={(e) => cambiar("padre_apellidos", e.target.value)} />
           </Campo>
           <Campo label="Cédula" htmlFor="padre_cedula">
-            <Input id="padre_cedula" value={form.padre_cedula} onChange={(e) => cambiar("padre_cedula", e.target.value)} />
+            <Input id="padre_cedula" value={form.padre_cedula} onChange={(e) => cambiarCedula("padre_cedula", "padre_nacionalidad", e.target.value)} placeholder="V-12345678" />
           </Campo>
           <Campo label="Ocupación" htmlFor="padre_ocupacion">
-            <Input id="padre_ocupacion" value={form.padre_ocupacion} onChange={(e) => cambiar("padre_ocupacion", e.target.value)} />
+            <Input id="padre_ocupacion" value={form.padre_ocupacion} onChange={(e) => cambiar("padre_ocupacion", e.target.value)} placeholder="Sin información" />
           </Campo>
           <Campo label="Nacionalidad" htmlFor="padre_nacionalidad">
             <Select id="padre_nacionalidad" opciones={OPCIONES.NACIONALIDAD} value={form.padre_nacionalidad} onChange={(e) => cambiar("padre_nacionalidad", e.target.value)} />
@@ -643,6 +673,18 @@ export default function CargaNacimientos({ usuario }) {
         <div className="cabecera-lista">
           <h2>Registros ({paginacion?.total ?? lista.length})</h2>
           <div className="selector-anio">
+            <label className="caja">
+              <input
+                type="checkbox"
+                checked={soloSospechosos}
+                onChange={(e) => {
+                  const v = e.target.checked
+                  setSoloSospechosos(v)
+                  cargarLista(1, anioLista, v)
+                }}
+              />
+              Solo con datos sospechosos
+            </label>
             <label htmlFor="anio-nacimientos">Año</label>
             <select
               id="anio-nacimientos"

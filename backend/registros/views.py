@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 from sisv_backend.api import error, ok
 
 from .models import ConfiguracionGeneral, Defuncion, FichaVigilancia, Nacimiento
+from .calidad import q_sospechosos
 from .presentacion import detalle_certificado
 from .serializers import DefuncionSerializer, FichaVigilanciaSerializer, NacimientoSerializer
 from .services import (
@@ -411,6 +412,11 @@ class _RegistroAPI(APIView):
         pendientes = request.query_params.get("pendientes", "").strip()
         if pendientes and pendientes.lower() in ("1", "true", "si"):
             qs = qs.filter(codificacion_pendiente=True)
+        sospechosos = request.query_params.get("sospechosos", "").strip()
+        campo_numero = getattr(self, "campo_numero", None)
+        if sospechosos.lower() in ("1", "true", "si") and campo_numero:
+            # §35: número no numérico o nombre con dígitos incrustados.
+            qs = qs.filter(q_sospechosos(campo_numero, getattr(self, "campos_nombre", ())))
         anio = request.query_params.get("anio", "").strip()
         if anio and anio.lower() != "todos":
             try:
@@ -701,6 +707,9 @@ class NacimientoView(_RegistroAPI):
     serializer = NacimientoSerializer
     etiqueta = "nacimiento"
     buscar = ["registro_numero", "madre_nombres", "madre_apellidos", "nino_nombres"]
+    # §35: número físico y nombres para el filtro «solo con datos sospechosos».
+    campo_numero = "numero_planilla"
+    campos_nombre = ("nino_nombres", "madre_nombres", "padre_nombres")
     # La residencia habitual de la madre y del padre son cuatro FKs al árbol territorial
     # (EV-25 §23.3); sin esto el listado hace cuatro consultas más por fila.
     relaciones = (
@@ -717,6 +726,9 @@ class DefuncionView(_RegistroAPI):
     serializer = DefuncionSerializer
     etiqueta = "defunción"
     buscar = ["registro_numero", "fallecido_nombres", "fallecido_apellidos"]
+    # §35: número físico y nombres para el filtro «solo con datos sospechosos».
+    campo_numero = "numero_certificado"
+    campos_nombre = ("fallecido_nombres", "madre_nombres")
 
 
 class FichaVigilanciaView(_RegistroAPI):

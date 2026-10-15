@@ -170,6 +170,34 @@ def muerte_materna_detalle(fecha_desde, fecha_hasta, organizaciones=None):
     return detalle
 
 
+def dividir_nombre_compuesto(valor):
+    """Divide un nombre del legacy en ``(nombres, apellidos)``.
+
+    El legacy guardaba «apellidos + nombres» en un solo campo. Dos formatos:
+
+    - con coma: ``«APELLIDOS, NOMBRES»`` (lo único inequívoco);
+    - sin coma: ``«APELLIDOS APELLIDOS NOMBRES NOMBRES»``, que se resuelve por el
+      número de palabras (misma heurística que ``registradores.services.dividir_nombre``):
+      1 palabra → solo nombre; 2-3 → la primera es el apellido y el resto nombres;
+      4 o más → las dos primeras son apellidos y el resto nombres.
+
+    Es una heurística para datos capturados así, no una regla del certificado: por eso
+    el comando que la usa solo rellena **campos vacíos** y deja corregirlos a mano.
+    """
+    texto = (valor or "").strip()
+    if not texto:
+        return "", ""
+    if "," in texto:
+        apellidos, _, nombres = texto.partition(",")
+        return nombres.strip(), apellidos.strip()
+    tokens = texto.split()
+    if len(tokens) == 1:
+        return tokens[0], ""
+    if len(tokens) <= 3:
+        return " ".join(tokens[1:]), tokens[0]
+    return " ".join(tokens[2:]), " ".join(tokens[:2])
+
+
 def version_cie_por_fecha(fecha_evento):
     if fecha_evento is None:
         return "CIE11"

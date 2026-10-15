@@ -264,15 +264,17 @@ export default function CargaDefunciones({ usuario }) {
   const [paginacion, setPaginacion] = useState(null)
   const [anioLista, setAnioLista] = useState(ANIO_ACTUAL)
   const [soloPendientes, setSoloPendientes] = useState(false)
+  const [soloSospechosos, setSoloSospechosos] = useState(false)
   const [editandoId, setEditandoId] = useState(null)
 
-  async function cargarLista(pagina = 1, anio = anioLista, pendientes = soloPendientes) {
+  async function cargarLista(pagina = 1, anio = anioLista, pendientes = soloPendientes, sospechosos = soloSospechosos) {
     try {
       const resp = await listarDefunciones({
         pagina,
         por_pagina: 100,
         anio,
         ...(pendientes ? { pendientes: 1 } : {}),
+        ...(sospechosos ? { sospechosos: 1 } : {}),
       })
       setLista(resp.items)
       setPaginacion(resp.pagination)
@@ -830,6 +832,18 @@ export default function CargaDefunciones({ usuario }) {
                 }}
               />
               Solo pendientes de codificación ({paginacion?.total ?? lista.length})
+            </label>
+            <label className="caja">
+              <input
+                type="checkbox"
+                checked={soloSospechosos}
+                onChange={(e) => {
+                  const v = e.target.checked
+                  setSoloSospechosos(v)
+                  cargarLista(1, anioLista, soloPendientes, v)
+                }}
+              />
+              Solo con datos sospechosos
             </label>
             <label htmlFor="anio-defunciones">Año</label>
             <select

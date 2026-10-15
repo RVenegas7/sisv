@@ -9,6 +9,7 @@ que existen, este comando los rellena.
 - ``madre_residencia_parroquia`` ← ``NAC_MADRE."HRESIDENCIA"`` → ``ORG_GEOGRAFICA`` →
   parroquia del árbol ``DivisionTerritorial`` (por nombre, dentro del municipio y estado
   correctos). Solo se marca ``madre_residencia='V'`` si estaba vacía.
+- ``fecha_emision`` ← ``CERTNACIMIENTO."FECHACERTIFICADO"`` (la fecha del certificado).
 
 **Nunca pisa un valor ya escrito** (solo toca campos vacíos) y es idempotente. El nombre
 del padre ya lo importaba el ETL (``padre_nombres``), así que no se toca.
@@ -100,34 +101,67 @@ def consulta_residencia(contar):
     )
 
 
+# `fecha_emision` ← `CERTNACIMIENTO."FECHACERTIFICADO"` (se llega por `NAC_RNACIDO`,
+# que es la tabla de origen del nacimiento; el certificado cuelga de `HCERTIFICADO`).
+_FILTRO_FECHA_EMISION = (
+    ' r."ID"::bigint::text = n.legacy_id'
+    " AND n.legacy_tabla = 'NAC_RNACIDO'"
+    " AND n.fecha_emision IS NULL"
+    ' AND c."FECHACERTIFICADO" IS NOT NULL'
+)
+
+FECHA_EMISION = (
+    "UPDATE registros_nacimiento n"
+    ' SET fecha_emision = c."FECHACERTIFICADO"::date'
+    ' FROM sismai."NAC_RNACIDO" r'
+    ' JOIN sismai."CERTNACIMIENTO" c ON c."ID" = r."HCERTIFICADO"'
+    " WHERE" + _FILTRO_FECHA_EMISION
+)
+
+
+def consulta_fecha_emision(contar):
+    if contar:
+        return (
+            "SELECT count(*) FROM registros_nacimiento n"
+            ' JOIN sismai."NAC_RNACIDO" r ON r."ID"::bigint::text = n.legacy_id'
+            ' JOIN sismai."CERTNACIMIENTO" c ON c."ID" = r."HCERTIFICADO"'
+            " WHERE" + _FILTRO_FECHA_EMISION
+        )
+    return FECHA_EMISION
+
+
 class Command(BaseCommand):
     help = "Rellena nombre del recién nacido y residencia materna en nacimientos del legacy."
 
     def add_arguments(self, parser):
         parser.add_argument("--ejecutar", action="store_true",
                             help="Aplica los cambios (sin esto solo informa).")
-        parser.add_argument("--solo", choices=["nombres", "residencia"],
+        parser.add_argument("--solo", choices=["nombres", "residencia", "fecha_emision"],
                             help="Limita el trabajo a una sola parte.")
 
     def handle(self, *args, **options):
         hacer_nombres = options["solo"] in (None, "nombres")
         hacer_residencia = options["solo"] in (None, "residencia")
+        hacer_fecha = options["solo"] in (None, "fecha_emision")
 
         with connection.cursor() as cur:
-            nombres_rec = residencia_rec = 0
+            nombres_rec = residencia_rec = fecha_rec = 0
             if hacer_nombres:
                 cur.execute(consulta_nombres(contar=True))
                 nombres_rec = cur.fetchone()[0]
             if hacer_residencia:
                 cur.execute(consulta_residencia(contar=True))
                 residencia_rec = cur.fetchone()[0]
+            if hacer_fecha:
+                cur.execute(consulta_fecha_emision(contar=True))
+                fecha_rec = cur.fetchone()[0]
 
         total = Nacimiento.objects.filter(legacy_tabla="NAC_RNACIDO").count()
         self.stdout.write(
             f"Nacimientos del legacy: {total:,} · recuperables nombre={nombres_rec:,} "
-            f"residencia madre={residencia_rec:,}."
+            f"residencia madre={residencia_rec:,} · fecha de emisión={fecha_rec:,}."
         )
-        if not (nombres_rec or residencia_rec):
+        if not (nombres_rec or residencia_rec or fecha_rec):
             self.stdout.write(self.style.SUCCESS("No hay nada que recuperar."))
             return
         if not options["ejecutar"]:
@@ -137,14 +171,17 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             with connection.cursor() as cur:
-                aplicados_n = aplicados_r = 0
+                aplicados_n = aplicados_r = aplicados_f = 0
                 if hacer_nombres:
                     cur.execute(consulta_nombres(contar=False))
                     aplicados_n = cur.rowcount
                 if hacer_residencia:
                     cur.execute(consulta_residencia(contar=False))
                     aplicados_r = cur.rowcount
+                if hacer_fecha:
+                    cur.execute(consulta_fecha_emision(contar=False))
+                    aplicados_f = cur.rowcount
 
         self.stdout.write(self.style.SUCCESS(
             f"Actualizados: nombre del recién nacido={aplicados_n:,} · "
-            f"residencia materna={aplicados_r:,}."))
+            f"residencia materna={aplicados_r:,} · fecha de emisión={aplicados_f:,}."))
