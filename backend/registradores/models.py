@@ -73,6 +73,24 @@ class RegistradorCivil(models.Model):
     telefono = models.CharField("Teléfono", max_length=30, blank=True, default="")
     email = models.EmailField("Correo electrónico", blank=True, default="")
     activo = models.BooleanField("Activo", default=True)
+    firmo_desde = models.DateField(
+        "Firmó desde (observado)",
+        null=True,
+        blank=True,
+        help_text=(
+            "Primera fecha en que aparece firmando un certificado en el legacy. "
+            "Es un periodo **observado**, no una designación."
+        ),
+    )
+    firmo_hasta = models.DateField(
+        "Firmó hasta (observado)",
+        null=True,
+        blank=True,
+        help_text=(
+            "Última fecha en que aparece firmando un certificado en el legacy. "
+            "Es un periodo **observado**, no una designación."
+        ),
+    )
     observaciones = models.TextField("Observaciones", blank=True, default="")
     creado_en = models.DateTimeField("Creado en", auto_now_add=True)
 

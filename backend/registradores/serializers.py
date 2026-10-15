@@ -31,7 +31,8 @@ class RegistradorCivilSerializer(serializers.ModelSerializer):
         model = RegistradorCivil
         fields = [
             "id", "nacionalidad", "cedula", "cedula_completa", "nombres", "apellidos",
-            "nombre_completo", "telefono", "email", "activo", "observaciones", "creado_en",
+            "nombre_completo", "telefono", "email", "activo", "observaciones",
+            "firmo_desde", "firmo_hasta", "creado_en",
         ]
         read_only_fields = ["creado_en", "nombre_completo", "cedula_completa"]
 

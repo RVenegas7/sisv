@@ -65,6 +65,13 @@ const NACIONALIDADES = [
 
 const SIN_VALOR = (v) => (v === "" || v === undefined ? null : v)
 
+/** Periodo en que el registrador aparece firmando en el legacy (no es una designación). */
+const periodoObservado = (r) => {
+  if (!r.firmo_desde) return "—"
+  if (!r.firmo_hasta || r.firmo_hasta === r.firmo_desde) return r.firmo_desde
+  return `${r.firmo_desde} → ${r.firmo_hasta}`
+}
+
 export default function Registradores({ usuario }) {
   const puedeEscribir = Boolean(usuario?.permisos?.puede_despachar)
 
@@ -367,7 +374,18 @@ export default function Registradores({ usuario }) {
         {cargando ? (
           <p className="ayuda">Cargando…</p>
         ) : registros.length === 0 ? (
-          <p className="ayuda">No hay registros civiles.</p>
+          <div className="aviso aviso-info">
+            <p>
+              Aún no hay registros civiles cargados. Esta tabla agrupa los registradores por
+              oficina: cuántos tiene, quién está en funciones y el detalle de los cesantes.
+            </p>
+            <p className="ayuda">
+              El sistema anterior solo guardó <em>quién firmaba</em> cada certificado (
+              {registradores.length} registradores en el catálogo, {designaciones.length}{" "}
+              designaciones), nunca la oficina ni la vigencia. Créelos con «Nuevo registro
+              civil» y luego asígneles registradores y fechas con «Nueva designación».
+            </p>
+          </div>
         ) : (
           <table>
             <thead>
@@ -571,6 +589,9 @@ export default function Registradores({ usuario }) {
                 <th>Nombres y apellidos</th>
                 <th>Teléfono</th>
                 <th>Correo</th>
+                <th title="Periodo observado en el sistema anterior: los certificados que firmó. No es una designación.">
+                  Firmó entre
+                </th>
                 <th>Activo</th>
                 {puedeEscribir && <th>Acciones</th>}
               </tr>
@@ -582,6 +603,7 @@ export default function Registradores({ usuario }) {
                   <td>{r.nombre_completo}</td>
                   <td>{r.telefono || "—"}</td>
                   <td>{r.email || "—"}</td>
+                  <td>{periodoObservado(r)}</td>
                   <td>{r.activo ? "Sí" : "No"}</td>
                   {puedeEscribir && (
                     <td className="acciones">

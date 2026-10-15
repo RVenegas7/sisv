@@ -1,5 +1,6 @@
 """Pruebas del módulo de registradores civiles con historial de vigencias."""
 
+from datetime import date, datetime
 from io import StringIO
 
 from django.contrib.auth import get_user_model
@@ -136,6 +137,18 @@ class RegistradorApiTests(RegistradoresBase):
         r = self.client.delete(f"/api/registradores/registradores/{self.reg_a.pk}/")
         self.assertEqual(r.status_code, 400)
 
+    def test_expone_periodo_observado(self):
+        """El periodo observado del legacy viaja en la API (para mostrarlo en la tabla)."""
+        self.reg_a.firmo_desde = date(2018, 3, 9)
+        self.reg_a.firmo_hasta = date(2021, 5, 2)
+        self.reg_a.save()
+        self.login(self.u_dire_hcb)
+        r = self.client.get(f"/api/registradores/registradores/{self.reg_a.pk}/")
+        self.assertEqual(r.status_code, 200)
+        datos = r.json()["data"]
+        self.assertEqual(datos["firmo_desde"], "2018-03-09")
+        self.assertEqual(datos["firmo_hasta"], "2021-05-02")
+
 
 class DesignacionApiTests(RegistradoresBase):
     def test_vigencia_invalida(self):
@@ -263,6 +276,36 @@ class SembrarRegistradoresLegacyTests(SISVBase):
         salida = StringIO()
         call_command("sembrar_registradores_legacy", stderr=salida)
         self.assertIn("legacy", salida.getvalue().lower())
+
+    def test_comando_avisa_sin_legacy_nacimientos(self):
+        salida = StringIO()
+        call_command("sembrar_registradores_legacy", "--origen", "nacimientos", stderr=salida)
+        self.assertIn("certnacimiento", salida.getvalue().lower())
+
+    def test_consolidar_anota_periodo_observado(self):
+        """Las filas con fecha dejan el periodo firmado (que no es una designación)."""
+        filas = [
+            (None, "7449239", "ESPINOZA NELIDA", datetime(2021, 5, 2, 10, 30)),
+            (None, "7449239", "ESPINOZA NELIDA", datetime(2018, 3, 9)),
+            (None, "12345678", "SMITH JOHN"),
+        ]
+        personas, _ = consolidar_registradores(filas)
+        por_cedula = {p["cedula"]: p for p in personas}
+        self.assertEqual(por_cedula["7449239"]["firmo_desde"], date(2018, 3, 9))
+        self.assertEqual(por_cedula["7449239"]["firmo_hasta"], date(2021, 5, 2))
+        self.assertEqual(por_cedula["7449239"]["nacionalidad"], "V")
+        self.assertIsNone(por_cedula["12345678"]["firmo_desde"])
+        self.assertIsNone(por_cedula["12345678"]["firmo_hasta"])
+
+    def test_consolidar_descarta_cedulas_invalidas(self):
+        """Una cédula de menos de 5 dígitos es basura del legacy, no una persona."""
+        personas, descartados = consolidar_registradores([
+            (1, "7", "BASURA CORTA"),
+            (1, "", "SIN CEDULA"),
+        ])
+        self.assertEqual(personas, [])
+        self.assertEqual(descartados["cedula_corta"], 1)
+        self.assertEqual(descartados["sin_cedula"], 1)
 
 
 class AlcanceTests(RegistradoresBase):
