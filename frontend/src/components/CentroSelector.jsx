@@ -5,7 +5,10 @@ import { Campo, Select } from "./ui"
 export default function CentroSelector({ usuario, value, onChange }) {
   const org = usuario?.organizacion
   const esCentro = org?.nivel === "CENTRO"
-  const esMulticentro = ["REGIONAL", "GOBERNACION", "MINISTERIO"].includes(org?.nivel)
+  // Sin organización (superusuario) se comporta como multicentro: elige cualquier
+  // centro. Antes devolvía null y el formulario quedaba sin pedir el centro.
+  const esMulticentro =
+    !org || ["REGIONAL", "GOBERNACION", "MINISTERIO"].includes(org.nivel)
   const [centros, setCentros] = useState([])
 
   useEffect(() => {
@@ -29,7 +32,7 @@ export default function CentroSelector({ usuario, value, onChange }) {
     )
   }
 
-  if (!esMulticentro || !org) return null
+  if (!esMulticentro) return null
 
   return (
     <Campo label="Centro de salud destino" htmlFor="centro_destino">

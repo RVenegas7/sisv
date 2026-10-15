@@ -56,7 +56,11 @@ function descargar(blob, nombre) {
 
 export default function Despacho({ usuario }) {
   const puedeDespachar = Boolean(usuario?.permisos?.puede_despachar)
-  const esMulticentro = ["REGIONAL", "GOBERNACION", "MINISTERIO"].includes(usuario?.organizacion?.nivel)
+  // Sin organización (superusuario) cuenta como multicentro: debe elegir el
+  // centro destino igual que la regional, y los reportes muestran el filtro.
+  const esMulticentro =
+    !usuario?.organizacion ||
+    ["REGIONAL", "GOBERNACION", "MINISTERIO"].includes(usuario.organizacion.nivel)
 
   const [talonarios, setTalonarios] = useState([])
   const [cargando, setCargando] = useState(true)

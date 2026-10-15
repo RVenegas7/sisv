@@ -116,6 +116,21 @@ class DespachoTalonarioTests(DespachoBase):
         r = self.client.delete(f"/api/despacho/talonarios/{tal.pk}/")
         self.assertEqual(r.status_code, 200)
 
+    def test_superusuario_sin_organizacion_debe_elegir_centro(self):
+        """Sin organización no hay centro por defecto: el talonario exige indicarlo."""
+        self.login(self.u_admin)
+        datos = self.datos_talonario()
+        del datos["centro"]
+        r = self.client.post("/api/despacho/talonarios/", datos, content_type="application/json")
+        self.assertEqual(r.status_code, 400, r.content.decode())
+        self.assertIn("centro", r.json()["errors"])
+        self.assertEqual(Talonario.objects.count(), 0)
+
+        r = self.client.post("/api/despacho/talonarios/", self.datos_talonario(),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 201, r.content.decode())
+        self.assertEqual(Talonario.objects.get().centro_id, self.org_hcb.pk)
+
 
 class DespachoCruceTests(DespachoBase):
     def test_resumen_marca_usados_y_faltantes(self):
