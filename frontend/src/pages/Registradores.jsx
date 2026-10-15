@@ -84,6 +84,7 @@ export default function Registradores({ usuario }) {
 
   const [consulta, setConsulta] = useState({ registro_civil: "", fecha: "" })
   const [resultado, setResultado] = useState(null)
+  const [rcDetalle, setRcDetalle] = useState(null)
 
   function avisar(tipo, texto) {
     setEstado({ tipo, texto })
@@ -270,6 +271,13 @@ export default function Registradores({ usuario }) {
     `${r.cedula_completa} ${r.nombre_completo}`,
   ])
   const nombreRC = (id) => registros.find((r) => r.id === id)?.nombre || `#${id}`
+  const nombreRegistrador = (d) => d.registrador_nombre || "—"
+  const designacionesDe = (rcId) => designaciones.filter((d) => d.registro_civil === rcId)
+  const registradoresDistintos = (rcId) =>
+    new Set(designacionesDe(rcId).map((d) => d.registrador)).size
+  const vigentesDe = (rcId) => designacionesDe(rcId).filter((d) => d.vigente)
+  const cesantesDe = (rcId) => designacionesDe(rcId).filter((d) => !d.vigente)
+  const rcDetalleObj = rcDetalle ? registros.find((r) => r.id === rcDetalle) : null
 
   return (
     <div className="pagina">
@@ -367,35 +375,111 @@ export default function Registradores({ usuario }) {
                 <th>Nombre</th>
                 <th>Centro</th>
                 <th>Ubicación</th>
-                <th>Designaciones</th>
+                <th>Registradores</th>
+                <th>Registrador actual</th>
                 <th>Activo</th>
-                {puedeEscribir && <th>Acciones</th>}
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {registros.map((rc) => (
-                <tr key={rc.id}>
-                  <td>{rc.nombre}</td>
-                  <td>{rc.organizacion_nombre || "—"}</td>
-                  <td>
-                    {rc.estado || "—"} · {rc.municipio || "—"}
-                  </td>
-                  <td>{rc.designaciones_count}</td>
-                  <td>{rc.activo ? "Sí" : "No"}</td>
-                  {puedeEscribir && (
-                    <td className="acciones">
-                      <button type="button" className="btn-mini" onClick={() => editarRC(rc)}>
-                        Editar
-                      </button>
-                      <button type="button" className="btn-mini peligro" onClick={() => borrarRC(rc)}>
-                        Eliminar
-                      </button>
+              {registros.map((rc) => {
+                const vigentes = vigentesDe(rc.id)
+                return (
+                  <tr key={rc.id}>
+                    <td>{rc.nombre}</td>
+                    <td>{rc.organizacion_nombre || "—"}</td>
+                    <td>
+                      {rc.estado || "—"} · {rc.municipio || "—"}
                     </td>
-                  )}
-                </tr>
-              ))}
+                    <td>{registradoresDistintos(rc.id)}</td>
+                    <td>{vigentes.length ? vigentes.map(nombreRegistrador).join(", ") : "—"}</td>
+                    <td>{rc.activo ? "Sí" : "No"}</td>
+                    <td className="acciones">
+                      <button type="button" className="btn-mini" onClick={() => setRcDetalle(rc.id)}>
+                        Ver registradores
+                      </button>
+                      {puedeEscribir && (
+                        <>
+                          <button type="button" className="btn-mini" onClick={() => editarRC(rc)}>
+                            Editar
+                          </button>
+                          <button type="button" className="btn-mini peligro" onClick={() => borrarRC(rc)}>
+                            Eliminar
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
+        )}
+
+        {rcDetalleObj && (
+          <div className="detalle-rc">
+            <h3>
+              Registradores de «{rcDetalleObj.nombre}»
+              <button type="button" className="btn-mini" onClick={() => setRcDetalle(null)}>
+                Cerrar
+              </button>
+            </h3>
+            {vigentesDe(rcDetalleObj.id).length > 0 && (
+              <>
+                <h4>En funciones</h4>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Cédula</th>
+                      <th>Nombres y apellidos</th>
+                      <th>Cargo</th>
+                      <th>Desde</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vigentesDe(rcDetalleObj.id).map((d) => (
+                      <tr key={d.id}>
+                        <td>{d.registrador_cedula}</td>
+                        <td>{d.registrador_nombre}</td>
+                        <td>{d.cargo_label}</td>
+                        <td>{d.desde}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+            {cesantesDe(rcDetalleObj.id).length > 0 && (
+              <>
+                <h4>Cesantes (historial)</h4>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Cédula</th>
+                      <th>Nombres y apellidos</th>
+                      <th>Cargo</th>
+                      <th>Desde</th>
+                      <th>Hasta</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cesantesDe(rcDetalleObj.id).map((d) => (
+                      <tr key={d.id}>
+                        <td>{d.registrador_cedula}</td>
+                        <td>{d.registrador_nombre}</td>
+                        <td>{d.cargo_label}</td>
+                        <td>{d.desde}</td>
+                        <td>{d.hasta || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+            {designacionesDe(rcDetalleObj.id).length === 0 && (
+              <p className="ayuda">Este registro civil no tiene designaciones registradas.</p>
+            )}
+          </div>
         )}
       </section>
 
