@@ -11,6 +11,12 @@ final el **número real del certificado** que el ETL no guardó:
 Motivo: el ``registro_numero`` de SISV es ``LEG-CERT-{ID}`` / ``LEG-RN-{ID}`` (la
 clave interna de Oracle), no el número impreso (PENDIENTES §27.16).
 
+Al final añade también la **cédula de la persona del certificado** de forma explícita,
+para el cruce con el número físico: ``cedula_real`` ← ``CERTIFICADO."CEDULA"`` (el
+fallecido) o ``cedula_madre_real`` ← ``sismai.NAC_MADRE."CEDULA"`` (la madre). ⚠ En
+nacimientos **no** se usa ``CERTNACIMIENTO."CEDULA"``, que es del **personal que llenó**
+la planilla (PENDIENTES §35.2).
+
 Solo lectura. Escribe en ``auditoria/`` (ignorada por git) dos CSV con BOM y
 separador ``;``:
 
@@ -50,6 +56,7 @@ def exportar_defunciones(cur, anio, criterio, ruta):
     sql = (
         'SELECT t.*, c."NUMEROMSDS" AS numero_certificado_real, '
         'c."NUMEROPARTIDA" AS numero_partida_real, c."ANNOCERTIFICADO" AS anio_certificado, '
+        'btrim(c."CEDULA") AS cedula_real, '
         'o.nombre AS organizacion_nombre '
         'FROM registros_defuncion t '
         'LEFT JOIN sismai."CERTIFICADO" c ON '
@@ -69,11 +76,14 @@ def exportar_nacimientos(cur, anio, criterio, ruta):
         filtro = 'c."ANO_CERTIF" = %s' if anio else "TRUE"
     sql = (
         'SELECT t.*, c."NROPLANILLA" AS numero_planilla_real, c."CONSECUTIVO" AS consecutivo_real, '
-        'c."ANO_CERTIF" AS anio_certificado, o.nombre AS organizacion_nombre '
+        'c."ANO_CERTIF" AS anio_certificado, btrim(m."CEDULA") AS cedula_madre_real, '
+        'o.nombre AS organizacion_nombre '
         'FROM registros_nacimiento t '
         'LEFT JOIN sismai."NAC_RNACIDO" r ON '
         'r."ID" = CASE WHEN t.legacy_id ~ \'^[0-9]+$\' THEN t.legacy_id::bigint END '
         'LEFT JOIN sismai."CERTNACIMIENTO" c ON c."ID" = r."HCERTIFICADO" '
+        'LEFT JOIN (SELECT DISTINCT ON ("HCERTIFICADO") "HCERTIFICADO", "CEDULA" '
+        'FROM sismai."NAC_MADRE") m ON m."HCERTIFICADO" = r."HCERTIFICADO" '
         'LEFT JOIN seguridad_organizacion o ON o.id = t.organizacion_id '
         f'WHERE {filtro} '
         'ORDER BY t.fecha_evento, t.id'

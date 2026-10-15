@@ -12,6 +12,12 @@ los números no coinciden con los físicos. Los campos reales del número son:
   impresa). El ``"CONSECUTIVO"`` es un consecutivo con prefijo del
   establecimiento/estado (``000013-NNNNNNN``).
 
+La columna ``cedula`` es la de la **persona del certificado**: ``CERTIFICADO."CEDULA"``
+(el fallecido) o ``sismai.NAC_MADRE."CEDULA"`` (la madre). ⚠ En nacimientos **no** se
+usa ``CERTNACIMIENTO."CEDULA"``: esa es del **personal que llenó** la planilla (la misma
+cédula aparece cientos de veces). El número físico + la cédula permiten validar y
+corregir en el sistema (pedido 15/10/2026, PENDIENTES §35.2).
+
 Solo lectura. Escribe en ``auditoria/`` (ignorada por git) un único CSV con
 ambos tipos, filtrable por año y/o tipo, para comparar contra los certificados
 físicos.
@@ -68,7 +74,7 @@ def estado_de(localidad, geo):
 def filas_defunciones(cur, anio, estab, geo):
     sql = ('SELECT c."ID", btrim(c."NUMEROMSDS"), btrim(c."NUMEROPARTIDA"), '
            'c."ANNOCERTIFICADO", c."FECHA_M", btrim(c."NOMBRE"), btrim(c."APELLIDO"), '
-           'c."HESTABLECIMIENTO", c."HESTABLECIMIENTO_OCUR" '
+           'btrim(c."CEDULA"), c."HESTABLECIMIENTO", c."HESTABLECIMIENTO_OCUR" '
            'FROM sismai."CERTIFICADO" c')
     params = []
     if anio:
@@ -76,7 +82,7 @@ def filas_defunciones(cur, anio, estab, geo):
         params.append(anio)
     sql += ' ORDER BY c."FECHA_M"'
     cur.execute(sql, params)
-    for cid, nmsds, npart, annio, fecha, nombre, apellido, est, est_ocur in cur.fetchall():
+    for cid, nmsds, npart, annio, fecha, nombre, apellido, cedula, est, est_ocur in cur.fetchall():
         localidad = estab.get(int(est_ocur) if est_ocur is not None else None,
                               estab.get(int(est) if est is not None else -1, ("", None)))[1]
         yield {
@@ -90,6 +96,7 @@ def filas_defunciones(cur, anio, estab, geo):
             "anio": int(annio) if annio is not None else "",
             "fecha_evento": fecha.date().isoformat() if fecha else "",
             "nombre": f"{nombre} {apellido}".strip(),
+            "cedula": cedula or "",
             "establecimiento": estab.get(int(est) if est is not None else -1, ("", None))[0],
             "estado": estado_de(localidad, geo),
         }
@@ -98,15 +105,18 @@ def filas_defunciones(cur, anio, estab, geo):
 def filas_nacimientos(cur, anio, estab, geo):
     sql = ('SELECT r."ID", c."ID", btrim(c."NROPLANILLA"), btrim(c."CONSECUTIVO"), '
            'c."ANO_CERTIF", r."FECHANACIMIENTO", c."FECHACERTIFICADO", btrim(r."NOMBRES"), '
-           'c."HESTABLECIMIENTO" '
-           'FROM sismai."NAC_RNACIDO" r JOIN sismai."CERTNACIMIENTO" c ON c."ID" = r."HCERTIFICADO"')
+           'btrim(m."CEDULA"), c."HESTABLECIMIENTO" '
+           'FROM sismai."NAC_RNACIDO" r '
+           'JOIN sismai."CERTNACIMIENTO" c ON c."ID" = r."HCERTIFICADO" '
+           'LEFT JOIN (SELECT DISTINCT ON ("HCERTIFICADO") "HCERTIFICADO", "CEDULA" '
+           'FROM sismai."NAC_MADRE") m ON m."HCERTIFICADO" = r."HCERTIFICADO"')
     params = []
     if anio:
         sql += ' WHERE c."ANO_CERTIF" = %s'
         params.append(anio)
     sql += ' ORDER BY r."FECHANACIMIENTO"'
     cur.execute(sql, params)
-    for rn_id, cert_id, planilla, consec, annio, f_nac, f_cert, nombres, est in cur.fetchall():
+    for rn_id, cert_id, planilla, consec, annio, f_nac, f_cert, nombres, cedula, est in cur.fetchall():
         localidad = estab.get(int(est) if est is not None else -1, ("", None))[1]
         yield {
             "tipo": "NACIMIENTO",
@@ -119,6 +129,7 @@ def filas_nacimientos(cur, anio, estab, geo):
             "anio": int(annio) if annio is not None else "",
             "fecha_evento": f_nac.date().isoformat() if f_nac else "",
             "nombre": nombres,
+            "cedula": cedula or "",
             "establecimiento": estab.get(int(est) if est is not None else -1, ("", None))[0],
             "estado": estado_de(localidad, geo),
         }
@@ -151,7 +162,7 @@ def main():
         w = csv.DictWriter(fh, delimiter=";", fieldnames=[
             "tipo", "legacy_id", "registro_numero_sisv", "numero_certificado",
             "numero_planilla", "consecutivo", "numero_partida", "anio",
-            "fecha_evento", "nombre", "establecimiento", "estado",
+            "fecha_evento", "nombre", "cedula", "establecimiento", "estado",
         ])
         w.writeheader()
         w.writerows(filas)

@@ -3566,6 +3566,44 @@ Pruebas: `registros/tests_calidad.py` (helpers + filtro + comando) y `registros/
 registros civiles muestra **nº de registradores, el vigente y un detalle con los cesantes**; el
 **Reporte 1** de `/despacho` pasó a **consolidado por centro** (`?agrupado=1`, con «Ver detalle» y CSV).
 
+### 35.2 Implementado (15/10/2026): el número de certificado en TODO CSV de auditoría + cédula en duplicados
+
+Pedido del usuario: «es importante mostrar el número de certificado, que es lo que el personal usa para
+buscar tanto físico como en sistema, para validar y corregir; aplica a **todos** los reportes CSV
+generados en auditoría». Dos precisiones: el número físico son `numero_certificado` ← `NUMEROMSDS`
+(defunción) y `numero_planilla` ← `NROPLANILLA` (nacimiento), **no** `registro_numero` (`LEG-CERT-{ID}`,
+que es la clave interna de Oracle); y el duplicado se verifica por número **y** cédula.
+
+- **`auditar_certificados`**: el CSV de nombres raros (`nombres_raros_*.csv`) **no traía el número** y
+  ahora lo trae; los tres reportes por módulo suman la columna `Cedula`:
+  - `dup_*.csv` → `Numero,Veces,ID,Registro,Cedula,Persona,Fecha,Centro` (Persona = fallecido, o
+    recién nacido y si no la madre). El consolidado consola **separa** los duplicados: el mismo número
+    con **la misma cédula** (registro repetido) de los que tienen **cédulas distintas** (número
+    reutilizado en personas diferentes). Corrido en la BD real (15/10/2026): defunciones 61 repetidos
+    (**15** misma cédula / **39** cédulas distintas / 7 sin cédula); nacimientos 343 (**164 /
+    176 / 3**).
+  - `numeros_raros_*.csv` → suma `Cedula`.
+  - `nombres_raros_*.csv` → encabezado `Numero,ID,Registro,Cedula,Fecha,Centro,*nombres`.
+- **`auditoria/exportar_auditoria_mm_mn.py`** (MM/MN): `CAMPOS` ahora incluye `numero_certificado`.
+- **`migracion/exportar_certificados_completos.py`** y **`exportar_numeros_certificado.py`** ya traían el
+  número; ahora ambos traen **además la cédula explícita de la persona del certificado** para el cruce:
+  `exportar_numeros_certificado.py` suma la columna `cedula`; `exportar_certificados_completos.py` suma
+  `cedula_real` (defunción ← `CERTIFICADO."CEDULA"`) y `cedula_madre_real` (nacimiento ←
+  `sismai.NAC_MADRE."CEDULA"`, por `DISTINCT ON ("HCERTIFICADO")`). Verificado en 2026:
+  `cedula_real` = `fallecido_cedula` y `cedula_madre_real` = `madre_cedula` fila por fila.
+- Los CSV de `conciliacion` son **agregados** por (año, semana, organización): no llevan un
+  número único por diseño.
+- ⚠ **Cédula correcta y el aviso de «médicos como madres»:** en nacimientos la cédula/nombre de la madre
+  salen de **`NAC_MADRE`** (`madre_cedula`/`madre_nombres`), nunca de `CERTNACIMIENTO."CEDULA"`/
+  `"NOMBRES"`. Esa columna del certificado trae al **personal que llenó la planilla** (p. ej.
+  `ANIBAL COLMENAREZ` ×1.050, `ANYA PUENTES` ×939; 29.897 cédulas distintas para 371.593 filas), **no
+  madres**. Comprobado que `registros_nacimiento.madre_nombres` **no** contiene esos nombres (0
+  coincidencias) y que los campos de personal (`certificador_nombres`, `director_establecimiento`,
+  `nombre_persona_atendio`) están vacíos en los 439.476 nacimientos. El `ETL` es correcto; el aviso
+  aplica a informes manuales que pudieran leer `CERTNACIMIENTO.NOMBRES` creyéndolo la madre.
+- Pruebas: `registros/tests_calidad.py::AuditarCertificadosTests` (nuevas
+  `test_dup_csv_trae_numero_y_cedula` y `test_nombres_raros_csv_trae_numero`). Suite backend **308 OK**.
+
 ## 36. [HECHO 14/10/2026] Deducir los talonarios desde la BD (rango de serie por centro)
 
 Cierra la parte que quedaba abierta del ítem 3 de `Por_correir.md` («se debe poblar la información de
