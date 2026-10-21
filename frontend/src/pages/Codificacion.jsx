@@ -32,6 +32,21 @@ function codigo(modulo, r) {
   return r.codigo_notificacion || ""
 }
 
+// Las fuentes fiables salen del código ya registrado en el certificado (cross-walk de
+// la OMS o el propio CIE-10 histórico); las demás salen de cruzar texto con el catálogo
+// y pueden equivocarse. Ver PENDIENTES.md §41.
+const FUENTES_FIABLES = ["CROSSWALK", "CIE10-LEGACY"]
+
+function esFuenteFiable(fuente) {
+  return FUENTES_FIABLES.includes(fuente)
+}
+
+function esFiable(sugerencia) {
+  if (sugerencia?.origen === "LEGACY") return true
+  const causa = sugerencia?.detalle?.causa_basica
+  return esFuenteFiable(causa?.fuente)
+}
+
 // Precarga la selección con el código ya registrado (si lo hay) o con el sugerido.
 function seleccionDesdeConsulta(data) {
   const reg = data.registro || {}
@@ -340,9 +355,25 @@ export default function Codificacion({ usuario }) {
             {consulta.sugerencia?.codigo ? (
               <>
                 <p className="ayuda">
-                  Sugerido por el catálogo: <strong>{consulta.sugerencia.codigo}</strong> —{" "}
-                  {consulta.sugerencia.titulo}
-                  {consulta.sugerencia.origen_label ? ` (${consulta.sugerencia.origen_label})` : ""}
+                  {esFiable(consulta.sugerencia) ? (
+                    <>
+                      <span className="etiqueta fiable" title="Viene del código ya registrado en el certificado">
+                        Fiable
+                      </span>{" "}
+                      Propuesta desde el código del certificado:{" "}
+                      <strong>{consulta.sugerencia.codigo}</strong> — {consulta.sugerencia.titulo}
+                    </>
+                  ) : (
+                    <>
+                      <span className="etiqueta revisar" title="Salió de cruzar el texto con el catálogo: puede ser errónea">
+                        Revisar
+                      </span>{" "}
+                      Propuesta por texto (el nombre se parece a{" "}
+                      <strong>{consulta.sugerencia.codigo}</strong> — {consulta.sugerencia.titulo}
+                      ), no por el código del certificado. <strong>Compárela con la causa escrita</strong>
+                      {" "}antes de confirmar: hay casos en que el parecido de palabras engaña.
+                    </>
+                  )}
                 </p>
                 <ul className="sugerencias-cat">
                   {(consulta.sugerencia.detalle?.candidatos || []).map((c) => (
@@ -354,7 +385,7 @@ export default function Codificacion({ usuario }) {
                         onClick={() => usarCandidato(c)}
                         title="Usar este código"
                       >
-                        {c.fuente === "CROSSWALK" ? "↔ " : ""}
+                        {esFuenteFiable(c.fuente) ? "✓ " : "? "}
                         <strong>{c.codigo}</strong> — {c.titulo}
                       </button>
                     </li>

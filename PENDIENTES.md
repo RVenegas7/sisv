@@ -3941,3 +3941,155 @@ De ahí salen **cuatro** opciones, de más a menos dependiente del legacy:
 - **Trabajo inmediato**: confirmar con el central (1) si el `.dmp` es imprescindible o acepta un
   **script SQL/CSV**, y (2) si usa los 4 logs. Eso decide entre «Oracle intermedio para el `exp`»,
   «script `imp`-compatible desde SISV» o «formato abierto pactado».
+
+## 40. [PENDIENTE OFICINA 20/10/2026] La oficina ve ceros porque el ETL solo corre en casa
+
+**Síntoma reportado por el usuario:** en casa la aplicación muestra cifras reales y en la oficina
+**faltan datos** (ej. el EPI-15 sale en **cero**). Su lectura intuitiva era «faltan scripts o
+versiones mejoradas»: es correcta en el fondo, pero la causa exacta es otra.
+
+### 40.1 Causa raíz: el desfase está en el diseño del flujo §32, no en un bug
+
+| | Oficina (script 1) | Casa (script 2) |
+| --- | --- | --- |
+| Espejo crudo `sismai.*` (desde el Oracle vivo) | **fresco** | viejo (lo recibe del dump) |
+| ETL → tablas de la app (`registros`, `vigilancia`) | **NO corre** | **sí corre** |
+
+- `migracion/oficina_refrescar_y_exportar.sh` lo dice en su cabecera: *«NO corre el ETL ni toca la
+  app: en casa (script 2) se refresca el espejo y se corre el ETL»*.
+- `migracion/actualizar_espejo_pg.sh` **tampoco** corre el ETL (verificado: 0 llamadas a `manage.py`).
+- **Consecuencia:** la oficina tiene **datos frescos pero crudos**; casa tiene **datos viejos pero
+  procesados**. Por eso casa «muestra más», aunque su espejo está congelado al 02/10.
+
+**Caso concreto del EPI-15 en cero:** se lee de `vigilancia.ConsolidadoEpi15`, que llena
+`manage.py importar_legacy_vigilancia` (modelo `epi15`, desde `sismai.RENGLON_EPI15`, período = mes
+con `DOCUMENTO.TIPO=2`). Ese comando **nunca corrió en la oficina** → los consolidados están vacíos
+y la vista muestra cero. Igual pasa con EPI-12/ENO y con MM/MN.
+
+### 40.2 Procedimiento para dejar la oficina igual que casa (orden importa)
+
+1. `git pull origin main` (trae el `rutarala_spec.json` corregido y §38–§40).
+2. Levantar PG y **revisar la estructura**: `manage.py check`, `manage.py migrate --plan`,
+   `manage.py migrate`. Hay 12 migraciones en `registros` + `vigilancia/0003_epi15_mensual` +
+   `despacho/0001` + `registradores/0003` + `territorio/0003_asic_comunidades`; si quedó atrás, el
+   **EPI-15 mensual** y el **número de certificado** no existirían como campos.
+3. Refrescar desde `192.168.5.200`: `HACER_RESPALDO=1 migracion/oficina_refrescar_y_exportar.sh`
+   → copiar los `.dmp` a `respaldo/respaldos_sismai/` → correrlo otra vez sin esa variable.
+   (Va con `newgrp docker -c "..."` por el problema de grupos.)
+4. **Correr el ETL allí mismo — el paso que faltaba:**
+   `importar_legacy_registros`, **`importar_legacy_vigilancia`**, `recuperar_establecimiento_defuncion
+   --ejecutar`, `asignar_organizacion_legacy --ejecutar`, `completar_numero_certificado --ejecutar`,
+   `completar_nacimiento_legacy --ejecutar`, `sembrar_registradores_legacy --ejecutar`.
+   Todos idempotentes y aditivos (misma lista que el bloque 6 de `aplicar_dump_oficina.sh`).
+5. `manage.py exportar_territorio_pg` (la base `territorio_apn` **no viene en el dump**: es estática).
+6. Verificar con datos y **no** con la UI vacía: `GET /api/registros/reportes/semanal-mmi/?anio=&semana=`
+   y, para el EPI-15, el resumen mensual del año.
+
+**Propuesta de mejora:** mover la lista de comandos del paso 4 a **un script compartido**
+(`migracion/etl_comandos.sh`) que invoquen los dos lados, o añadir `HACER_ETL=1` al script 1, para
+que «correr el ETL en la oficina» no vuelva a olvidarse. Hoy la causa del síntoma es exactamente esa.
+
+### 40.3 Mañana en la oficina: comparar MM y MMI con lo que lleva la encargada
+
+Petición del usuario: **verificar cuántas MM y MMI reporta SISV contra el registro de la encargada
+de la oficina.** Recordatorios de definición (§21) para que la comparación sea válida:
+
+- **El indicador MM sale del registro de investigación** (`sismai.RENGLON_CASOSMM` enlazado a
+  `CASOS_MMI`), **no** del certificado: `Defuncion.embarazo_o_puerperio` solo marca el embarazo en
+  ~12 % de las muertes maternas (con la corrección 1+2, 191 certificados vs 748 del registro).
+  Si la cifra de SISV parece alta/baja según de dónde salga, revisar `mm_fuente` en el tablero.
+- **La fecha de la muerte es `CASOS_MMI."FECHAOCURRENCIA"`**, no `PERIODOOCURRENCIA` (viene NULL).
+- **`HCASOSMMI` es el ID de la persona, no un contador** (un `SUM` da cifras absurdas).
+- **MN** = 0–27 días con fecha de nacimiento conocida; ese indicador ya cuadra
+  (`conciliar_neonatal` 213 = 213 en 2026) y no debe tocarse.
+- Para auditar el desfase: `manage.py conciliar_mm [--anio N] [--csv ruta]` (grano año/semana/org;
+  567 filas con la BD corregida: 88 CUADRA / 31 DIFERENCIA / 406 solo registro / 42 solo certificado).
+
+## 41. [HECHO 20/10/2026] La propuesta de codificación en lote: fiable solo si sale del código, y siempre pendiente de confirmación humana
+
+Petición del usuario: la propuesta de codificación CIE-11 que describe `codificador.md` **no estaba
+cargada** y debía dejarse **esperando confirmación caso por caso** de la encargada de codificar. Se
+implementó la propuesta **en lote** para las fuentes fiables, sin confirmar nada.
+
+### 41.1 Estado inicial: la propuesta no existía en la base
+
+Al 20/10/2026, en las **174.095 defunciones**:
+
+| Campo | Filas |
+| --- | --- |
+| `sugerencia_codigo` con texto | **0** |
+| `sugerencia_en` | **1** (una prueba suelta de §27.16, `LEG-CERT-999473093`) |
+| `codificado_en` / `codificado_por` (confirmado) | **0** |
+| `codificacion_pendiente` | **49.840** |
+| `cie11_sugerido` | 225 (vienen del cross-walk del **ETL**, no del motor) |
+
+El motor (`registros/sugerencia.py`) **calcula la propuesta en el momento** cuando el codificador abre
+un certificado por su número, pero **no la persiste**. En 174.000 registros eso significa que **nadie
+tiene propuesta hasta que la abre**: el trabajo se repetía certificado a certificado.
+
+### 41.2 Hallazgo de calidad: cuando el motor cae al texto, se equivoca en lo grave
+
+Muestra de 300 certificados: **283 (94 %)** resuelven por **cross-walk exacto** (score 999). El 6 %
+restante **cae a la coincidencia de texto** y ahí hay errores clínicos comprobados:
+
+| Causa escrita | Propuesta del motor por texto |
+| --- | --- |
+| `E43.X` «Desnutrición proteicocalórica severa» | `XS7N` «**Angustia** severa» |
+| `E86.X` «Depleción del volumen» | `XM99E9` «Volumen **catártico**» |
+| `W74.0` «Ahogamiento **mortal** en vivienda» | `NF08.1` «Ahogamiento **no mortal**» |
+
+Son diagnósticos que **no tienen mapeo en el cross-walk de la OMS**; el motor elige por parecido de
+palabras y puede invertir el sentido (mortal → no mortal). **Por eso la propuesta por texto no se
+carga por defecto**: la decide la persona, no el motor (regla de `codificador.md`: las reglas de
+selección de causa básica de la OMS no se automatizan).
+
+### 41.3 Las dos fuentes fiables (score 999, ambas del código ya registrado)
+
+- **`CROSSWALK`** — traducción CIE-10 → CIE-11 del `MapeoCIE` de la OMS (evento posterior al corte).
+- **`CIE10-LEGACY`** — el evento es anterior a `FECHA_CORTE_CIE11` (2022-01-01) y se propone **el
+  propio CIE-10** del certificado. Aparecía mezclado con el anterior y al principio se filtró mal
+  (solo `CROSSWALK` → 300/300 «omitidos por texto», corrijo: ahora son ambas).
+
+⚠ **Sesgo de orden:** `order_by("id")` devuelve primero los certificados históricos (todos CIE-10), así
+que una muestra «por id» mide casi solo `CIE10-LEGACY`; una muestra «por defecto» mezcla ambos. No es
+una inconsistencia del motor.
+
+### 41.4 Lo implementado
+
+- **Comando `manage.py proponer_codificacion`** (`registros/management/commands/proponer_codificacion.py`):
+  recorre los registros y escribe **solo** `sugerencia_codigo` / `sugerencia_titulo` /
+  `sugerencia_origen` / `sugerencia_json` / `sugerencia_en`. **Nunca** toca `codificado_en`,
+  `codificado_por` ni `cie10`/`cie11`/`codificacion_pendiente`.
+  - Flags: `--modelo defunciones|fichas|todas`, `--ejecutar` (def. dry-run), `--todo` (incluye la
+    propuesta por texto, marcada `CATALOGO`), `--rehacer` (**refresca la ficha completa aunque el
+    código no cambie**, para recomputar metainformación como el `origen`), `--limite N`. Idempotente
+    por registro: sin `--rehacer` no reescribe lo ya propuesto.
+  - Por defecto **solo propone `CROSSWALK` y `CIE10-LEGACY`**; el resto queda sin propuesta para
+    codificarse a mano. Un registro sin texto ni código legacy no puede proponer nada y se excluye.
+- **`sugerencia.py`:** el `origen` ahora refleja la fuente real (`LEGACY` si cross-walk/CIE-10, si no
+  `CATALOGO`) en vez de forzar `CATALOGO` siempre: la UI necesita distinguir lo fiable de lo arriesgado.
+- **`registros.ORIGEN_SUGERENCIA`:** añadido `LEGACY` («Código legacy (fiable)»); migración
+  `registros/0012_alter_defuncion_sugerencia_origen_and_more.py`.
+- **Frontend `/codificacion`** (`Codificacion.jsx`): etiqueta **«Fiable»** (verde) o **«Revisar»**
+  (ámbar) sobre la propuesta, y `✓` / `?` en cada candidato; el texto de «Revisar» avisa «compárela
+  con la causa escrita». CSS en `styles.css` (`.etiqueta.fiable` / `.etiqueta.revisar`).
+
+### 41.5 Prueba real (muestra, 20/10/2026)
+
+`proponer_codificacion --limite 50 --ejecutar` → **42 propuestas guardadas, 0 confirmadas**;
+`codificado_en` intacto y **49.840 siguen pendientes**. Es exactamente el contrato pedido: la
+propuesta es un aviso para el codificador, no una codificación. Pruebas: `ProponerCodificacionTests`
+(4) + 2 nuevas en `SugerenciaCatalogoTests`. **Suite backend 313 OK** (+7), `npm test` 13 OK,
+`npm run build` limpio.
+
+### 41.6 Pendiente de decisión del usuario
+
+- **Decidido (20/10/2026): la carga total se corre en la oficina**, no en casa: allí el espejo queda
+  fresco tras el refresco (§40) y no se gasta una carga larga sobre la BD de casa congelada al 02/10.
+  ⏱ **Costo medido:** `sugerir()` hace **9 consultas por registro** (probado con `CaptureQueriesContext`),
+  así que es un trabajo ligado a la BD: una pasada de **5.000 registros tarda ~6m48s** → los ~124.700
+  con `cie10_legacy` son **~2h50m**. Correr preferiblemente en segundo plano.
+- Solo las pendientes **con `cie10_legacy`** tienen propuesta fiable; las **49.595 sin texto ni código**
+  se codifican a mano (el motor no tiene de dónde inferir).
+- Para reclassificar propuestas viejas sin recalcular de más: `--rehacer`.
+- Índice del cambio: `AGENTS.md` actualizado con el comando y el criterio fiable/revisar (§41.4).

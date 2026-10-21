@@ -216,6 +216,22 @@ Idioma de trabajo: **responder siempre en español**.
     heurística `services.dividir_nombre_compuesto` (coma = inequívoco; 2-3 palabras → 1 apellido; 4+ → 2
     apellidos; ⚠ 3 palabras es ambiguo), solo apellidos vacíos, idempotente. Pruebas
     `registros/tests_calidad.py` y `registros/tests_dividir_nombres.py`. Detalle en PENDIENTES.md §35.1.
+  - **Propuesta de codificación en lote (§41, 20/10/2026):** el motor (`registros/sugerencia.py`) calcula
+    la propuesta **al abrir** el certificado, no la persiste; al 20/10/2026 había **0 de 174.095** con
+    `sugerencia_*`. Comando **`manage.py proponer_codificacion`** (`--modelo defunciones|fichas|todas`,
+    `--ejecutar` [def. dry-run], `--todo`, `--rehacer`, `--limite N`): llena **solo** `sugerencia_codigo/
+    titulo/origen/json/en` y **nunca** `codificado_en`/`codificado_por` ni `cie10`/`cie11`/
+    `codificacion_pendiente` → **la confirmación sigue siendo humana, caso por caso** (regla de
+    `codificador.md`). Por defecto propone **solo las fuentes fiables** `CROSSWALK` y `CIE10-LEGACY`
+    (ambas score 999, salen del código ya registrado en el certificado); la propuesta **por texto** se
+    omite porque tiene errores clínicos graves comprobados (`E43.X` «Desnutrición severa» → `XS7N`
+    «Angustia severa»; `W74.0` «Ahogamiento mortal» → `NF08.1` «no mortal»); con `--todo` se incluye pero
+    queda marcada `CATALOGO`. `ORIGEN_SUGERENCIA` ganó el valor **`LEGACY`** (migración `registros/0012`)
+    y `sugerencia.origen` refleja la fuente real en vez de forzar `CATALOGO`. `/codificacion` rotula la
+    propuesta como **«Fiable»** (verde) o **«Revisar»** (ámbar). ⏱ `sugerir()` hace 9 consultas/registro:
+    5.000 registros ≈ 6m48s → los ~124.700 con `cie10_legacy` ≈ **2h50m** (correr en segundo plano; por
+    eso la carga total se reserva para la oficina, tras el refresco §40). Pruebas
+    `registros/tests.py::ProponerCodificacionTests`. Suite backend **314 OK**.
   - **Complemento EV-25 (10/10/2026, migración `0010_nacimiento_ev25_parto_ocupacion_registrocivil`):**
     al verificar el formato impreso contra el módulo faltaban campos que el certificado sí pide; se
     agregaron opcionales: `persona_atendio_parto` (Médico/Enfermera/Partera/Comadrona/Otro) y
@@ -527,8 +543,10 @@ semanal y repetitiva. Dos scripts, uno por lado, con lista negra explícita para
 recordar qué traer:
 
 - **`oficina_refrescar_y_exportar.sh`** (corre en la **oficina**): Oracle vivo → espejo crudo en
-  PG + `espejo_extra` → `pg_dump -Fc` a `descarga/` con `SHA256SUMS`. No corre ETL ni toca la app
-  (con `HACER_RESPALDO=1` exporta el Oracle con `respaldo_total.sh`).
+  PG + `espejo_extra` → `pg_dump -Fc` a `descarga/` con `SHA256SUMS`. Con `HACER_RESPALDO=1` exporta
+  el Oracle con `respaldo_total.sh`. **No corre el ETL por defecto**; con `HACER_ETL=1` sí lo corre y
+  con `HACER_TERRITORIO=1` regenera `territorio_apn` (ver §40: la oficina veía ceros porque el ETL
+  solo corría en casa).
 - **`aplicar_dump_oficina.sh`** (corre en **casa**, `newgrp docker -c "..."`; dry-run por defecto,
   `--ejecutar` aplica): verifica SHA256, restaura en `sis_salud_db_oficina`, **guarda contra
   regresión** (aborta si el espejo de la oficina viene con menos filas, salvo `--forzar`),
@@ -539,6 +557,10 @@ recordar qué traer:
   rápido aditivo (`aplicar_dump_oficina.py`, resuelve centro por `establecimiento`).
   **Nunca trae** `territorio_apn` (estática) ni tablas de la app; el refresco es aditivo y
   conserva la codificación CIE (124.500 codificadas / 49.840 pendientes) y la configuración.
+- **`etl_comandos.sh`** (fuente única del ETL): la lista de comandos del paso ETL vive **aquí** y la
+  invocan los dos lados (`aplicar_dump_oficina.sh` paso 6, y `oficina_refrescar_y_exportar.sh` con
+  `HACER_ETL=1`), para que «correr el ETL en la oficina» no vuelva a olvidarse. Dry-run por defecto,
+  `--ejecutar` aplica, `--solo-certificados` es el camino rápido aditivo.
 - **Centros que la oficina agrupa y el certificado separa:** los dos `HOSP. DR. PASTOR OROPEZA`
   (IVSS/Barquisimeto vs Carora) comparten la org 800 de la oficina; casa los separa por
   `establecimiento` (org 22 Carora / org 426 IVSS). `asignar_organizacion_legacy` ahora prioriza

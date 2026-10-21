@@ -50,6 +50,7 @@ class RegistroConCIE(models.Model):
     # CODIFICADOR lo confirma. Se guarda el código sugerido y quién/cuándo confirmó.
     ORIGEN_SUGERENCIA = [
         ("", "—"),
+        ("LEGACY", "Código legacy (fiable)"),
         ("CATALOGO", "Catálogo CIE"),
         ("IA", "IA"),
         ("MANUAL", "Manual"),

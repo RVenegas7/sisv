@@ -1375,6 +1375,104 @@ class SugerenciaCatalogoTests(SISVBase):
         res = sugerir(obj)
         self.assertEqual(res["causa_basica"]["codigo"], self.cie11_categoria.codigo)
         self.assertEqual(res["causa_basica"]["fuente"], "CROSSWALK")
+        # §41: el origen distingue la propuesta fiable (legacy) de la arriesgada (texto).
+        self.assertEqual(res["origen"], "LEGACY")
+
+    def test_origen_catalogo_solo_cuando_sale_del_texto(self):
+        """Sin código legacy, la propuesta sale del texto y el origen queda CATALOGO."""
+        from registros.sugerencia import sugerir
+
+        res = sugerir(Defuncion(version_cie="CIE11", causa_primera_parte="Dengue grave"))
+        self.assertEqual(res["causa_basica"]["fuente"], "CIE11")
+        self.assertEqual(res["origen"], "CATALOGO")
+
+
+class ProponerCodificacionTests(SISVBase):
+    """`proponer_codificacion` llena la sugerencia pero NUNCA confirma la codificación.
+
+    Es la regla del flujo (codificador.md): la persona que codifica decide caso por caso.
+    """
+
+    def _defuncion(self, numero, **extra):
+        datos = {
+            "registro_numero": numero,
+            # 2023-06-01 es posterior al corte (FECHA_CORTE_CIE11 = 2022-01-01) → CIE11.
+            "fecha_evento": "2023-06-01",
+            "version_cie": "CIE11",
+            "fallecido_nombres": "X",
+        }
+        datos.update(extra)
+        return Defuncion.objects.create(**datos)
+
+    def _correr(self, *args):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        salida = StringIO()
+        call_command("proponer_codificacion", *args, stdout=salida)
+        return salida.getvalue()
+
+    def test_deja_la_propuesta_sin_confirmar(self):
+        d = self._defuncion("P-1", cie10_legacy="J18.9")
+        self._correr("--limite", "1", "--ejecutar")
+
+        d.refresh_from_db()
+        self.assertEqual(d.sugerencia_codigo, self.cie11_categoria.codigo)
+        self.assertEqual(d.sugerencia_origen, "LEGACY")
+        self.assertIsNotNone(d.sugerencia_en)
+        # Lo esencial: sigue pendiente de confirmación humana.
+        self.assertIsNone(d.codificado_en)
+        self.assertIsNone(d.codificado_por)
+
+    def test_no_reescribe_lo_ya_propuesto(self):
+        d = self._defuncion("P-2", cie10_legacy="J18.9")
+        self._correr("--limite", "1", "--ejecutar")
+        d.refresh_from_db()
+        primera = d.sugerencia_en
+
+        self._correr("--limite", "1", "--ejecutar")
+        d.refresh_from_db()
+        self.assertEqual(d.sugerencia_en, primera)
+
+    def test_rehacer_refresca_la_ficha_aunque_el_codigo_no_cambie(self):
+        """`--rehacer` reescribe la metainformación: reclassifica el `origen` obsoleto.
+
+        Caso real (§41): 42 propuestas guardadas antes de añadir el origen LEGACY seguían
+        marcadas CATALOGO aunque venían del código del certificado.
+        """
+        d = self._defuncion("P-5", cie10_legacy="J18.9")
+        self._correr("--limite", "1", "--ejecutar")
+        d.refresh_from_db()
+        # Simula la propuesta antigua con el origen mal rotulado.
+        Defuncion.objects.filter(pk=d.pk).update(sugerencia_origen="CATALOGO")
+        primera = d.sugerencia_en
+
+        self._correr("--limite", "1", "--rehacer", "--ejecutar")
+        d.refresh_from_db()
+        self.assertEqual(d.sugerencia_origen, "LEGACY")
+        self.assertNotEqual(d.sugerencia_en, primera)  # se refrescó
+        self.assertIsNone(d.codificado_en)  # y sigue sin confirmar
+
+    def test_dry_run_no_escribe(self):
+        d = self._defuncion("P-3", cie10_legacy="J18.9")
+        salida = self._correr("--limite", "1")
+        self.assertIn("DRY-RUN", salida)
+        d.refresh_from_db()
+        self.assertEqual(d.sugerencia_codigo, "")
+        self.assertIsNone(d.sugerencia_en)
+
+    def test_sin_codigo_legacy_no_cae_al_texto_por_defecto(self):
+        """La propuesta por texto es arriesgada: por defecto NO se guarda (§41)."""
+        d = self._defuncion("P-4", causa_primera_parte="Dengue grave")
+        self._correr("--limite", "1", "--ejecutar")
+        d.refresh_from_db()
+        self.assertEqual(d.sugerencia_codigo, "")
+
+        self._correr("--limite", "1", "--todo", "--rehacer", "--ejecutar")
+        d.refresh_from_db()
+        self.assertEqual(d.sugerencia_origen, "CATALOGO")
+        self.assertIsNone(d.codificado_en)
 
 
 class ConsultaYConfirmacionTests(SISVBase):

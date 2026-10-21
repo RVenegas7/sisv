@@ -161,10 +161,18 @@ def sugerir(registro):
     unicos.sort(key=lambda c: (-c["score"], len(c["titulo"])))
     unicos = unicos[:LIMITE_CANDIDATOS]
 
+    # El `origen` refleja DE DÓNDE salió la propuesta: si vino del código legacy
+    # (cross-walk o el propio CIE-10 histórico) es fiable; si salió de cruzar texto con
+    # el catálogo, el codificador debe revisarla con lupa. Antes se forzaba "CATALOGO"
+    # siempre y eso borraba la distinción que el codificador necesita (§41).
+    basica = unicos[0] if unicos else None
+    fuente = basica.get("fuente") if basica else None
+    origen = "LEGACY" if fuente in ("CROSSWALK", "CIE10-LEGACY") else "CATALOGO"
+
     return {
         "texto": texto,
         "version": version,
-        "origen": "CATALOGO",
-        "causa_basica": unicos[0] if unicos else None,
+        "origen": origen,
+        "causa_basica": basica,
         "candidatos": unicos,
     }

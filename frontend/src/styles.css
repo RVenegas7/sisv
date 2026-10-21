@@ -425,6 +425,11 @@ main.contenido {
 .etiqueta.en_transito { background: #1565c0; }
 .etiqueta.devuelto { background: #6a1b9a; }
 
+/* Fiabilidad de la sugerencia de codificación (§41): verde si la propuesta sale del
+   código del certificado, ámbar si sale de cruzar texto y hay que revisarla. */
+.etiqueta.fiable { background: #2e7d32; }
+.etiqueta.revisar { background: #b26a00; }
+
 .fila-editando {
   background: #fff7e6;
 }
