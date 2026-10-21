@@ -621,6 +621,21 @@ contenido campo a campo **no tiene discrepancias de lógica**; lo que difiere es
 `extraer_contenido_iso.py`, `comparar_contenido.py`. Falta solo refrescar el espejo (§32) para que
 los **conteos** cuadren a cero y poder plantear retirar el `exp` del legado.
 
+**Pero el dato no es el envío (20/10/2026, §39):** SISV **produce CSV, no el `.dmp`**, así que
+**hoy no puede enviar** aunque el dato sea correcto: falta el **contenedor**. El sobre real son
+**5 archivos** (`routlar1.dmp` + `routlar1.log` + `bloqlar1.log` + `copyhistlar1.log` +
+`repllar1.log`), de los cuales **el `.dmp` es el 99,5 % del peso** y los logs son del motor legacy;
+los sobres posteriores al corte del 08/09 viajan **con 4** (sin `repllar1.log`, §34). El `.dmp` es
+binario de `exp` (`EXPORT:V10.01.00`, corrido en Windows, `WE8ISO8859P1`) importado por el central
+como **`TEMP` → usuario `LEGACY`**, **pero su SQL está en claro dentro** (82 `CREATE TABLE`, 85
+`CREATE INDEX`, 82 `INSERT INTO`): la barrera es el **envoltorio**, no el contenido. Vías posibles,
+en §39.3: (1) Oracle intermedio + `exp` (⚠ los bytes no coinciden: el DDL sale con
+`TABLESPACE "DATOS2"`/`INDICE2` de las tablas reales), (2) reconstruir el contenedor `.dmp`,
+(3) **script `imp`-compatible en texto** que el central corra con `sqlplus`, o (4) formato abierto
+pactado. **Nada de esto se decide desde acá: hay que preguntar al central** si el `.dmp` es
+imprescindible y si usa los logs. Además, en el repo **no existe importador del sobre** (solo
+`exportar_rutalara`); leer el `routlar1` siempre se hizo con `imp` de Oracle.
+
 **Aviso de datos incompletos:** el tablero muestra un banner cuando la serie tiene un hueco
 (`registros/views.py::DashboardView._cobertura` → `cobertura.meses_sin_datos` y `cobertura.atraso_dias`).
 El mes en curso nunca se marca: a mitad de mes siempre está a medias y avisar sería mentir.

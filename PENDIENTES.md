@@ -3847,3 +3847,97 @@ comparación de conteos debe quedar en cero; **ese es el último paso antes de p
 Herramientas nuevas (reutilizables, en `migracion/simulacion/`): `preparar_entorno_validacion.sh`,
 `validar_sobre.py`, `extraer_contenido_iso.py`, `comparar_contenido.py`. Suite backend **308 OK**
 (no se tocó ninguna prueba existente; el `spec` es dato, no código).
+
+## 39. [ANÁLISIS 20/10/2026] ¿Puede SISV enviar el sobre al central? — qué falta de verdad es el empaquetado, no el dato
+
+§38 probó que **el dato** de SISV es equivalente al del sobre real (regla de selección, columnas,
+contenido). Eso responde «¿exportamos lo correcto?», pero **no** responde «¿podemos enviar?».
+Revisado el sobre real pieza por pieza, la respuesta es: **el contenido sí, el empaquetado todavía no.**
+
+### 39.1 El sobre real son 5 archivos (hoy 4: viaja degradado), y casi todos son del motor legacy
+
+De los **14 sobres** en `enviados/` (verificados uno por uno con `unzip -Z1`):
+
+| Archivo | Presente | Qué es | ¿Lo produce SISV? |
+| --- | --- | --- | --- |
+| `routlar1.dmp` | **14/14** | Volcado binario `exp` clásico (`EXPORT:V10.01.00`, Oracle 10.1.0.3.0), esquema **`TEMP` → usuario `LEGACY`** del central, 82 `T_*`, charset `WE8ISO8859P1`. **Es lo que viaja de verdad.** | **No** (SISV emite CSV de texto) |
+| `routlar1.log` | **14/14** | Log del `exp`: lista cada tabla y sus `N filas exportadas`. | Parcial (`_conteos.txt` tiene los conteos, pero no el formato del log) |
+| `bloqlar1.log` | **14/14** | Log del bloqueo de tablas (`Sistema modificado.`) durante el export. | **No** (es del motor legacy) |
+| `copyhistlar1.log` | **14/14** | Log de la copia al histórico (`N filas actualizadas.` / `Validación terminada.`). | **No** (es del motor legacy) |
+| `repllar1.log` | **11/14** | *Spool* de la **fase de replicación**: 83 `CREATE TABLE` + 86 `CREATE INDEX` de `TEMP.T_*` y los conteos finales. Es el paso que arma `TEMP.T_*`. | **No** (lo genera `SistemaTransferencia.exe` en el Windows del legado) |
+
+**Cuáles traen 4 y cuáles 5** (`unzip -Z1` sobre los 14): los **3 sin `repllar1.log`** son
+`routlar1_892026_1357` (08/09), `routlar1_14102026_1244` (14/10) y `routlar1_20102026_1327`
+(20/10) — justo los posteriores al corte del **08/09**, y los dos últimos son los patrones de §38.
+Los otros **11 traen los 5**: el corte coincide exactamente con la desaparición del `repllar1.log`,
+lo que confirma que el `exp` sigue corriendo pero la **fase `repl` que arma `TEMP.T_*` no**
+(§34: viajan degradados).
+
+### 39.2 Lo que SISV genera hoy
+
+`exportar_rutalara` produce un ZIP con **un CSV de texto por tabla** (`T_EVENTOS.csv` + 82 `T_*.csv`)
+y un `_conteos.txt`. Es decir:
+
+- **El dato sí**: las 82 tablas, la misma selección de filas, el mismo manifiesto `T_EVENTOS`.
+- **El contenedor no**: no hay `.dmp`, ni `routlar1.log`, ni `bloqlar/copyhistlar/repllar1.log`.
+
+### 39.3 Por qué el `.dmp` es la barrera real
+
+El central **importa** el `.dmp` con `imp` (esquema `TEMP` → `LEGACY`). Un `.dmp` es un formato
+**binario propietario de Oracle**: cabecera `EXPORT:V10.01.00`, `FILE=` con `C:\routlar1\routlar1.dmp`
+(export corrido en **Windows**), charset `WE8ISO8859P1` y bytes NUL intercalados (~375.900 en el
+sobre del 14/10). **No es texto y no se puede «escribir a mano».**
+
+**Pero conviene precisarlo, porque el dato cambió tras inspeccionarlo** (`strings` sobre el `.dmp`
+del 14/10): el contenido SQL **sí está en claro** dentro del binario —
+**1 `CONNECT` + 82 `CREATE TABLE` + 85 `CREATE INDEX` + 82 `INSERT INTO`**. Es decir, el `exp`
+empaqueta en registros binarios el mismo SQL que `imp` ejecutará después. Lo propietario es el
+**envoltorio de registros**, no el SQL.
+
+De ahí salen **cuatro** opciones, de más a menos dependiente del legacy:
+
+1. **Oracle intermedio + `exp`** — cargar el contenido SISV en un `TEMP` y correr `exp`. ⚠ **No basta
+   con cualquier Oracle**: el `exp` de 10g genera el DDL desde la tabla real, con su
+   `PCTFREE/INITRANS/STORAGE(...) TABLESPACE "DATOS2"` e índices `INF_IDnn TABLESPACE "INDICE2"`
+   (exactamente lo que se ve en el `.dmp` y en `schema_routlar1.sql`), así que los bytes **no
+   coinciden** con los del legacy salvo que se repliquen los almacenamientos. Funciona para el
+   `imp` del central (que solo necesita un `.dmp` válido), pero no es «reproducir el sobre».
+2. **Envolver el SQL en un `.dmp` propio** — reconstruir el contenedor de registros de `exp`.
+   Técnicamente posible (formato observable, SQL documentado) pero **frágil y sin soporte**; solo
+   tiene sentido si el central exige el `.dmp` y rechaza un `.sql`. **No recomendado como primera vía.**
+3. **Emitir un script `imp`-compatible en texto** — `CONNECT` + `CREATE TABLE` + `INSERT` (lo que el
+   `.dmp` ya lleva en claro). `imp` no lo consume, pero `sqlplus` sí: en destino es un
+   «cargue el `.sql`» en vez de un `imp`. **Es la vía intermedia razonable** si el central acepta
+   ejecutar un script en lugar de un `imp`.
+4. **Cambiar el receptor central a un formato abierto (CSV/SQL/JSON)** — SISV ya produce el CSV; hay
+   que pactarlo con el central y adaptar el importador de destino. Es la vía limpia a futuro, pero
+   **depende de terceros (soporte SIS/Centura)**.
+
+### 39.4 Qué falta, en orden
+
+1. **Decidir el formato de entrega con el central** — §39.3 opción 1 (Oracle intermedio + `exp`),
+   3 (script `imp`-compatible desde SISV) o 4 (formato abierto). Sin esta decisión, el resto es
+   trabajo perdido: cada vía es un trabajo distinto.
+2. **Averiguar si el central usa los logs** (`routlar1.log`, `bloqlar1.log`, `copyhistlar1.log`,
+   `repllar1.log`) o solo el `.dmp`. Si solo usa el `.dmp`, los logs son ruido operativo del legacy
+   y no hay que reproducirlos. **`repllar1.log` es la bitácora de la replicación** (arma `TEMP.T_*`);
+   si el central cambia al modelo SISV, ese paso desaparece por diseño.
+3. **Definir el «sobre SISV»**: ZIP con el contenido en el formato acordado + un log equivalente
+   (los conteos por tabla ya existen como `_conteos.txt`).
+4. **Refrescar el espejo (§32) y repetir §38** para que los conteos cuadren a cero.
+
+### 39.5 Conclusión
+
+- **¿Se puede enviar HOY desde SISV? No, tal cual**: falta reproducir el **contenedor** (`.dmp` +
+  logs), no los datos. Y falta también el lado **receptor**: en el repo **no existe ningún importador
+  del sobre** (solo `exportar_rutalara`); el `routlar1` lo leímos con `imp` de Oracle, no con código propio.
+- **¿El dato es correcto? Sí, probado** (§38): misma selección, mismas columnas, mismo contenido,
+  mismo manifiesto `T_EVENTOS`.
+- **El bloqueo no es técnico-de-datos, es de contrato de entrega**: el central espera un `.dmp`
+  binario. Pero inspeccionado el `.dmp`, **el SQL que contiene está en claro** (82 `CREATE TABLE` +
+  85 `CREATE INDEX` + 82 `INSERT INTO`), así que la barrera es el **envoltorio binario**, no el
+  contenido. Eso abre la puerta intermedia (§39.3 opción 3: script `imp`-compatible en texto) sin
+  necesidad de un Oracle de empaquetado.
+- **Trabajo inmediato**: confirmar con el central (1) si el `.dmp` es imprescindible o acepta un
+  **script SQL/CSV**, y (2) si usa los 4 logs. Eso decide entre «Oracle intermedio para el `exp`»,
+  «script `imp`-compatible desde SISV» o «formato abierto pactado».
