@@ -3779,3 +3779,71 @@ Suite backend **306 OK**; `npm test` 13 OK; `npm run build` OK.
 
 
 
+
+## 38. [HECHO 20/10/2026] El sobre al central: SISV reproduce el contrato del `routlar1` (validado contra dos sobres reales)
+
+La pregunta de fondo era si **SISV puede sustituir el `exp` del legado** sin romper lo que el
+central espera recibir. Para responderla no se leyó documentación: se tomaron los **dos sobres
+ya enviados** (14/10 y 20/10/2026), se importaron sus `.dmp` en un Oracle local y se compararon,
+tabla por tabla y campo por campo, contra lo que genera
+`manage.py exportar_rutalara --eventos <cola>`.
+
+### 38.1 Método (reproducible)
+
+1. **`migracion/simulacion/preparar_entorno_validacion.sh <ZIP> <ESQUEMA>`** — importa el
+   `routlar1.dmp` del sobre real en un esquema `ENVxx` del Oracle local `sis_oracle_legacy`
+   (puerto 1529, `imp` clásico `INDEXES=N CONSTRAINTS=N GRANTS=N IGNORE=Y`), y extrae a
+   `/tmp/opencode/` los tres artefactos que consume el validador: `ids_<env>.csv` (IDs de cada
+   `T_*` del dmp), `cols_<env>.csv` (columnas del dmp) y `manifiesto_<env>.txt` (el `T_EVENTOS`
+   del sobre, que **es el manifiesto exacto** de lo que viajó). Carga además el manifiesto como
+   `simulacion.eventos_<env>` en PostgreSQL.
+2. **`manage.py exportar_rutalara --eventos simulacion.eventos_<env> --salida … [--comparar <ZIP>]`**
+   — genera el sobre equivalente desde el espejo local `sismai.*`.
+3. **`migracion/simulacion/validar_sobre.py <env>`** — valida los dos ejes duros: la **regla de
+   selección** (IDs que viajan) y la **estructura de columnas** (nombre y orden).
+4. **`migracion/simulacion/extraer_contenido_iso.py` + `comparar_contenido.py`** — comparación de
+   **contenido campo a campo** en las filas presentes en ambos lados, con clasificación de
+   diferencias (frescura del espejo vs. bug).
+
+### 38.2 Resultado
+
+| Eje | Resultado |
+| --- | --- |
+| **Regla de selección** (IDs que viajan) | **EQUIVALENTE**: 22/22 tablas event-driven con **0 diferencias de IDs** en ambos sobres. La regla queda confirmada: viaja el **estado consolidado actual** de cada fila cuyo **último evento en la ventana es INSERT(1)/UPDATE(2)**; las de DELETE(3) no viajan. El `T_EVENTOS` del `.dmp` es el manifiesto exacto. |
+| **Estructura de columnas** | **81/82 exactas** (nombre + orden). Solo queda `T_CERTNACI`, que el sobre real **no trae** (defecto del legado, §34). |
+| **Contenido campo a campo** | ENV14: 31 filas comparables; ENV20: 16 filas comparables. En ambos **0 discrepancias de lógica** (42 y 20 diferencias de campo respectivamente), todas trazables a **frescura del espejo** (filas tocadas tras el congelamiento del 02/10) o a **artefactos de formato** (fechas `DATE` con/sin hora). |
+| **Conteos por tabla** | Las diferencias de conteo se explican **enteras** por el espejo congelado al 02/10 contra ventanas del 06/10→20/10. Verificado: todas las tablas fuente existen en el espejo y los IDs que faltan son capturas posteriores al 02/10. |
+
+### 38.3 Lo que se corrigió en el camino
+
+- **`rutarala_spec.json` estaba desactualizado** respecto al sobre real (no al revés: el espejo
+  `sismai.*` **sí** tenía las columnas). Se agregaron las que faltaban, en su posición real:
+  - `T_CERTMORT`: `VALSEXO`, `VALCAUSABASICA` (posiciones 97-98).
+  - `T_RCASOSMM`: `NUM_PARTOS`, `HIJOS_NACVIVOS`, `HIJOS_NACMUERTOS`, `HIJOS_NACABORTOS` (15-18).
+  - `T_SEGDIABE`: `EVALUACION2` (36) y, de paso, se corrigió el orden `USUARIO`/`FLUORO`
+    (el real es `… HCARGO, USUARIO, FECHAOPERACION, FLUORO, EVALUACION, HESPECIALIDAD, EVALUACION2`).
+- **`exportar_rutalara.py --comparar` estaba roto**: su parser solo entendía el log de `exp` en
+  inglés (`exporting table` / `rows exported`) y la oficina ahora lo emite en español
+  (`exportando la tabla` / `filas exportadas`). Ahora acepta ambos.
+
+### 38.4 Limitaciones conocidas (no son fallos de SISV)
+
+- **`T_AUDITORIA`**: el sobre real la viaja **completa** (9.969 / 7.844 filas), pero **no es
+  event-driven** y `sismai` local no tiene tabla `AUDITORIA` → SISV genera 0 (ya documentado, §16).
+- **`T_CERTNACI`**: SISV selecciona los IDs de `CERTNACIMIENTO`, pero el sobre real **no incluye**
+  esa tabla (defecto del legado de 4 archivos, §34).
+- **`USUARIO` vacío en `RENGLONTELE`/`RENGLON_EPI15`**: verificado contra el **origen** (ENV14):
+  también es 100 % nulo allí. Es del legacy, no de la tubería.
+- **Conteos**: solo se igualarán cuando el espejo local esté refrescado con el flujo semanal (§32).
+
+### 38.5 Conclusión
+
+**SISV reproduce el contrato del sobre**: misma regla de selección (IDs exactos), misma estructura
+de columnas y mismo contenido. Las únicas diferencias son de **frescura de datos** (espejo local
+congelado) y dos huecos conocidos del propio legado. Con el espejo refrescado (§32/§37) la
+comparación de conteos debe quedar en cero; **ese es el último paso antes de plantear retirar el
+`exp` del legado.**
+
+Herramientas nuevas (reutilizables, en `migracion/simulacion/`): `preparar_entorno_validacion.sh`,
+`validar_sobre.py`, `extraer_contenido_iso.py`, `comparar_contenido.py`. Suite backend **308 OK**
+(no se tocó ninguna prueba existente; el `spec` es dato, no código).

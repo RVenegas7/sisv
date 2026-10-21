@@ -609,6 +609,18 @@ de tres pasos, y el orden importa: no se carga antes de extraer, ni se concilia 
   `exportar_rutalara --semana` acepta `AAAA-N`.
 - El central usa sus propias semanas epidemiológicas; el número de semana **no coincide** con el ISO.
 
+**El sobre al central validado (20/10/2026, §38):** SISV **reproduce el contrato del `routlar1`**.
+Tomando los dos sobres reales ya enviados (14/10 y 20/10/2026), importando sus `.dmp` en un Oracle
+local y comparando contra `manage.py exportar_rutalara`: la **regla de selección** coincide
+**exacta** (22/22 tablas event-driven, 0 diferencias de IDs — viaja el estado consolidado de cada
+fila cuyo **último evento en la ventana es INSERT(1)/UPDATE(2)**; DELETE no viaja) y la **estructura
+de columnas** queda **81/82 exactas** (solo falta `T_CERTNACI`, que el sobre real no trae, §34). El
+contenido campo a campo **no tiene discrepancias de lógica**; lo que difiere es frescura del espejo
+(congelado al 02/10) y artefactos de formato de fecha. Herramientas reutilizables en
+`migracion/simulacion/`: `preparar_entorno_validacion.sh`, `validar_sobre.py`,
+`extraer_contenido_iso.py`, `comparar_contenido.py`. Falta solo refrescar el espejo (§32) para que
+los **conteos** cuadren a cero y poder plantear retirar el `exp` del legado.
+
 **Aviso de datos incompletos:** el tablero muestra un banner cuando la serie tiene un hueco
 (`registros/views.py::DashboardView._cobertura` → `cobertura.meses_sin_datos` y `cobertura.atraso_dias`).
 El mes en curso nunca se marca: a mitad de mes siempre está a medias y avisar sería mentir.

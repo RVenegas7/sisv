@@ -14,8 +14,10 @@ from vigilancia.services import rango_anio_epidemiologico, semanas_en_anio
 
 SPEC_JSON = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "rutarala_spec.json")
 
-EXPORT_TABLE_RE = re.compile(r"exporting table\s+([A-Za-z0-9_\.]+)")
-EXPORTED_ROWS_RE = re.compile(r"(\d+)\s+rows? exported")
+# `exp` escribe su log en el idioma del NLS_LANG del cliente: en la oficina el sobre
+# sale en español («exportando la tabla … N filas exportadas»), no en inglés.
+EXPORT_TABLE_RE = re.compile(r"(?:exporting table|exportando la tabla)\s+([A-Za-z0-9_\.]+)")
+EXPORTED_ROWS_RE = re.compile(r"(\d+)\s+(?:rows? exported|filas? exportadas)")
 
 
 def _rango_semana(anio: int, semana: int) -> tuple[dt.date, dt.date]:
