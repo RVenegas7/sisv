@@ -9,11 +9,13 @@
 #   2. Refresca el espejo crudo en PostgreSQL desde esos .dmp:
 #      migracion/actualizar_espejo_pg.sh  (Oracle local en Docker -> CSV -> PG).
 #   3. Carga la data cruda del nivel central: espejo_extra (lara_2019_2020.xlsx), si está.
-#   4. Produce el pg_dump de la base de la app para llevarla a casa + SHA256.
+#   4. (Opcional, HACER_ETL=1) corre el ETL para que las tablas de la app queden al día
+#      (migracion/etl_comandos.sh). Sin esto la app muestra CEROS aunque el espejo esté
+#      fresco: el EPI-15 y los consolidados ENO los llena el ETL, no el espejo (§40).
+#   5. Produce el pg_dump de la base de la app para llevarla a casa + SHA256.
 #
-# NO corre el ETL ni toca la app: en casa (script 2) se refresca el espejo y se
-# corre el ETL. El dump lleva el espejo crudo y espejo_extra; el resto de la app
-# que vaya en el dump se ignora en casa.
+# Si no se pasa HACER_ETL=1, el ETL se corre en casa (script 2). El dump lleva el espejo
+# crudo y espejo_extra; el resto de la app que vaya en el dump se ignora en casa.
 #
 # NO se toca ni se incluye la base de distribución geográfica (territorio_apn):
 # es estática y se reproduce con `manage.py exportar_territorio_pg`.
@@ -21,12 +23,16 @@
 # Uso:
 #   bash migracion/oficina_refrescar_y_exportar.sh
 #   HACER_RESPALDO=1 bash migracion/oficina_refrescar_y_exportar.sh
+#   HACER_ETL=1      bash migracion/oficina_refrescar_y_exportar.sh
 #
 # Variables:
 #   PG_CONT=sis_postgres_dev   contenedor PostgreSQL (oficina)
 #   LOCAL_DB=sis_salud_db      base de la app
 #   DUMPDIR=respaldo/respaldos_sismai   .dmp del Oracle vivo
 #   SALIDA=descarga            salida del pg_dump
+#   HACER_ETL=1                corre el ETL aquí (recomendado si se va a usar la app
+#                              en la oficina: sin él el EPI-15 sale en cero)
+#   HACER_TERRITORIO=1         regenera territorio_apn (exportar_territorio_pg)
 set -euo pipefail
 
 RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
@@ -38,6 +44,8 @@ DUMPDIR="${DUMPDIR:-$RAIZ/respaldo/respaldos_sismai}"
 SALIDA="${SALIDA:-$RAIZ/descarga}"
 VENV="${VENV:-$RAIZ/.venv/bin/python}"
 HACER_RESPALDO="${HACER_RESPALDO:-0}"
+HACER_ETL="${HACER_ETL:-0}"
+HACER_TERRITORIO="${HACER_TERRITORIO:-0}"
 XLSX="${XLSX:-$RAIZ/lara_2019_2020.xlsx}"
 FECHA="$(date +%Y-%m-%d)"
 
@@ -72,7 +80,21 @@ else
   log "No hay $XLSX; se omite espejo_extra"
 fi
 
-# 4) pg_dump para llevar a casa (no incluye territorio_apn: es otra base)
+# 4) ETL en la oficina (opcional pero recomendado: sin esto la app ve ceros)
+if [ "$HACER_ETL" = 1 ]; then
+  log "ETL en la oficina (las tablas de la app quedan al día)"
+  MANAGE="$RAIZ/backend/manage.py" VENV="$VENV" bash "$RAIZ/migracion/etl_comandos.sh" --ejecutar
+else
+  log "ETL omitido (HACER_ETL!=1): se correrá en casa. En la oficina el EPI-15 saldrá en cero."
+fi
+
+# 4b) Territorio (estático: no viene en el dump)
+if [ "$HACER_TERRITORIO" = 1 ]; then
+  log "Regenerando territorio_apn"
+  DJANGO_DEBUG=1 "$VENV" "$RAIZ/backend/manage.py" exportar_territorio_pg
+fi
+
+# 5) pg_dump para llevar a casa (no incluye territorio_apn: es otra base)
 log "Generando el dump para casa"
 mkdir -p "$SALIDA"
 DUMP="$SALIDA/sis_salud_db_${FECHA}.dump"

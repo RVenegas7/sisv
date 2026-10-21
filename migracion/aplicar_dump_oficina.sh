@@ -139,21 +139,14 @@ else
     log "espejo_extra no viene en el dump (nada que copiar)"
   fi
 
-  # 6) ETL en casa
+  # 6) ETL en casa — la lista vive en migracion/etl_comandos.sh (compartida con la oficina)
   if [ "$SIN_ETL" != 1 ]; then
     if [ "$EJECUTAR" = 1 ]; then
-      log "ETL: importando registros y vigilancia"
-      "$VENV" "$MANAGE" importar_legacy_registros
-      "$VENV" "$MANAGE" importar_legacy_vigilancia
-      "$VENV" "$MANAGE" recuperar_establecimiento_defuncion --ejecutar
-      "$VENV" "$MANAGE" asignar_organizacion_legacy --ejecutar
-      "$VENV" "$MANAGE" completar_numero_certificado --ejecutar
-      "$VENV" "$MANAGE" completar_nacimiento_legacy --ejecutar
-      "$VENV" "$MANAGE" sembrar_registradores_legacy --ejecutar
+      log "ETL"
+      VENV="$VENV" MANAGE="$MANAGE" bash "$RAIZ/migracion/etl_comandos.sh" --ejecutar
     else
-      log "ETL (dry-run): se correría importar_legacy_registros, importar_legacy_vigilancia,"
-      echo "  recuperar_establecimiento_defuncion, asignar_organizacion_legacy,"
-      echo "  completar_numero_certificado, completar_nacimiento_legacy, sembrar_registradores_legacy"
+      log "ETL (dry-run)"
+      VENV="$VENV" MANAGE="$MANAGE" bash "$RAIZ/migracion/etl_comandos.sh"
     fi
   fi
 fi
