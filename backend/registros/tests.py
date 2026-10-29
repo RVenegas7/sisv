@@ -1590,3 +1590,152 @@ class ConsultaYConfirmacionTests(SISVBase):
         self.assertEqual(data["sugerencia"]["en"], en1)
         self.assertIsNotNone(data["registro"]["codificado_en"])
 
+
+class ConsultaPorNumeroFisicoTests(SISVBase):
+    """§31: se busca por el número impreso del certificado, con respaldo al legacy.
+
+    El operario tiene el papel en la mano: el número que teclea es el de la planilla o el
+    del MSDS, no el `LEG-CERT-<id>` de Oracle.
+    """
+
+    def _defuncion(self, numero, fisico="", fecha="2023-05-01", **extra):
+        datos = {
+            "registro_numero": numero,
+            "numero_certificado": fisico,
+            "fecha_evento": fecha,
+            "version_cie": "CIE11",
+            "sexo": "M",
+            "fallecido_nombres": "Juan",
+            "fallecido_apellidos": "Pérez",
+            "causa_primera_parte": "Dengue grave",
+            "cie11": self.cie11_categoria.pk,
+        }
+        datos.update(extra)
+        return self.client.post("/api/registros/defunciones/", datos, content_type="application/json")
+
+    def _consulta(self, numero, modulo="defunciones"):
+        return self.client.get(f"/api/registros/consulta/?modulo={modulo}&numero={numero}")
+
+    def _nacimiento(self, numero, planilla="", fecha="2023-05-01"):
+        return self.crear_nacimiento(numero, fecha=fecha, numero_planilla=planilla)
+
+    def test_defuncion_por_numero_impreso(self):
+        self.login(self.u_trans_hcb)
+        self.assertEqual(self._defuncion("LEG-CERT-999473093", "5143453").status_code, 201)
+        self.login(self.u_cod_hcb)
+        r = self._consulta("5143453")
+        self.assertEqual(r.status_code, 200)
+        data = r.json()["data"]
+        self.assertEqual(data["numero_origen"], "fisico")
+        self.assertEqual(data["numero_fisico"], "5143453")
+        # `numero` sigue siendo el identificador único con el que se confirma.
+        self.assertEqual(data["numero"], "LEG-CERT-999473093")
+        self.assertEqual(data["coincidencias"], 1)
+        self.assertEqual(data["aviso"], "")
+
+    def test_nacimiento_por_numero_de_planilla(self):
+        self.login(self.u_trans_hcb)
+        self.assertEqual(self._nacimiento("LEG-RN-1", "0123456").status_code, 201)
+        r = self._consulta("0123456", modulo="nacimientos")
+        self.assertEqual(r.status_code, 200)
+        data = r.json()["data"]
+        self.assertEqual(data["numero_origen"], "fisico")
+        self.assertEqual(data["numero"], "LEG-RN-1")
+        self.assertEqual(data["numero_fisico"], "0123456")
+
+    def test_respaldo_al_numero_de_registro_legacy(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion("LEG-CERT-42", "5143453")
+        data = self._consulta("LEG-CERT-42").json()["data"]
+        self.assertEqual(data["numero_origen"], "registro")
+        self.assertEqual(data["numero"], "LEG-CERT-42")
+
+    def test_numero_con_puntos_o_espacios_se_encuentra_sin_ellos(self):
+        self.login(self.u_trans_hcb)
+        self.assertEqual(self._defuncion("LEG-CERT-7", "7.449.2").status_code, 201)
+        self.assertEqual(self._defuncion("LEG-CERT-9", ".223487").status_code, 201)
+        self.assertEqual(self._nacimiento("LEG-RN-9", "047 07745").status_code, 201)
+        self.assertEqual(self._consulta("74492").json()["data"]["numero_fisico"], "7.449.2")
+        # Separadores en los extremos y entre los dígitos (dato transcrito del legacy, §35).
+        self.assertEqual(self._consulta("223487").json()["data"]["numero_fisico"], ".223487")
+        self.assertEqual(
+            self._consulta("04707745", modulo="nacimientos").json()["data"]["numero_fisico"], "047 07745"
+        )
+
+    def test_numero_impreso_repetido_avisa_y_devuelve_el_mas_reciente(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion("LEG-CERT-1", "555000", fecha="2023-05-01")
+        self._defuncion("LEG-CERT-2", "555000", fecha="2023-07-15")
+        self.login(self.u_cod_hcb)
+        data = self._consulta("555000").json()["data"]
+        self.assertEqual(data["coincidencias"], 2)
+        self.assertEqual(data["numero"], "LEG-CERT-2")
+        self.assertIn("555000", data["aviso"])
+        self.assertEqual(len(data["candidatos"]), 2)
+        self.assertEqual(
+            [c["registro_numero"] for c in data["candidatos"]], ["LEG-CERT-2", "LEG-CERT-1"]
+        )
+        self.assertIn("fecha_evento", data["candidatos"][0])
+
+    def test_numero_impreso_de_otro_centro_es_404(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion("LEG-CERT-3", "777123")
+        self.login(self.u_trans_cabudare)
+        self.assertEqual(self._consulta("777123").status_code, 404)
+
+    def test_confirmar_con_el_numero_impreso_codifica_ese_certificado(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion("LEG-CERT-4", "888123")
+        self.login(self.u_cod_hcb)
+        sugerido = self._consulta("888123").json()["data"]["sugerencia"]["codigo"]
+        r = self.client.post(
+            "/api/registros/consulta/confirmar/",
+            {"modulo": "defunciones", "numero": "888123", "codigo": sugerido},
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 200)
+        obj = Defuncion.objects.get(registro_numero="LEG-CERT-4")
+        self.assertEqual(obj.codificado_por_id, self.u_cod_hcb.pk)
+        self.assertFalse(obj.codificacion_pendiente)
+
+    def test_listado_de_defunciones_busca_por_numero_impreso(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion("LEG-CERT-5", "999321")
+        self._defuncion("LEG-CERT-6", "111222")
+        r = self.client.get("/api/registros/defunciones/?q=999321")
+        self.assertEqual(r.status_code, 200)
+        numeros = [x["registro_numero"] for x in r.json()["data"]]
+        self.assertEqual(numeros, ["LEG-CERT-5"])
+
+    def test_bandeja_de_codificacion_busca_por_numero_impreso(self):
+        self.login(self.u_trans_hcb)
+        self.assertEqual(self._defuncion("LEG-CERT-8", "424242").status_code, 201)
+        # `RegistroConCIE.save()` da por codificado lo que ya trae CIE; la bandeja solo
+        # lista pendientes, así que se marca como los importados del legacy.
+        Defuncion.objects.filter(registro_numero="LEG-CERT-8").update(codificacion_pendiente=True)
+        r = self.client.get("/api/registros/codificacion/?modulo=defunciones&q=424242&anio=todos")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual([x["registro_numero"] for x in r.json()["data"]], ["LEG-CERT-8"])
+
+    def test_ficha_sigue_consultandose_por_su_codigo(self):
+        from django.utils import timezone
+
+        from registros.models import FichaVigilancia
+
+        FichaVigilancia.objects.create(
+            codigo_notificacion="FIC-2026-001",
+            nombre_evento="Dengue",
+            fecha_notificacion="2026-05-01",
+            fecha_evento="2026-05-01",
+            paciente_nombres="Ana",
+            paciente_apellidos="Rojas",
+            organizacion=self.org_hcb,
+            version_cie="CIE11",
+            cie11=self.cie11_categoria,
+        )
+        self.login(self.u_cod_hcb)
+        data = self._consulta("FIC-2026-001", modulo="fichas").json()["data"]
+        self.assertEqual(data["numero_origen"], "registro")
+        self.assertEqual(data["numero_fisico"], "")
+        self.assertEqual(data["numero"], "FIC-2026-001")
+

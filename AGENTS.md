@@ -399,8 +399,12 @@ Idioma de trabajo: **responder siempre en español**.
   backfill (dry-run, solo campos vacíos, idempotente). Nuevo reporte `GET /api/despacho/reportes/centros/`
   (JSON/CSV): **entregados vs regresados por centro y tipo**, con alcance. **⚠ Pendiente en la
   oficina:** correr el backfill tras el próximo refresco del espejo (el de casa llega a 173.976
-  defunciones). **⚠ Por evaluar:** la búsqueda principal por número debe ser la física, no
-  `registro_numero` (§31).
+  defunciones). **✅ (29/10/2026) La búsqueda principal ya es la física:** `GET
+  /api/registros/consulta/?modulo=&numero=` busca por `numero_certificado`/`numero_planilla`
+  **primero** (tolerando puntos/guiones/espacios, p. ej. `7.449.2` = `74492`), avisa si el número
+  está repetido (`coincidencias`/`aviso`/`candidatos`, se elige el evento más reciente) y **cae al
+  `registro_numero` legacy** si no aparece; `?q=` de defunciones/nacimientos/codificación también
+  busca por el número impreso. Detalle en PENDIENTES.md §31.1.
   **(14/10/2026, §36) Talonarios deducidos desde la BD:** el legacy nunca guardó el despacho, así que
   el rango de serie se **infiere** de los certificados cargados. El número impreso es un **serial
   compartido**: el bloque de 1000 es el «libro» (lo retiene la regional) y **dentro de él cada centro

@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 from collections import Counter
 from datetime import date, timedelta
 from statistics import median
@@ -518,12 +519,14 @@ class CodificacionView(APIView):
             if modulo == "defunciones":
                 condiciones = [
                     Q(registro_numero__icontains=q),
+                    Q(numero_certificado__icontains=q),
                     Q(fallecido_nombres__icontains=q),
                     Q(fallecido_apellidos__icontains=q),
                 ]
             elif modulo == "nacimientos":
                 condiciones = [
                     Q(registro_numero__icontains=q),
+                    Q(numero_planilla__icontains=q),
                     Q(madre_nombres__icontains=q),
                     Q(madre_apellidos__icontains=q),
                 ]
@@ -572,26 +575,129 @@ _CAMPO_NUMERO = {
     "fichas": "codigo_notificacion",
 }
 
+# El número que la oficina anota es el **impreso en el papel** (§31), no el
+# `registro_numero`, que es la clave de Oracle (`LEG-CERT-<id>`) y el operario no conoce.
+_CAMPO_NUMERO_FISICO = {
+    "defunciones": "numero_certificado",
+    "nacimientos": "numero_planilla",
+}
 
-def _resolver_certificado(modulo, numero, request):
-    """Busca un certificado por su número exacto respetando el alcance.
 
-    Devuelve ``(registro, None)`` o ``(None, respuesta_de_error)``. El número es el
-    `registro_numero` (nacimientos/defunciones) o el `codigo_notificacion` (fichas).
+def _variantes_numero(numero):
+    """Formas de teclear el mismo número impreso: tal cual y sin espacios ni puntos.
+
+    El legacy trae números transcritos con separadores (`.223487`, `7.449.2`, `047 07745`);
+    si el operario los teclea sin ellos sigue siendo el mismo número (§35).
+    """
+    base = (numero or "").strip()
+    if not base:
+        return []
+    variantes = [base]
+    compacto = re.sub(r"[\s.]", "", base)
+    if compacto and compacto != base:
+        variantes.append(compacto)
+    return variantes
+
+
+def _candidatos(qs, limite=10):
+    """Resumen de los certificados que comparten el número físico (el dato no es único)."""
+    return [
+        {
+            "id": r.pk,
+            "registro_numero": getattr(r, "registro_numero", "") or getattr(r, "codigo_notificacion", ""),
+            "fecha_evento": r.fecha_evento.isoformat() if r.fecha_evento else None,
+            "organizacion_nombre": r.organizacion.nombre if r.organizacion_id else "",
+        }
+        for r in qs[:limite]
+    ]
+
+
+def _coincidencias_fisicas(qs, campo, variantes):
+    """Certificados cuyo número impreso coincide con alguna variante tecleada.
+
+    Primero el número tal cual; después el mismo número **escrito con otros separadores**
+    (el legacy tiene `.223487`, `7.449.2`, `047 07745`): se comparan solo los dígitos y se
+    toleran puntos, guiones y espacios entre ellos. Ordenados del evento más reciente.
+    """
+    for variante in variantes:
+        encontrados = qs.filter(**{f"{campo}__iexact": variante}).order_by("-fecha_evento", "-id")
+        if encontrados.exists():
+            return encontrados
+    for variante in variantes:
+        compacto = re.sub(r"[\s.\-]", "", variante)
+        if len(compacto) >= 3 and compacto.isdigit():
+            # Tolerar separadores también en los extremos: el legacy guarda `.223487`.
+            patron = r"^[.\s\-]*" + r"[.\s\-]*".join(compacto) + r"[.\s\-]*$"
+            encontrados = qs.filter(**{f"{campo}__regex": patron}).order_by("-fecha_evento", "-id")
+            if encontrados.exists():
+                return encontrados
+    return None
+
+
+def _buscar_certificado(modulo, numero, request):
+    """Busca un certificado por número respetando el alcance.
+
+    Devuelve ``(registro, meta)`` o ``(None, respuesta_de_error)``.
+
+    Se busca **primero por el número impreso** (§31): `numero_certificado` en las
+    defunciones y `numero_planilla` en los nacimientos, que es el número del papel. Solo
+    si no aparece se cae al `registro_numero`/`codigo_notificacion`, que es el
+    identificador legacy (`LEG-CERT-…`) y sigue siendo la clave de la confirmación.
+
+    El número físico **no es único** en el histórico (números repetidos y transcritos mal:
+    61 defunciones y 343 planillas duplicadas al 29/10/2026), así que se devuelve el evento
+    más reciente y el `aviso` dice cuántos coinciden con sus datos, para que quien codifica
+    compruebe la fecha del papel antes de confirmar.
     """
     if modulo not in MODELOS:
         return None, error(f"Módulo no válido: {modulo}", status=400)
-    numero = (numero or "").strip()
-    if not numero:
+    variantes = _variantes_numero(numero)
+    if not variantes:
         return None, error("Debe indicar el número del certificado.", status=400)
     qs = _por_alcance(
         MODELOS[modulo].objects.select_related("organizacion", "cie10", "cie11", "codificado_por"),
         request,
     )
-    campo = _CAMPO_NUMERO[modulo]
-    registro = qs.filter(**{f"{campo}__iexact": numero}).order_by("-fecha_evento").first()
+    campo_fisico = _CAMPO_NUMERO_FISICO.get(modulo)
+    if campo_fisico:
+        encontrados = _coincidencias_fisicas(qs, campo_fisico, variantes)
+        if encontrados is not None:
+            total = encontrados.count()
+            aviso = ""
+            if total > 1:
+                aviso = (
+                    f"Hay {total} certificados con el número «{variantes[0]}»; se muestra el más reciente. "
+                    "Compare la fecha y el centro con el papel antes de codificar."
+                )
+            return encontrados.first(), {
+                "origen": "fisico",
+                "numero_buscado": variantes[0],
+                "coincidencias": total,
+                "aviso": aviso,
+                "candidatos": _candidatos(encontrados) if total > 1 else [],
+            }
+
+    campo_registro = _CAMPO_NUMERO[modulo]
+    for variante in variantes:
+        registro = qs.filter(**{f"{campo_registro}__iexact": variante}).order_by("-fecha_evento", "-id").first()
+        if registro is not None:
+            return registro, {
+                "origen": "registro",
+                "numero_buscado": variante,
+                "coincidencias": 1,
+                "aviso": "",
+                "candidatos": [],
+            }
+    return None, error(
+        f"Certificado no encontrado o fuera de su alcance: «{variantes[0]}».", status=404
+    )
+
+
+def _resolver_certificado(modulo, numero, request):
+    """Igual que `_buscar_certificado` con la firma clásica ``(registro, error)``."""
+    registro, meta = _buscar_certificado(modulo, numero, request)
     if registro is None:
-        return None, error("Certificado no encontrado o fuera de su alcance.", status=404)
+        return None, meta
     return registro, None
 
 
@@ -635,7 +741,13 @@ def _sugerencia_actual(registro):
 class ConsultaCertificadoView(APIView):
     """Consulta un certificado por número: todo lo registrado + la sugerencia CIE.
 
-    GET /api/registros/consulta/?modulo=defunciones&numero=DEF-2026-000003
+    GET /api/registros/consulta/?modulo=defunciones&numero=5143453
+
+    El número puede ser el **impreso en el certificado** (`numero_certificado` /
+    `numero_planilla`, §31) o el `registro_numero` legacy (`DEF-2026-000003`,
+    `LEG-CERT-999473093`); se busca por el físico primero. La respuesta trae
+    `numero_origen` (`fisico`/`registro`), `numero_fisico`, `coincidencias` y `aviso`
+    cuando el número físico está repetido en el histórico.
 
     Solo lectura: el detalle agrupado lo arma `presentacion.detalle_certificado`. Si el
     certificado aún no está confirmado, se (re)calcula la sugerencia con el catálogo
@@ -644,15 +756,23 @@ class ConsultaCertificadoView(APIView):
 
     def get(self, request):
         modulo = (request.query_params.get("modulo", "defunciones") or "").strip().lower()
-        registro, err = _resolver_certificado(modulo, request.query_params.get("numero"), request)
-        if err:
-            return err
+        registro, meta = _buscar_certificado(modulo, request.query_params.get("numero"), request)
+        if registro is None:
+            return meta
         if not registro.codificado_en:
             _guardar_sugerencia(registro, sugerir(registro))
         serializer = SERIALIZADORES[modulo]
+        campo_fisico = _CAMPO_NUMERO_FISICO.get(modulo)
         return ok({
             "modulo": modulo,
+            # `numero` sigue siendo el identificador con el que se confirma (único).
             "numero": getattr(registro, _CAMPO_NUMERO[modulo]),
+            "numero_fisico": getattr(registro, campo_fisico, "") if campo_fisico else "",
+            "numero_buscado": meta["numero_buscado"],
+            "numero_origen": meta["origen"],
+            "coincidencias": meta["coincidencias"],
+            "aviso": meta["aviso"],
+            "candidatos": meta["candidatos"],
             "registro": serializer(registro).data,
             "detalle": detalle_certificado(registro),
             "sugerencia": _sugerencia_actual(registro),
@@ -706,7 +826,7 @@ class NacimientoView(_RegistroAPI):
     modelo = Nacimiento
     serializer = NacimientoSerializer
     etiqueta = "nacimiento"
-    buscar = ["registro_numero", "madre_nombres", "madre_apellidos", "nino_nombres"]
+    buscar = ["registro_numero", "numero_planilla", "madre_nombres", "madre_apellidos", "nino_nombres"]
     # §35: número físico y nombres para el filtro «solo con datos sospechosos».
     campo_numero = "numero_planilla"
     campos_nombre = ("nino_nombres", "madre_nombres", "padre_nombres")
@@ -725,7 +845,7 @@ class DefuncionView(_RegistroAPI):
     modelo = Defuncion
     serializer = DefuncionSerializer
     etiqueta = "defunción"
-    buscar = ["registro_numero", "fallecido_nombres", "fallecido_apellidos"]
+    buscar = ["registro_numero", "numero_certificado", "fallecido_nombres", "fallecido_apellidos"]
     # §35: número físico y nombres para el filtro «solo con datos sospechosos».
     campo_numero = "numero_certificado"
     campos_nombre = ("fallecido_nombres", "madre_nombres")

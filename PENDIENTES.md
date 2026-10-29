@@ -3294,11 +3294,40 @@ en el equipo de la oficina para recuperar los números de los certificados carga
 Es idempotente: seguro correrlo las veces que haga falta (también vale incorporarlo al flujo
 del refresco del espejo).
 
-**⚠ Por evaluar luego:** la **búsqueda principal debe ser por el número del certificado
-físico** (`numero_certificado`/`numero_planilla`), no por `registro_numero` (hoy
-`/api/registros/consulta/?numero=` busca por el `LEG-CERT-…`/`LEG-RN-…`, que el operario no
-conoce). Evaluar: buscar por ambos, y si el número físico pasa a ser la referencia visible en
-las listas de nacimientos/defunciones y en el despacho.
+**✅ HECHO 29/10/2026 — la búsqueda principal es por el número impreso (§31.1):** antes
+`/api/registros/consulta/?numero=` solo entendía el `registro_numero` legacy (`LEG-CERT-…`), que
+el operario no conoce. Ver §31.1 para lo implementado y lo que falta decidir (la referencia
+visible en las tablas de carga).
+
+### 31.1 Búsqueda por el número físico del certificado (29/10/2026)
+
+- **Orden de búsqueda** (`registros/views.py::_buscar_certificado`): 1) **número impreso**
+  (`numero_certificado` en defunciones, `numero_planilla` en nacimientos), 2) el mismo número
+  **escrito con otros separadores** (puntos, guiones, espacios: el legacy tiene `.223487`,
+  `7.449.2`, `047 07745`; se comparan solo los dígitos y se toleran separadores también en los
+  extremos), 3) **respaldo** al `registro_numero`/`codigo_notificacion` de siempre. Las fichas
+  siguen consultándose por su `codigo_notificacion`.
+- **El número físico no es único** (61 defunciones distintas duplicadas/123 filas y 343 planillas
+  distintas/695 filas al 29/10/2026): se devuelve el **evento más reciente** y la respuesta trae
+  `coincidencias`, `aviso` («Hay N certificados con ese número…») y `candidatos` (fecha y centro)
+  para que quien codifica compruebe el papel. **`numero` sigue siendo el `registro_numero`**, que
+  es único, así que la confirmación (`/consulta/confirmar/`) no puede caer en otra fila.
+- **La respuesta** añade `numero_fisico`, `numero_buscado`, `numero_origen`
+  (`fisico`/`registro`), `coincidencias`, `aviso` y `candidatos`.
+- **Listados:** `?q=` en `/api/registros/defunciones/`, `/api/registros/nacimientos/` y en la
+  bandeja `/api/registros/codificacion/` ya busca también por el número impreso.
+- **Frontend `/codificacion`:** el buscador dice «número impreso o de registro», el encabezado
+  muestra el nº impreso y el de registro, el aviso de duplicados lista los candidatos con fecha y
+  centro, y la tabla de pendientes tiene columna **«Nº impreso»**.
+- **Pruebas:** `registros/tests.py::ConsultaPorNumeroFisicoTests` (10) — físico en defunción y
+  nacimiento, respaldo al legacy, separadores, duplicados (aviso + candidatos + más reciente),
+  fuera de alcance, confirmación por número impreso, listados y ficha. **Suite backend 324 OK**,
+  `npm test` 13 OK, `npm run build` OK.
+- **Verificado sobre la BD real (174.095 defunciones):** `5143453` → `LEG-CERT-999473093`;
+  `LEG-CERT-999473093` sigue funcionando; `1655448` → 3 coincidencias con aviso; `.223487`,
+  `7.449.2` y `047 07745` se encuentran tecleados sin separadores.
+- **Queda por decidir (usuario):** si el número impreso pasa a ser la **referencia visible** en las
+  tablas de `/nacimientos`, `/defunciones` y despacho (hoy se muestra el `registro_numero`).
 
 ## 32. [HECHO 13/10/2026] Flujo semanal oficina→casa con dos scripts, y separación de los dos «PASTOR OROPEZA»
 

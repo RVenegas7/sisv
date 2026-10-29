@@ -258,15 +258,15 @@ export default function Codificacion({ usuario }) {
 
       {puedeCodificar && (
         <div className="aviso aviso-info">
-          Rol <strong>{usuario?.rol_label}</strong>: consulte un certificado por su número, revise los datos ya
-          registrados y confirme la codificación CIE (sugerida automáticamente por el catálogo). El certificado no
-          se puede editar desde aquí.
+          Rol <strong>{usuario?.rol_label}</strong>: consulte un certificado por el número impreso (o el de
+          registro), revise los datos ya registrados y confirme la codificación CIE (sugerida automáticamente
+          por el catálogo). El certificado no se puede editar desde aquí.
         </div>
       )}
 
       <div className="formulario">
         <div className="grid">
-          <Campo label="Consultar certificado por número" htmlFor="cod-num">
+          <Campo label="Consultar certificado por número impreso o de registro" htmlFor="cod-num">
             <Input
               id="cod-num"
               value={numeroConsulta}
@@ -277,7 +277,7 @@ export default function Codificacion({ usuario }) {
                   consultarPorNumero()
                 }
               }}
-              placeholder="Ej. DEF-2026-000003, N-0001, código de ficha…"
+              placeholder="Ej. 5143453 (impreso), DEF-2026-000003…"
             />
           </Campo>
         </div>
@@ -320,7 +320,7 @@ export default function Codificacion({ usuario }) {
         <section className="panel" style={{ marginTop: "1rem" }}>
           <header className="cabecera-seccion">
             <h2>
-              {consulta.numero} — {nombres(modulo, consulta.registro)}
+              {consulta.numero_fisico || consulta.numero} — {nombres(modulo, consulta.registro)}
               <span className="etiqueta">{consulta.registro.version_cie}</span>
             </h2>
             <p className="ayuda" style={{ margin: 0 }}>
@@ -328,6 +328,32 @@ export default function Codificacion({ usuario }) {
               {consulta.registro.organizacion_nombre || "Sin organización"}
               {consulta.registro.cie10_legacy ? ` · CIE-10 legacy: ${consulta.registro.cie10_legacy}` : ""}
             </p>
+            {consulta.numero_fisico && (
+              <p className="ayuda" style={{ margin: "0.2rem 0 0" }}>
+                Nº impreso: <strong>{consulta.numero_fisico}</strong> · Nº de registro:{" "}
+                {consulta.numero}
+              </p>
+            )}
+            {consulta.numero_origen === "fisico" && consulta.coincidencias === 1 && (
+              <p className="ayuda" style={{ margin: "0.2rem 0 0" }}>
+                Encontrado por el número impreso del certificado.
+              </p>
+            )}
+            {consulta.aviso && (
+              <div className="aviso aviso-info" role="status" style={{ marginTop: "0.5rem" }}>
+                {consulta.aviso}
+                {(consulta.candidatos || []).length > 0 && (
+                  <ul style={{ margin: "0.4rem 0 0 1rem" }}>
+                    {consulta.candidatos.map((c) => (
+                      <li key={c.id}>
+                        {c.fecha_evento} · {c.organizacion_nombre || "Sin centro"} ·{" "}
+                        <span className="ayuda">{c.registro_numero}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
             {consulta.registro.codificado_en ? (
               <p className="ayuda" style={{ margin: "0.2rem 0 0" }}>
                 <span className="etiqueta">Confirmado</span> por{" "}
@@ -524,6 +550,7 @@ export default function Codificacion({ usuario }) {
               <thead>
                 <tr>
                   <th>Nº registro</th>
+                  <th>Nº impreso</th>
                   <th>Fecha</th>
                   <th>Persona / madre / paciente</th>
                   <th>Centro</th>
@@ -536,6 +563,7 @@ export default function Codificacion({ usuario }) {
                 {lista.map((r) => (
                   <tr key={r.id}>
                     <td>{codigo(modulo, r)}</td>
+                    <td>{r.numero_certificado || r.numero_planilla || "—"}</td>
                     <td>{r.fecha_evento}</td>
                     <td>{nombres(modulo, r)}</td>
                     <td>{r.organizacion_nombre || "—"}</td>
