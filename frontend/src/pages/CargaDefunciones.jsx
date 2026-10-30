@@ -5,6 +5,7 @@ import SelectTerritorial from "../components/SelectTerritorial"
 import CentroSelector from "../components/CentroSelector"
 import { Boton, Campo, Input, Seccion, Select, TextArea } from "../components/ui"
 import { SELECCION_CIE_VACIA, seleccionDesdeRegistro, useVersionCIE, validarCIE } from "../utils/cie"
+import { numeroRegistro, numeroVisible, tieneAmbosNumeros } from "../utils/numero"
 
 const VACIO = {
   registro_numero: "",
@@ -332,7 +333,7 @@ export default function CargaDefunciones({ usuario }) {
   }
 
   async function borrar(reg) {
-    if (!window.confirm(`¿Eliminar el certificado #${reg.id} (${reg.registro_numero})?`)) return
+    if (!window.confirm(`¿Eliminar el certificado #${reg.id} (${numeroVisible(reg)})?`)) return
     try {
       await eliminarDefuncion(reg.id)
       if (lista.length === 1 && paginacion?.pagina > 1) {
@@ -371,7 +372,7 @@ export default function CargaDefunciones({ usuario }) {
         setEstado({ tipo: "ok", texto: `Certificado #${editandoId} actualizado.` })
       } else {
         const creado = await crearDefuncion(payload)
-        setEstado({ tipo: "ok", texto: `Certificado creado: ${creado.registro_numero} #${creado.id}` })
+        setEstado({ tipo: "ok", texto: `Certificado creado: ${numeroVisible(creado)} #${creado.id}` })
       }
       setLista(await cargarLista(paginacion?.pagina || 1))
       cancelarEdicion()
@@ -867,7 +868,7 @@ export default function CargaDefunciones({ usuario }) {
         <table>
           <thead>
             <tr>
-              <th>Nº</th>
+              <th>Nº certificado</th>
               <th>Fecha</th>
               <th>Fallecido</th>
               <th>Sexo</th>
@@ -882,7 +883,12 @@ export default function CargaDefunciones({ usuario }) {
           <tbody>
             {lista.map((r) => (
               <tr key={r.id}>
-                <td>{r.registro_numero}</td>
+                <td>
+                  {numeroVisible(r)}
+                  {tieneAmbosNumeros(r) && (
+                    <span className="ref-secundaria">{numeroRegistro(r)}</span>
+                  )}
+                </td>
                 <td>{r.fecha_evento}</td>
                 <td>{r.fallecido_nombres} {r.fallecido_apellidos}</td>
                 <td>{r.sexo}</td>

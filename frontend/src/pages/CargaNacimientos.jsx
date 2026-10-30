@@ -5,6 +5,7 @@ import SelectTerritorial from "../components/SelectTerritorial"
 import CentroSelector from "../components/CentroSelector"
 import { Boton, Campo, Input, Seccion, Select } from "../components/ui"
 import { SELECCION_CIE_VACIA, seleccionDesdeRegistro, useVersionCIE, validarCIE } from "../utils/cie"
+import { numeroRegistro, numeroVisible, tieneAmbosNumeros } from "../utils/numero"
 
 const VACIO = {
   registro_numero: "",
@@ -302,7 +303,7 @@ export default function CargaNacimientos({ usuario }) {
   }
 
   async function borrar(reg) {
-    if (!window.confirm(`¿Eliminar el registro de nacimiento #${reg.id} (${reg.registro_numero})?`)) return
+    if (!window.confirm(`¿Eliminar el registro de nacimiento #${reg.id} (${numeroVisible(reg)})?`)) return
     try {
       await eliminarNacimiento(reg.id)
       if (lista.length === 1 && paginacion?.pagina > 1) {
@@ -355,7 +356,7 @@ export default function CargaNacimientos({ usuario }) {
         setEstado({ tipo: "ok", texto: `Registro #${editandoId} actualizado.` })
       } else {
         const creado = await crearNacimiento(payload)
-        setEstado({ tipo: "ok", texto: `Registro creado: ${creado.registro_numero} #${creado.id}` })
+        setEstado({ tipo: "ok", texto: `Registro creado: ${numeroVisible(creado)} #${creado.id}` })
       }
       const nuevaLista = await cargarLista(paginacion?.pagina || 1)
       setLista(nuevaLista)
@@ -707,7 +708,7 @@ export default function CargaNacimientos({ usuario }) {
         <table>
           <thead>
             <tr>
-              <th>Nº</th>
+              <th>Nº planilla</th>
               <th>Fecha</th>
               <th>Niño(a)</th>
               <th>Sexo</th>
@@ -722,7 +723,12 @@ export default function CargaNacimientos({ usuario }) {
           <tbody>
             {lista.map((r) => (
               <tr key={r.id}>
-                <td>{r.registro_numero}</td>
+                <td>
+                  {numeroVisible(r)}
+                  {tieneAmbosNumeros(r) && (
+                    <span className="ref-secundaria">{numeroRegistro(r)}</span>
+                  )}
+                </td>
                 <td>{r.fecha_evento}</td>
                 <td>
                   {[r.nino_nombres, r.nino_apellidos].filter(Boolean).join(" ") || "—"}

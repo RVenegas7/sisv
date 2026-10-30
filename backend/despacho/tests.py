@@ -257,6 +257,43 @@ class DespachoReportesTests(DespachoBase):
         self.assertEqual(items[0]["centro"], self.org_hcb.nombre)
         self.assertEqual(items[0]["persona"], "Fallecido")
 
+    def test_reporte_certificados_expone_numero_impreso(self):
+        """La referencia visible es el número impreso; el de registro va aparte (§31.2)."""
+        d = self.crear_defuncion("LEG-CERT-999473093")
+        d.numero_certificado = "5143453"
+        d.save(update_fields=["numero_certificado"])
+        self.crear_defuncion("DEF-2026-000002")
+        self.login(self.u_jefe)
+        r = self.client.get("/api/despacho/reportes/certificados/?tipo=DEFUNCION")
+        items = {i["numero"]: i for i in r.json()["data"]["items"]}
+        self.assertEqual(items["LEG-CERT-999473093"]["numero_fisico"], "5143453")
+        self.assertEqual(items["LEG-CERT-999473093"]["numero"], "LEG-CERT-999473093")
+        self.assertEqual(items["DEF-2026-000002"]["numero_fisico"], "")
+
+    def test_reporte_certificados_csv_usa_numero_impreso(self):
+        d = self.crear_defuncion("LEG-CERT-999473093")
+        d.numero_certificado = "5143453"
+        d.save(update_fields=["numero_certificado"])
+        self.crear_defuncion("DEF-2026-000002")
+        self.login(self.u_jefe)
+        r = self.client.get("/api/despacho/reportes/certificados/?tipo=DEFUNCION&formato=csv")
+        self.assertEqual(r.status_code, 200)
+        lineas = r.content.decode("utf-8-sig").splitlines()
+        self.assertIn("No Registro", lineas[0])
+        filas = "\n".join(lineas[1:])
+        self.assertIn("5143453,LEG-CERT-999473093", filas)
+        # Sin número impreso, la columna cae al de registro (no queda vacía).
+        self.assertIn("DEF-2026-000002,DEF-2026-000002", filas)
+
+    def test_reporte_certificados_conserva_ceros_de_la_planilla(self):
+        """«0072» es lo impreso: no se convierte en 72 (§31.2)."""
+        n = self.crear_nacimiento("LEG-RN-999761189")
+        n.numero_planilla = "0072"
+        n.save(update_fields=["numero_planilla"])
+        self.login(self.u_jefe)
+        r = self.client.get("/api/despacho/reportes/certificados/?tipo=NACIMIENTO")
+        self.assertEqual(r.json()["data"]["items"][0]["numero_fisico"], "0072")
+
     def test_reporte_certificados_nacimiento_usa_madre(self):
         self.crear_nacimiento("NC-2026-000001")
         self.login(self.u_jefe)

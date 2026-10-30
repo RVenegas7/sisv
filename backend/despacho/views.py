@@ -9,6 +9,7 @@ from despacho.models import NovedadCertificado, Talonario
 from despacho.serializers import NovedadCertificadoSerializer, TalonarioSerializer
 from despacho.services import (
     detalle_certificados,
+    numero_impreso,
     persona_registro,
     resumen_talonario,
     series_deducidas,
@@ -267,7 +268,10 @@ def _filas_certificados_cargados(request):
     for r in qs.order_by("organizacion__nombre", "fecha_evento").iterator():
         nombres, apellidos, persona = persona_registro(modelo, r)
         filas.append({
+            # `numero` sigue siendo el de registro legacy (único y estable); la
+            # referencia visible es `numero_fisico` (§31.2), que puede faltar.
             "numero": r.registro_numero,
+            "numero_fisico": numero_impreso(modelo, r),
             "nombres": nombres,
             "apellidos": apellidos,
             "fecha": str(r.fecha_evento),
@@ -551,9 +555,12 @@ def _csv_response(nombre, cabecera, filas):
 def _csv_certificados(tipo, filas):
     return _csv_response(
         f"certificados_{tipo.lower()}.csv",
-        ["No Certificado", "Persona", "Nombres", "Apellidos", "Fecha", "Centro"],
+        ["No Certificado", "No Registro", "Persona", "Nombres", "Apellidos", "Fecha", "Centro"],
         [
-            [f["numero"], f.get("persona", ""), f["nombres"], f["apellidos"], f["fecha"], f["centro"]]
+            # «No Certificado» es el número impreso (§31.2); se cae al de registro
+            # cuando el certificado no lo trae, para no dejar la celda vacía.
+            [f.get("numero_fisico") or f["numero"], f["numero"], f.get("persona", ""),
+             f["nombres"], f["apellidos"], f["fecha"], f["centro"]]
             for f in filas
         ],
     )

@@ -141,6 +141,19 @@ def numero_fisico(modelo, registro):
     return _a_entero(valor)
 
 
+def numero_impreso(modelo, registro):
+    """Número impreso del certificado **tal cual se tecleó**, o cadena vacía.
+
+    A diferencia de :func:`numero_fisico` (que devuelve el entero para cruzar
+    series), aquí se conserva el texto: la planilla `0072` se muestra `0072`, no
+    `72`. Es la referencia visible de las tablas y los reportes (§31.2).
+    """
+    valor = registro.numero_certificado if modelo is Defuncion else registro.numero_planilla
+    if valor is None:
+        return ""
+    return str(valor).strip()
+
+
 def _partir_en_series(pares, tolerancia):
     """Parte una lista de ``(numero, fecha)`` en corridas donde el hueco <= tolerancia.
 

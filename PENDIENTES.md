@@ -3296,8 +3296,8 @@ del refresco del espejo).
 
 **✅ HECHO 29/10/2026 — la búsqueda principal es por el número impreso (§31.1):** antes
 `/api/registros/consulta/?numero=` solo entendía el `registro_numero` legacy (`LEG-CERT-…`), que
-el operario no conoce. Ver §31.1 para lo implementado y lo que falta decidir (la referencia
-visible en las tablas de carga).
+el operario no conoce. Ver §31.1 para lo implementado y §31.2 para la decisión ya tomada de que el
+número impreso sea además la **referencia visible** en `/nacimientos`, `/defunciones` y el despacho.
 
 ### 31.1 Búsqueda por el número físico del certificado (29/10/2026)
 
@@ -3328,6 +3328,35 @@ visible en las tablas de carga).
   `7.449.2` y `047 07745` se encuentran tecleados sin separadores.
 - **Queda por decidir (usuario):** si el número impreso pasa a ser la **referencia visible** en las
   tablas de `/nacimientos`, `/defunciones` y despacho (hoy se muestra el `registro_numero`).
+
+### 31.2 El número impreso es la referencia visible (29/10/2026)
+
+Decidido e implementado: en las tablas el «Nº» es el **impreso** (`numero_certificado` /
+`numero_planilla`) y el `registro_numero` legacy (**LEG-CERT-…**) queda debajo como referencia
+secundaria, en gris y más pequeño. Si el registro no trae número impreso (capturas manuales o
+importados antes del backfill de §31) se muestra el de registro, así que **ninguna fila queda vacía**.
+
+- **Utilidad única** `frontend/src/utils/numero.js`: `numeroImpreso`, `numeroRegistro`,
+  `numeroVisible` y `tieneAmbosNumeros` (evita repetir el número cuando ambos coinciden).
+- **`/nacimientos`** (`CargaNacimientos.jsx`): columna «Nº planilla»; el aviso de borrado y el mensaje
+  de alta usan el número impreso.
+- **`/defunciones`** (`CargaDefunciones.jsx`): columna «Nº certificado», mismo criterio.
+- **`/codificacion`** ya lo mostraba (`Nº impreso`, §31.1) y no cambia.
+- **Despacho, Reporte 1 (detalle):** la API agrega **`numero_fisico`** a cada fila y **`numero` sigue
+  siendo el de registro** (único e inmutable, el que se usa para cruzar y para las novedades). El
+  número impreso viaja **tal cual se tecleó** (`despacho/services.py::numero_impreso`, nuevo: la
+  planilla `0072` se muestra `0072`, no `72`; el cruce sigue usando el entero de `numero_fisico`).
+  La tabla muestra el impreso con el de registro debajo; el **CSV** gana la columna **«No Registro»**
+  y «No Certificado» pasa a llevar el impreso (con respaldo al de registro si falta).
+- **No se tocó el contrato del cruce**: `despacho/services.py::numero_en_serie` y las series
+  deducidas siguen exactamente igual; esto es solo presentación + una columna informativa.
+- **Pruebas:** backend `DespachoReportesTests::test_reporte_certificados_expone_numero_impreso`,
+  `::test_reporte_certificados_csv_usa_numero_impreso` y
+  `::test_reporte_certificados_conserva_ceros_de_la_planilla` (3), frontend `src/utils/numero.test.js` (5).
+  **Suite backend 327 OK**, `npm test` 18 OK, `npm run build` OK.
+- **Verificado sobre la BD real:** defunciones con número impreso **173.976** (`LEG-CERT-999473093` →
+  `5143453`) y nacimientos **438.852** (`LEG-RN-999761189` → `12327831`): la tabla mostrará el
+  número del papel en prácticamente todas las filas.
 
 ## 32. [HECHO 13/10/2026] Flujo semanal oficina→casa con dos scripts, y separación de los dos «PASTOR OROPEZA»
 

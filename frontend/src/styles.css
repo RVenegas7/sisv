@@ -589,6 +589,14 @@ main.contenido {
   margin: 0 0 0.9rem;
 }
 
+/* Número de registro legacy como referencia secundaria bajo el número impreso (§31.2). */
+.ref-secundaria {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--gris);
+  white-space: nowrap;
+}
+
 .campo-cie {
   display: flex;
   flex-direction: column;

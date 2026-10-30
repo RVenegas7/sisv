@@ -674,7 +674,12 @@ export default function Despacho({ usuario }) {
               <tbody>
                 {filasCert.map((f, i) => (
                   <tr key={`${f.numero}-${i}`}>
-                    <td>{f.numero}</td>
+                    <td>
+                      {f.numero_fisico || f.numero}
+                      {f.numero_fisico && f.numero_fisico !== f.numero && (
+                        <span className="ref-secundaria">{f.numero}</span>
+                      )}
+                    </td>
                     <td>{f.persona || "—"}</td>
                     <td>{f.nombres}</td>
                     <td>{f.apellidos}</td>

@@ -404,7 +404,13 @@ Idioma de trabajo: **responder siempre en español**.
   **primero** (tolerando puntos/guiones/espacios, p. ej. `7.449.2` = `74492`), avisa si el número
   está repetido (`coincidencias`/`aviso`/`candidatos`, se elige el evento más reciente) y **cae al
   `registro_numero` legacy** si no aparece; `?q=` de defunciones/nacimientos/codificación también
-  busca por el número impreso. Detalle en PENDIENTES.md §31.1.
+  busca por el número impreso. Detalle en PENDIENTES.md §31.1. **(29/10/2026, §31.2) el número
+  impreso es también la referencia visible:** en las tablas de `/nacimientos` (col. «Nº planilla»),
+  `/defunciones` (col. «Nº certificado») y el detalle del Reporte 1 de `/despacho` se muestra el
+  impreso y, debajo en gris, el `registro_numero` (utilidad `frontend/src/utils/numero.js`;
+  respaldo al de registro si falta, sin filas vacías). En el Reporte 1 la API agrega
+  `numero_fisico` (el `numero` sigue siendo el de registro, que es el que cruza) y el CSV gana la
+  columna «No Registro».
   **(14/10/2026, §36) Talonarios deducidos desde la BD:** el legacy nunca guardó el despacho, así que
   el rango de serie se **infiere** de los certificados cargados. El número impreso es un **serial
   compartido**: el bloque de 1000 es el «libro» (lo retiene la regional) y **dentro de él cada centro
@@ -738,11 +744,11 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
 - Componentes frontend clave: `CIESearch` (autocomplete + cascada CIE-11 + subgrupos obligatorios),
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
-- **Pruebas automatizadas (14/10/2026):** backend con `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
+- **Pruebas automatizadas (29/10/2026):** backend con `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
   (**correr desde `backend/`** — desde la raíz descubre 0 tests),
-  (**306 pruebas a 14/10/2026** (verificado): 115 de `backend/tests_sisv.py` + 46 de `backend/despacho/tests.py`
+  (**327 pruebas a 29/10/2026** (verificado): 115 de `backend/tests_sisv.py` + 49 de `backend/despacho/tests.py`
   (24 + 3 del reporte agrupado + 11 de las series deducidas + 7 del redondeo al corte de decena, §36
-  + 1 del centro obligatorio sin organización, §37)
+  + 1 del centro obligatorio sin organización, §37 + 3 del número impreso visible, §31.2)
   + 4 de `registros/tests_completar_numero_certificado.py`
   + 26 de `backend/registradores/tests.py` (§37)
   + 33 de `conciliacion` (16 ENO +
@@ -753,7 +759,8 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
   `__init__.py` en las
   apps — registros, seguridad, territorio y catalogos eran namespace packages y por eso el
   descubrimiento fallaba);
-  frontend con `npm test` (Vitest, 13 pruebas en `src/utils/cie.test.js` y `src/api/sisv.test.js`).
+  frontend con `npm test` (Vitest, 18 pruebas en `src/utils/cie.test.js`, `src/utils/numero.test.js`
+  y `src/api/sisv.test.js`).
   Verificación manual: `manage.py check` y `npm run build`.
 - **Seguridad (23/09/2026):** la API exige sesión por defecto (`IsAuthenticated` global; públicos solo
   `/api/auth/login|logout|me|csrf` y `/api/`). Rate limiting del login en `seguridad/throttle.py`
