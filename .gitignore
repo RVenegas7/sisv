@@ -62,3 +62,6 @@ legancy/*.xlsx
 legancy/*.xls
 # Exportaciones de análisis puntuales (certificados con nombres/cédulas)
 nacimientos_semana*.csv
+# Informes de auditoría de números de certificado y centros duplicados (datos personales)
+centros_duplicados_*.csv
+numeros_certificado_*.csv
