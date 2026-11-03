@@ -96,7 +96,7 @@ class ConciliacionENO(models.Model):
 
 
 class ConciliacionNeonatal(models.Model):
-    """Muerte neonatal (0 a 27 días) del registro MMI de la oficina contra SISV.
+    """Muerte neonatal (0 a 30 días, inclusive) del registro MMI de la oficina contra SISV.
 
     El grano es **(año, semana, organización)**. La semana se calcula **en cada lado
     desde la fecha real del evento** con la misma función epidemiológica, y **no**
@@ -107,7 +107,7 @@ class ConciliacionNeonatal(models.Model):
 
     El lado legacy es `sismai."CASOS_MMI"` (el registro materno-infantil), que trae
     nombre, edad **con su unidad**, sexo y fecha de ocurrencia. Los neonatos son las
-    filas con edad en horas o en días de 0 a 27.
+    filas con edad en horas o en días de 0 a 30, inclusive.
 
     ⚠ Esta tabla **no** concilia la muerte materna: aquí se cuentan los neonatos de
     `CASOS_MMI`, que mezcla materna, infantil y otras sin marcarlas. La MM se concilia

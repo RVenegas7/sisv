@@ -4059,7 +4059,8 @@ de la oficina.** Recordatorios de definición (§21) para que la comparación se
 - **La fecha de la muerte es `CASOS_MMI."FECHAOCURRENCIA"`**, no `PERIODOOCURRENCIA` (viene NULL).
 - **`HCASOSMMI` es el ID de la persona, no un contador** (un `SUM` da cifras absurdas).
 - **MN** = 0–27 días con fecha de nacimiento conocida; ese indicador ya cuadra
-  (`conciliar_neonatal` 213 = 213 en 2026) y no debe tocarse.
+  (`conciliar_neonatal` 213 = 213 en 2026) y no debe tocarse. ⚠ **Superado el 23/10/2026:** la
+  definición vigente es **0-30 días inclusive** (ver §42).
 - Para auditar el desfase: `manage.py conciliar_mm [--anio N] [--csv ruta]` (grano año/semana/org;
   567 filas con la BD corregida: 88 CUADRA / 31 DIFERENCIA / 406 solo registro / 42 solo certificado).
 
@@ -4151,3 +4152,144 @@ propuesta es un aviso para el codificador, no una codificación. Pruebas: `Propo
   se codifican a mano (el motor no tiene de dónde inferir).
 - Para reclassificar propuestas viejas sin recalcular de más: `--rehacer`.
 - Índice del cambio: `AGENTS.md` actualizado con el comando y el criterio fiable/revisar (§41.4).
+
+## 42. [HECHO 23/10/2026] MNI 2026 semana a semana: la definición cambia a 0-30 días y el 255 de la especialista no sale de esa regla
+
+Petición del usuario (en la oficina, con el espejo al día): la **serie de MNI 2026 por semana
+epidemiológica** con la regla **0-30 días inclusive**, conciliada contra la lista semanal de la
+especialista y su total de **255**, y contrastada con el **EPI-12** y el **EPI-14**.
+
+### 42.1 El cambio de definición: 0-27 → 0-30 inclusive
+
+La regla del tablero era 0-27 días (a los 28 ya no era neonatal). El usuario confirmó que la oficina
+cuenta **0-30 inclusive**. Se cambió en **los cuatro sitios de cálculo**, no solo en la vista:
+
+| Archivo | Qué cambió |
+| --- | --- |
+| `registros/views.py` | `_neonatales_por_semana` y `contar_neonatales` (`<= 30`), `_grupo_edad_anexo` (`dias <= 30` → neonatal, el resto 31-364 infantil), `_edad_unidad_anexo` |
+| `conciliacion/management/commands/conciliar_neonatal.py` | `HORAS_NEONATAL = 30 * 24`, SQL legacy `EDAD <= 30` y SQL SISV `BETWEEN 0 AND 30`, docstrings |
+| `registros/management/commands/cargar_mm_mn_roto.py` | conteo `mn` del acta y texto del reporte |
+| `conciliacion/models.py`, `conciliacion/tests.py` | docstrings de la definición |
+
+Frontend: **`Reportes.jsx`** («MN (0-30 d)» y la ayuda del comparativo) y **`Tablero.jsx`**
+(«MN (0–30 días)»). Pruebas: `registros/tests.py::test_muerte_neonatal_0_a_30_dias_inclusive`
+(1/30 días cuentan, 31 no) y `ReporteSemanalMMITests::test_corte_neonatal_0_a_30_dias_inclusive`
+(30 d neonatal, 31 d infantil). **Suite backend 315 OK**, `npm test` 13 OK, `npm run build` limpio.
+
+Consecuencia: el indicador **ya no es 213 = 213** (ese era el corte de septiembre con 0-27). Con el
+espejo actual (certificados con `FECHA_M` hasta el **30/09/2026**) `conciliar_neonatal --anio 2026`
+da **251 del registro MMI contra 243 del certificado** (62 CUADRA / 20 DIFERENCIA / 9 SOLO_CRUDO /
+3 SOLO_SISV). El certificado pierde porque el espejo no tiene octubre; el registro MMI llega al 17/10.
+
+### 42.2 Serie 2026 por semana (0-30), y la lista de la especialista
+
+`SISV` = certificados (`Defuncion` con `fecha_nacimiento`, semana epidemiológica venezolana domingo-sábado).
+`MMI per.` = `sismai."CASOS_MMI"` agregado por `DOCUMENTO."PERIODO"` (el número de formulario que ella usa).
+`MMI sem.` = el mismo registro por semana epidémica calculada desde `FECHAOCURRENCIA`.
+
+| SE | SISV 0-30 | MMI 0-30 (per.) | MMI 0-30 (sem.) | Lista especialista |
+|---:|---:|---:|---:|---:|
+| 1 | 14 | 15 | 15 | 15 |
+| 2 | 1 | 1 | 1 | 1 |
+| 3 | 8 | 8 | 8 | 8 |
+| 4 | 6 | 8 | 8 | 7 |
+| 5 | 6 | 6 | 6 | 6 |
+| 6 | 5 | 5 | 5 | — |
+| 7 | 4 | 4 | 4 | 4 |
+| 8 | 8 | 10 | 10 | 10 |
+| 9 | 9 | 8 | 9 | 8 |
+| 10 | 5 | 5 | 5 | 5 |
+| 11 | 6 | 5 | 5 | 5 |
+| 12 | 6 | 5 | 5 | 5 |
+| 13 | 6 | 4 | 3 | 4 |
+| 14 | 3 | 3 | 3 | 3 |
+| 15 | 5 | 2 | 2 | 2 |
+| 16 | 8 | 7 | 7 | 7 |
+| 17 | 7 | 6 | 7 | 6 |
+| 18 | 4 | 4 | 4 | 4 |
+| 19 | 6 | 6 | 6 | 6 |
+| 20 | 4 | 5 | 5 | 5 |
+| 21 | 8 | 8 | 8 | 8 |
+| 22 | 4 | 5 | 5 | 5 |
+| 23 | 8 | 8 | 8 | 8 |
+| 24 | 9 | 9 | 9 | 9 |
+| 25 | 8 | 7 | 7 | 7 |
+| 26 | 5 | 6 | 5 | 6 |
+| 27 | 10 | 10 | 10 | 10 |
+| 28 | 10 | 10 | 10 | 10 |
+| 29 | 6 | 6 | 6 | 6 |
+| 30 | 8 | 7 | 8 | 7 |
+| 31 | 5 | 5 | 5 | 4 |
+| 32 | 10 | 12 | 13 | 11 |
+| 33 | 8 | 8 | 8 | 8 |
+| 34 | 4 | 4 | 4 | 4 |
+| 35 | 7 | 7 | 6 | 5 |
+| 36 | 5 | 5 | 5 | 4 |
+| 37 | 3 | 5 | 4 | 3 |
+| 38 | 1 | 3 | 3 | 3 |
+| 39 | 3 | 3 | 3 | 5 |
+| 40 | 0 | 4 | 4 | 8 |
+| 41 | 0 | 2 | 2 | 5 |
+| **Total** | **243** (S1-39) | **251** | **251** | **247** |
+
+Totales del registro con las otras variantes: 0-27 por período **247**, 0-30 con año civil 2026
+**254**, deduplicado por número impreso **253**.
+
+**La lista de la especialista se reproduce con el `PERIODO` del formulario, no con la semana ISO:**
+33 de 41 semanas coinciden exacto agregando por `PERIODO`, contra 29 de 41 por semana calculada. Es
+el número que ella anota en el sobre, así que para hablar con ella hay que usar esa columna.
+
+### 42.3 El 255: sale con 0-27, no con 0-30
+
+**255 = 247 (su lista) + 5 (la semana 6, que a ella le falta) + 3 (los casos del 1 al 3 de enero).**
+Los tres de enero están en el formulario **2025 período 53** aunque la muerte ocurrió en 2026:
+
+| Fecha | Edad | Caso | Centro |
+| --- | --- | --- | --- |
+| 01/01/2026 | 1 h | ALESSIA VICTORIA GUTIERREZ CORONEL | Hosp. Dr. Pastor Oropeza (IVSS) |
+| 02/01/2026 | 3 d | ANYELO GABRIEL GONZALEZ CORDERO | Hosp. Esp. Ped. Agustín Zubillaga |
+| 03/01/2026 | 5 h | LIAM ALEJANDRO RODRIGUEZ GUTIERREZ | Hosp. Central Univ. Dr. Antonio María Pineda |
+
+Con la regla **0-30** la misma construcción daría **259** (251 + 5 + 3), o **254** sumando solo enero
+a los 251. Es decir: **la lista de la especialista cuadra con 0-27**, que es justo la definición que
+ella declara no usar. La diferencia de 4 son los casos de 28 a 30 días:
+
+| Fecha | Edad | Caso | Centro | Período |
+| --- | --- | --- | --- | --- |
+| 04/08/2026 | 28 d | THIAGO DE LOS ÁNGELES VERDE RUIZ | Hosp. Central Univ. | 31 |
+| 13/08/2026 | 28 d | YORSHUA NAEL TORREALBA GUTIERREZ | Pastor Oropeza | 32 **y 37 (duplicado)** |
+| 30/08/2026 | 30 d | IAM MATEO DOMINGUEZ PETIT | Hosp. Central Univ. | 35 |
+
+⚠ **Duplicado real:** YORSHUA aparece dos veces con la misma fecha y el mismo número impreso
+(`NUMEROMSDS` **5142181**), en los períodos 32 y 37, con el nombre escrito distinto (con y sin espacio
+final). Si se deduplica por número, el registro 0-30 baja a **253** y por período a **250**.
+
+### 42.4 EPI-12 y EPI-14 no sirven de contraste: el ENO no registra neonatos
+
+Se revisó el bloque de mortalidad del ENO (`RENGLONTELE`, `DOCUMENTO.TIPO=1`, árbol Lara) 2018-2026:
+**no existe ni una fila** en los grupos neonatales **`68080` «Menor de 7 Días»**, **`68081` «De 7 a
+28 Días»** ni en el legacy `388652806` «De 0 a 28 Dias». Las únicas muertes de 2026 están en `68076`
+(25-44), `68078` (65+) y los grupos nuevos `3411427334` (7-9), `3411427344` (45-59) y `3411427346`
+(60-64), todas de adultos. Por tanto **el MNI del EPI-12/EPI-14 es 0**, y el único contraste válido
+contra la oficina es el **registro MMI** (§21), no el ENO.
+
+### 42.5 Lo que no se puede cerrar con este espejo
+
+- Los certificados no tienen muertes posteriores al **30/09/2026** (`CERTIFICADO."FECHA_M"` máximo;
+  818 certificados creados en octubre son transcripción tardía). Por eso **SISV da 0 en las semanas
+  40-41**.
+- El registro MMI llega al **17/10/2026** (período 41), con lo que las semanas 40-41 quedan cortas
+  (4 y 2 contra 8 y 5 de la lista) y **la 42 no existe todavía**.
+- Hasta refrescar el espejo (`migracion/aplicar_dump_oficina.sh`, o `etl_comandos.sh` en la oficina)
+  el desfase de las últimas semanas **no es un error de SISV**: es dato que aún no llegó.
+
+### 42.6 Reproducible
+
+```bash
+# serie y conciliación (solo lectura sin --ejecutar)
+./.venv/bin/python backend/manage.py conciliar_neonatal --anio 2026
+./.venv/bin/python backend/manage.py conciliar_neonatal --anio 2026 --ejecutar --csv auditoria/neonatal_2026.csv
+```
+
+El CSV con los **251 casos** del registro 0-30 (semana, período, edad, centro, nº de certificado y
+marca de duplicado / 28-30 días) queda en `auditoria/mn_2026_casos_mmi_0_30.csv` (ignorado por git).

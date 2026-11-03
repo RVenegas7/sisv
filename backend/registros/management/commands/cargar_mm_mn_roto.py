@@ -431,7 +431,7 @@ class Command(BaseCommand):
         self.stdout.write(f"  renglon_casosmi.csv    {len(rmi):>7} renglones   muerte neonatal")
         self.stdout.write(
             "  Ojo: el MN del tablero y del acta NO sale de renglon_casosmi sino de Defuncion\n"
-            "  (0-27 dias entre FECHA_M y FECHA_N), que es lo que se acaba de cargar."
+            "  (0-30 dias, inclusive, entre FECHA_M y FECHA_N), que es lo que se acaba de cargar."
         )
 
         for rotulo, r in resumen.items():
@@ -517,7 +517,7 @@ class Command(BaseCommand):
             }
             if embarazo:
                 r["mm"] += 1
-            if fecha_nac and 0 <= (fecha - fecha_nac).days <= 27:
+            if fecha_nac and 0 <= (fecha - fecha_nac).days <= 30:
                 r["mn"] += 1
 
             previo = existentes.get(numero)

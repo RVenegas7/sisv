@@ -210,7 +210,7 @@ class ConciliarENOCommandTests(TestCase):
 
 
 class ConciliarNeonatalCommandTests(TestCase):
-    """Conciliación de mortalidad neonatal (0-27 días) del registro MMI vs SISV."""
+    """Conciliación de mortalidad neonatal (0-30 días, inclusive) del registro MMI vs SISV."""
 
     def setUp(self):
         self.org = Organizacion.objects.create(

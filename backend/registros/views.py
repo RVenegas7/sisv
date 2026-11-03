@@ -214,23 +214,23 @@ def _por_semana(qs):
 
 
 def _neonatales_por_semana(qs):
-    """Muertes neonatales (0-27 días de vida) por semana epidemiológica venezolana."""
+    """Muertes neonatales (0-30 días de vida, inclusive) por semana epidemiológica venezolana."""
     contador = Counter()
     for fecha_evento, fecha_nacimiento in (
         qs.filter(fecha_nacimiento__isnull=False).values_list("fecha_evento", "fecha_nacimiento")
     ):
-        if fecha_evento and fecha_nacimiento and 0 <= (fecha_evento - fecha_nacimiento).days <= 27:
+        if fecha_evento and fecha_nacimiento and 0 <= (fecha_evento - fecha_nacimiento).days <= 30:
             contador[semana_epidemiologica(fecha_evento)[1]] += 1
     return {int(se): n for se, n in contador.items()}
 
 
 def contar_neonatales(qs):
-    """Total de muertes neonatales (0-27 días de vida) en el queryset."""
+    """Total de muertes neonatales (0-30 días de vida, inclusive) en el queryset."""
     total = 0
     for fecha_evento, fecha_nacimiento in (
         qs.filter(fecha_nacimiento__isnull=False).values_list("fecha_evento", "fecha_nacimiento")
     ):
-        if fecha_evento and fecha_nacimiento and 0 <= (fecha_evento - fecha_nacimiento).days <= 27:
+        if fecha_evento and fecha_nacimiento and 0 <= (fecha_evento - fecha_nacimiento).days <= 30:
             total += 1
     return total
 
@@ -1248,15 +1248,15 @@ def _grupo_edad_anexo(fecha_evento, fecha_nacimiento):
     """Grupo del anexo para una defunción, calculado desde las fechas reales.
 
     `Defuncion` no guarda la edad: se deriva de `fecha_evento - fecha_nacimiento`. Los
-    cortes son los del anexo: neonatal 0-27 días, infantil 28-364 días (menor de un año)
-    y 1 a 4 años. Fuera de eso devuelve `None` y la muerte no entra al registro.
+    cortes son los del anexo: neonatal 0-30 días (inclusive), infantil 31-364 días (menor
+    de un año) y 1 a 4 años. Fuera de eso devuelve `None` y la muerte no entra al registro.
     """
     if not fecha_evento or not fecha_nacimiento:
         return None
     dias = (fecha_evento - fecha_nacimiento).days
     if dias < 0:
         return None
-    if dias <= 27:
+    if dias <= 30:
         return "neonatal"
     if dias < 365:
         return "infantil"
@@ -1272,7 +1272,7 @@ def _edad_unidad_anexo(fecha_evento, fecha_nacimiento):
     dias = (fecha_evento - fecha_nacimiento).days
     if dias < 0:
         return None, ""
-    if dias <= 27:
+    if dias <= 30:
         return dias, "D"
     if dias < 365:
         return max(dias // 30, 1), "M"

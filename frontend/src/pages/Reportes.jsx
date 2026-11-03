@@ -403,7 +403,7 @@ export default function Reportes() {
                   <th>Nac. vivos</th>
                   <th>Nac. muertos</th>
                   <th>MM</th>
-                  <th>MN (0-27 d)</th>
+                  <th>MN (0-30 d)</th>
                   <th>Infantil &lt;1 año</th>
                   <th>1-4 años</th>
                 </tr>
@@ -518,7 +518,7 @@ export default function Reportes() {
         <h2>Comparativo anual por semana epidemiológica</h2>
         <p className="ayuda">
 Compara dos años para ver la tendencia semanal de nacimientos, defunciones, muertes maternas
-            (MM, embarazo o puerperio), muertes neonatales (MN, 0-27 días de vida) y vigilancia
+            (MM, embarazo o puerperio), muertes neonatales (MN, 0-30 días de vida inclusive) y vigilancia
             materno-infantil (MMI, lotes LEGACY-MMI/LEGACY-VIOLENTA).
         </p>
         <form

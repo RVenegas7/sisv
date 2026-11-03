@@ -148,7 +148,7 @@ export default function Tablero() {
           ["Nacimientos", datos.totales.nacimientos, "/nacimientos", COLORES.nacimientos],
           ["Defunciones", datos.totales.defunciones, "/defunciones", COLORES.defunciones],
           ["MM (muertes maternas)", datos.mortalidad_materno_infantil?.mm || 0, "/defunciones", "#e11d48"],
-          ["MN (0–27 días)", datos.mortalidad_materno_infantil?.mn || 0, "/defunciones", "#f59e0b"],
+          ["MN (0–30 días)", datos.mortalidad_materno_infantil?.mn || 0, "/defunciones", "#f59e0b"],
           ["Fichas de vigilancia", datos.totales.fichas, "/vigilancia", COLORES.fichas],
           ["Consolidados ENO", datos.consolidados_semanales?.total || 0, "/vigilancia", "#7c3aed"],
           ["Registros totales", datos.totales.total, null, "#6b7280"],

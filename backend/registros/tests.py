@@ -966,16 +966,17 @@ class CargarMMMNTests(SISVBase):
         call_command("cargar_mm_mn_roto", directorio=d, ejecutar=True)
         self.assertEqual(Defuncion.objects.filter(embarazo_o_puerperio=True).count(), 0)
 
-    def test_muerte_neonatal_0_a_27_dias(self):
-        """El MN del tablero son 0-27 dias; a los 28 ya no es neonatal."""
+    def test_muerte_neonatal_0_a_30_dias_inclusive(self):
+        """El MN son 0-30 dias inclusive; a los 31 ya no es neonatal."""
+        from io import StringIO
         filas = [self._muerte(7001, "2026-08-10", "2026-08-09"),   # 1 dia
-                 self._muerte(7002, "2026-08-10", "2026-07-14"),   # 27 dias
-                 self._muerte(7003, "2026-08-10", "2026-07-13")]   # 28 dias
+                 self._muerte(7002, "2026-08-10", "2026-07-11"),   # 30 dias
+                 self._muerte(7003, "2026-08-10", "2026-07-10")]   # 31 dias
         d = self._montar(muertes=filas)
-        call_command("cargar_mm_mn_roto", directorio=d, ejecutar=True)
-        mn = {obj.registro_numero for obj in Defuncion.objects.all()}
-        self.assertIn("LEG-CERT-7001", mn)
-        self.assertIn("LEG-CERT-7002", mn)
+        salida = StringIO()
+        call_command("cargar_mm_mn_roto", directorio=d, ejecutar=True, stdout=salida)
+        self.assertIn("mn=2", salida.getvalue())
+        self.assertEqual(Defuncion.objects.filter(registro_numero__startswith="LEG-CERT-").count(), 3)
 
     # -- 4. organizacion ----------------------------------------------------
     def test_organizacion_por_nombre_del_arbol_lara(self):
@@ -1283,9 +1284,20 @@ class ReporteSemanalMMITests(SISVBase):
         self.assertEqual(c["nacidos_vivos"], 2)
         self.assertEqual(c["nacidos_muertos"], 1)
         self.assertEqual(c["muertes_neonatales"], 1)
-        self.assertEqual(c["muertes_infantiles"], 2)  # neonatal + 28-364 días
+        self.assertEqual(c["muertes_infantiles"], 2)  # neonatal + 31-364 días
         self.assertEqual(c["muertes_1_4"], 1)
         self.assertEqual(len(c["detalle_infantil"]), 3)
+
+    def test_corte_neonatal_0_a_30_dias_inclusive(self):
+        """30 dias sigue siendo neonatal; a los 31 pasa a mortalidad infantil."""
+        self._nac("RN-30")
+        self._def("D-30", self.fecha - timedelta(days=30))
+        self._def("D-31", self.fecha - timedelta(days=31))
+        self.login(self.u_admin)
+        d = self.client.get(self._url()).json()["data"]
+        c = self._centro(d, self.org_hcb)
+        self.assertEqual(c["muertes_neonatales"], 1)
+        self.assertEqual(c["muertes_infantiles"], 2)
 
     def test_mm_sin_registro_legacy_cae_al_certificado(self):
         self._def("MM-1", None, embarazo=True)

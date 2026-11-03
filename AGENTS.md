@@ -231,7 +231,7 @@ Idioma de trabajo: **responder siempre en español**.
     propuesta como **«Fiable»** (verde) o **«Revisar»** (ámbar). ⏱ `sugerir()` hace 9 consultas/registro:
     5.000 registros ≈ 6m48s → los ~124.700 con `cie10_legacy` ≈ **2h50m** (correr en segundo plano; por
     eso la carga total se reserva para la oficina, tras el refresco §40). Pruebas
-    `registros/tests.py::ProponerCodificacionTests`. Suite backend **314 OK**.
+    `registros/tests.py::ProponerCodificacionTests`. Suite backend **315 OK**.
   - **Complemento EV-25 (10/10/2026, migración `0010_nacimiento_ev25_parto_ocupacion_registrocivil`):**
     al verificar el formato impreso contra el módulo faltaban campos que el certificado sí pide; se
     agregaron opcionales: `persona_atendio_parto` (Médico/Enfermera/Partera/Comadrona/Otro) y
@@ -243,7 +243,7 @@ Idioma de trabajo: **responder siempre en español**.
     un formulario de captura. Endpoint `GET /api/registros/reportes/semanal-mmi/?anio=&semana=[&formato=csv]`
     (`ReporteSemanalMMIView`) por establecimiento y semana: nacidos vivos/muertos desde
     `Nacimiento.nacido_vivo`, MM (`registros/services.py::muerte_materna_detalle`, `mm_fuente`
-    `REGISTRO_INVESTIGACION`/`CERTIFICADO` más `mm_certificadas`), MN (0-27 d), infantil <1 año y 1-4 años
+    `REGISTRO_INVESTIGACION`/`CERTIFICADO` más `mm_certificadas`), MN (0-30 d), infantil <1 año y 1-4 años
     desde `Defuncion` + `fecha_nacimiento`. **`partos` y `abortos` no se generan** (el certificado es por
     recién nacido, no por parto; SISV no captura abortos). CSV con BOM de tres secciones
     RESUMEN/MATERNA/INFANTIL. Helper `vigilancia.services.rango_semana`. Frontend: sección en `/reportes`
@@ -290,8 +290,15 @@ Idioma de trabajo: **responder siempre en español**.
     406 solo en el registro / **42 solo en el certificado** — ninguna de las dos fuentes es completa.
     (Las cifras 460/33/36/382/9 de la versión anterior eran del estado previo a `corregir_mm_legacy`,
     cuando el certificado solo marcaba el código 1 = 89.) El indicador es el del registro.
-  - MN = defunción de 0 a 27 días de vida, con fecha de nacimiento conocida. **MN no se toca:** ya
-    cuadraba (213 = 213 en 2026 con `conciliar_neonatal`).
+  - MN = defunción de **0 a 30 días de vida inclusive**, con fecha de nacimiento conocida. La regla
+    era 0-27 hasta el **23/10/2026**, cuando el usuario confirmó la definición de la oficina
+    (**0-30 inclusive**: a los 31 días ya no es neonatal). Se aplicó en `registros/views.py`
+    (`_neonatales_por_semana`, `contar_neonatales`, `_grupo_edad_anexo`, `_edad_unidad_anexo`),
+    `conciliar_neonatal` (`HORAS_NEONATAL = 30*24`, SQL `<= 30` y `BETWEEN 0 AND 30`),
+    `cargar_mm_mn_roto`, rótulos del frontend y pruebas. Con 0-27 el 2026 daba 213 = 213 (corte de
+    septiembre); con 0-30 y el espejo al 30/09 el registro aporta **251** y el certificado **243**
+    (`conciliar_neonatal --anio 2026`: 62 CUADRA / 20 DIFERENCIA / 9 SOLO_CRUDO / 3 SOLO_SISV,
+    +3 %). Detalle en PENDIENTES.md §42.
   - `manage.py corregir_mm_legacy` sigue existiendo para el campo del certificado.
 - `conciliacion`: **auditoría SIS-04/EPI-12 crudo legacy vs SISV** (28/09/2026). App propia, no
   altera `vigilancia`. Modelos `ConciliacionENO` (año, semana, tipo, organización, enfermedad legacy,
@@ -318,12 +325,13 @@ Idioma de trabajo: **responder siempre en español**.
     antes**. Antes de 2019-08 el campo queda vacío a propósito, no inventado.
   - El `--csv` respeta `--anio`/`--desde` y escribe además `<ruta>_centros.csv` con el detalle y la
     estación (hay prueba que lo fija: un CSV de 2026 no puede traer filas de 2009).
-  - **Conciliación neonatal (fase C, `manage.py conciliar_neonatal`, 28/09/2026):** modelo
-    `conciliacion.ConciliacionNeonatal` (migración `0003`), grano **(año, semana, organización)**.
-    Lado legacy = `sismai."CASOS_MMI"` (registro materno-infantil, 10.754 casos 2009-2026): los
-    neonatos son edad en **horas** (≤648) o en **días ≤27**, y el centro sale de
-    `HDOCUMENTO` → `DOCUMENTO.HORIGEN` → nombre normalizado. Lado SISV = `registros.Defuncion` con
-    fecha de nacimiento conocida y 0-27 días. Dry-run por defecto, `--csv` con BOM, 9 pruebas.
+  - **Conciliación neonatal (fase C, `manage.py conciliar_neonatal`, 28/09/2026; regla 0-30 desde el
+    23/10/2026):** modelo `conciliacion.ConciliacionNeonatal` (migración `0003`), grano
+    **(año, semana, organización)**. Lado legacy = `sismai."CASOS_MMI"` (registro materno-infantil,
+    10.754 casos 2009-2026): los neonatos son edad en **horas** (≤720) o en **días ≤30**, y el centro
+    sale de `HDOCUMENTO` → `DOCUMENTO.HORIGEN` → nombre normalizado. Lado SISV =
+    `registros.Defuncion` con fecha de nacimiento conocida y 0-30 días. Dry-run por defecto, `--csv`
+    con BOM, 9 pruebas.
     - ⚠ **`DOCUMENTO."PERIODO"` NO es una semana**: es un número de formulario del centro y sus
       rangos se solapan (en 2019 el periodo 29 va del 2 de enero al 12 de septiembre; 20.446 pares
       solapados). La semana se calcula **en cada lado desde la fecha real** con
@@ -331,7 +339,7 @@ Idioma de trabajo: **responder siempre en español**.
     - ⚠ **`DOCUMENTO."TIPO"` = 23** en los 10.754 documentos MMI, no 1 (1 = ENO de mortalidad,
       `RENGLONTELE`). Filtrar por 1 deja el legacy vacío en silencio.
     - **Resultado:** los dos sistemas coinciden casi exacto en 2023-2026 (2023 +2 %, 2024 +1 %,
-      2025 -1 %, 2026 +7 %): valida la definición de 0-27 días del tablero y el importador.
+      2025 -1 %, 2026 +7 %): valida la definición de 0-30 días del tablero y el importador.
       2009-2018 sale -10 % a -30 % (el formulario MMI se rellenaba menos que el certificado). Solo
       2019-2020 se invierte (+53 % y +1464 %) por la caída de captura (§20).
     - El lado SISV solo cuenta defunciones **con fecha de nacimiento**: es un mínimo.
@@ -624,14 +632,14 @@ de tres pasos, y el orden importa: no se carga antes de extraer, ni se concilia 
     daría una resolución de organizaciones falsa.
   - **No se cargan** `nacimiento_tardio`, `casosmmi`, `renglon_casosmm` ni `renglon_casosmi`: no
     hay modelo en `registros`, quedan como evidencia para el acta.
-  - El **MN del tablero y del acta sale de `Defuncion`** (0–27 días entre `FECHA_M` y `FECHA_N`),
-    **no** de `renglon_casosmi`. Las cifras de la oficina pueden no ser comparables.
+  - El **MN del tablero y del acta sale de `Defuncion`** (0–30 días inclusive entre `FECHA_M` y
+    `FECHA_N`), **no** de `renglon_casosmi`. Las cifras de la oficina pueden no ser comparables.
 
 **Definiciones que hay que respetar al conciliar:**
 
 - **MM**: `CERTIFICADO.HPRESENCIAEMBARAZO IN (1, 2)`. El 1 = al momento de la muerte, el 2 = últimos
   12 meses. **No** es un rango de fechas ni un código de causa.
-- **MN**: defunción de 0 a 27 días de vida (inclusive). A los 28 días ya no es neonatal.
+- **MN**: defunción de 0 a 30 días de vida (inclusive). A los 31 días ya no es neonatal.
 - `CERTIFICADO.STATUS` es **0/1, nunca `NULL`**: filtrar por `STATUS IS NULL` no devuelve nada.
 - El filtro de nacimientos es por `NAC_RNACIDO.FECHANACIMIENTO`, **no** por
   `CERTNACIMIENTO.FECHACERTIFICADO` (los certificados tardíos van aparte y aboundan: 1.499 desde

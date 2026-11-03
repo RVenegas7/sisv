@@ -1,11 +1,11 @@
 """Concilia la muerte neonatal del registro MMI de la oficina contra SISV.
 
 Lado legacy: `sismai."CASOS_MMI"` (registro materno-infantil), tomando solo los
-neonatos —edad en horas, o en días de 0 a 27— y atribuyendo cada caso al
+neonatos —edad en horas, o en días de 0 a 30 (inclusive)— y atribuyendo cada caso al
 establecimiento que reportó el sobre ENO (`HDOCUMENTO` → `DOCUMENTO.HORIGEN`).
 
-Lado SISV: `registros.Defuncion` con fecha de nacimiento conocida y 0 a 27 días
-de vida. Es la misma definición que usa el tablero.
+Lado SISV: `registros.Defuncion` con fecha de nacimiento conocida y 0 a 30 días
+de vida, inclusive. Es la misma definición que usa el tablero.
 
 ⚠ **La semana se calcula en los dos lados desde la fecha real del evento**, nunca
 desde `DOCUMENTO."PERIODO"`: en el legacy ese campo no es una semana, es un número
@@ -38,8 +38,8 @@ CODIGO_FALLBACK = "LEGACY-LARA"
 # por 1 (como hace `conciliar_eno`) deja el lado legacy vacío.
 TIPO_MMI = 23
 
-# 27 días en horas: un caso registrado en horas sigue siendo neonatal hasta acá.
-HORAS_NEONATAL = 27 * 24
+# 30 días en horas: un caso registrado en horas sigue siendo neonatal hasta acá.
+HORAS_NEONATAL = 30 * 24
 
 
 class Command(BaseCommand):
@@ -60,7 +60,7 @@ class Command(BaseCommand):
     def handle(self, *args, **opts):
         desde = opts["anio"] or opts["desde"]
         self.stdout.write(
-            f"Conciliando mortalidad neonatal (0-27 días) desde {desde}"
+            f"Conciliando mortalidad neonatal (0-30 días) desde {desde}"
             + (f" — solo {opts['anio']}" if opts["anio"] else "")
         )
         nombres = self._nombres_establecimiento()
@@ -160,7 +160,7 @@ class Command(BaseCommand):
             JOIN sismai."DOCUMENTO" d ON d."ID" = c."HDOCUMENTO"
             WHERE d."TIPO" = %s AND c."FECHAOCURRENCIA" >= %s
               AND (   (c."UNIDAD_EDAD" IN ('H', 'h') AND c."EDAD" <= %s)
-                   OR (c."UNIDAD_EDAD" IN ('D', 'd') AND c."EDAD" <= 27) )
+                   OR (c."UNIDAD_EDAD" IN ('D', 'd') AND c."EDAD" <= 30) )
         """
         params = [TIPO_MMI, f"{desde}-01-01", HORAS_NEONATAL]
         if area is not None:
@@ -183,7 +183,7 @@ class Command(BaseCommand):
             SELECT d."organizacion_id", d."fecha_evento"::date, count(*)
             FROM registros_defuncion d
             WHERE d."fecha_evento" >= %s AND d."fecha_nacimiento" IS NOT NULL
-              AND (d."fecha_evento"::date - d."fecha_nacimiento"::date) BETWEEN 0 AND 27
+              AND (d."fecha_evento"::date - d."fecha_nacimiento"::date) BETWEEN 0 AND 30
               AND d."organizacion_id" IS NOT NULL
             GROUP BY 1, 2
         """
