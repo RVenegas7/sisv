@@ -2739,9 +2739,13 @@ inválida por dependencia — que es justo lo que hay que ver antes de ir a crea
    una cuenta con DBA para poder correrlo remoto.~~ **HECHO 09/10/2026** (§27.11).
 4. **Alias de centros** legacy↔demo (§27.4), si se quiere que los usuarios demo vean el histórico.
 
-### 27.8 `lara_2019_2020.xlsx`: solo mortalidad, **NO cargado**
+### 27.8 `lara_2019_2020.xlsx`: solo mortalidad — **[CARGADO 03/11/2026]**, aditivo
 
-Análisis delegado (el archivo está en la raíz y **no** se importó a la BD):
+> **Estado actual:** las **17.371** defunciones que faltaban ya están en `registros.Defuncion` con
+> `lote_id = LARA-2019-2020` (§27.8.1). Lo de abajo es el análisis previo, se conserva como
+> antecedente.
+
+Análisis delegado (cuando el archivo estaba en la raíz y **no** se había importado a la BD):
 
 - 2 hojas de datos (**2019**: 11.810 filas, **2020**: 10.337) + `Diccionario` (EV-14 de 2012).
   220 columnas; fila 1 título, fila 2 encabezados, fila 3 en adelante.
@@ -2754,10 +2758,70 @@ Análisis delegado (el archivo está en la raíz y **no** se importó a la BD):
 - Contraste con SISV: 5.291 defunciones de 2019 y 427 de 2020, o sea que el archivo complementaría
   huecos. **No verificado** contra la BD antes de cualquier carga.
 
-**Recomendación:** no cargarlo a ciegas. Antes: (a) confirmar con la oficina si trae el código de
-COVID/neumonía, (b) decidir la fuente de verdad para 2019-2020 (¿el archivo pisa al certificado?),
-(c) como no trae establecimiento, emparejar el centro por localidad solo para construir un *mapa* de
-atribución, nunca como dato original.
+**Recomendación (histórica):** no cargarlo a ciegas. Antes: (a) confirmar con la oficina si trae el
+código de COVID/neumonía, (b) decidir la fuente de verdad para 2019-2020 (¿el archivo pisa al
+certificado?), (c) como no trae establecimiento, emparejar el centro por localidad solo para
+construir un *mapa* de atribución, nunca como dato original.
+
+#### 27.8.1 Carga aditiva (03/11/2026)
+
+Comando **`manage.py cargar_lara_2019_2020`** (`backend/registros/management/commands/`), dry-run
+por defecto, `--ejecutar`, `--limite N`, `--csv ruta` (UTF-8 con BOM). Lee el **Excel**
+directamente (no la tabla cruda de §27.12) para aplicar el diccionario que el propio archivo trae.
+Idempotente por `legacy_id = "<hoja>-<fila>"`; una segunda corrida inserta 0.
+
+**Resultado:** 22.147 filas leídas → **17.371 cargadas** (los contadores del informe se solapan:
+4.760 certificados ya existían, 95 duplicadas dentro del archivo, 16 sin fecha de defunción, 5 sin
+número). Por año de la defunción: **2019 = 12.370 en total** (5.302 de antes + **7.068** del archivo)
+y **2020 = 10.723 en total** (427 + **10.296**), más 6 inscripciones tardías de 2018 y una de 2000
+que parece error de tecleo. **16.957 con CIE-10 enlazado, 414 pendientes** (sin causa o con código
+fuera del catálogo) y **290 muertes fetales**. **Ninguna se atribuyó a un centro**: el xlsx no trae
+establecimiento, así que las 17.371 quedan con `organizacion` nula (y `estado`/`municipio`/`parroquia`
+de la **residencia**, igual que el ETL legacy, que también usa `HLOCARESIDENCIA`). El aporte se
+concentra desde **jun-2019** (~1.000/mes), que es exactamente la ventana del colapso de captura
+(§22.8). Segunda corrida el 04/11/2026: **0 a insertar** — idempotencia verificada.
+
+Decisiones que hay que respetar si se rehace:
+
+- **La hora no se carga.** Viene en reloj de 12 h y el marcador a.m./p.m. (`C9c`) es **aleatorio**
+  (≈50/50 en todas las horas: 4.507 a.m. / 4.590 p.m.), así que guardarla inventaría la mitad.
+- **Columnas mal rotuladas**, según el propio `Diccionario`: `39. tipo EDAD` trae la **edad** (el tipo
+  está en `C39V`), `18 TIPO EDAD CUANTOS` trae la **cantidad** (la unidad en `C18A`) y `30. EDAD` es
+  la edad de la **madre**, no del fallecido.
+- **Residencia:** `37*` para feto/menor de un año (la de la familia) y `46*`/`47` para el fallecido
+  de un año o más; si falta, se cae a `c_15_lugar_donde_ocurrio`.
+- **El número impreso se reutiliza** (serial por libro/año): de los números del archivo, **4.866
+  ya existían en la BD** (4.781 de la **misma** persona, 85 de **otra**) y **114 se repiten dentro
+  del archivo**; solo **3 grupos** comparten número **y** fecha con nombres distintos. El dedup no
+  puede ser por número: `_misma_persona` descarta la fila solo si coincide la **cédula**, o el
+  **nombre por tokens**, o la **fecha junto con un nombre parecido** (una palabra exacta de 4+
+  letras en común, p. ej. el mismo apellido con el nombre mal escrito); si ambos lados están sin
+  nombre utilizable y la fecha coincide se toman como el mismo certificado. Se ignoran los rellenos
+  `XXX`/`DESCONOCIDO`/`SIN NOMBRE`/`FETO`.
+  Cuando no se puede descartar, se carga como certificado distinto (las **30 últimas** filas del
+  archivo se verificaron una por una contra la BD: eran personas distintas con serial reusado).
+  **Límite conocido:** si se relajara la regla a «cédula distinta ⇒ persona distinta» entrarían
+  **109 filas más** (mismo número, mismo día y apellido compartido con la cédula tecleada distinto).
+  Se conserva la regla estricta: lo más probable es que sea el **mismo certificado repetido** y
+  cargarlo crearía un duplicado; sin el certificado en la mano no hay forma de distinguirlos.
+- `fertil_*` solo en mujeres; `madre_*`/`es_muerte_fetal` solo en feto o menor de un año;
+  `embarazo_o_puerperio` = `c_48` en 1 o 2 (solo **2** filas del archivo, coherente con el subregistro
+  del certificado, §17.20).
+- La causa viene como `O622 Otra inercia uterina`; se separa el código (`O62.2`) y se resuelve con
+  los mismos fallbacks que el ETL (`.X`, sin subcategoría). **No se confirma nada**: si no resuelve,
+  queda `codificacion_pendiente=True`.
+
+**Efecto verificado:** el hueco de captura 2019-2021 (§22.8) queda cerrado **en defunciones**: el
+tablero ya no marca meses degradados para defunciones en 2019, 2020 ni 2021, y la serie mensual pasa
+a ~1.000/mes (antes 36–95 entre jun-2019 y dic-2020). Nacimientos y fichas 2020-2021 siguen
+degradados: ese hueco **es real en el origen** y el archivo no los cubre. `/reportes/comparativo`,
+`/reportes` y la bandeja `?pendientes=1` (50.831) responden bien y respetan el alcance.
+
+**Cómo se ve según el rol:** `MINISTERIO`/superusuario y `REGIONAL` las ven (el filtro regional es por
+`estado` = residencia → las ~550 con residencia fuera de Lara quedan fuera para el usuario de Lara,
+igual que ya pasaba con el legacy); un usuario `CENTRO` **no** las ve, porque no hay centro que
+atribuirles. Si la oficina consigue el establecimiento de origen, se puede rellenar después con un
+`UPDATE ... FROM` sobre `legacy_id` (el `numero_certificado` no sirve de cruce: está reusado).
 
 ### 27.9 Refresco del espejo, resincronización y verificación de semanas 39-40 (06/10/2026)
 
@@ -3999,6 +4063,130 @@ De ahí salen **cuatro** opciones, de más a menos dependiente del legacy:
 - **Trabajo inmediato**: confirmar con el central (1) si el `.dmp` es imprescindible o acepta un
   **script SQL/CSV**, y (2) si usa los 4 logs. Eso decide entre «Oracle intermedio para el `exp`»,
   «script `imp`-compatible desde SISV» o «formato abierto pactado».
+
+### 39.6 [DECISIÓN 04/11/2026] El central exige lo que genera Oracle: la vía es el `exp` de un **Oracle 10g**, y ese Oracle ya existe al lado del legado
+
+**Pregunta del §39.4, punto 1 (¿el `.dmp` es imprescindible?) — respuesta del usuario, 04/11/2026:** el
+nivel central **exige que los archivos sean los que genera Oracle**. No es una preferencia: es el
+requisito. Y hay un dato de campo que lo confirma por el lado negativo: lleva **casi un mes o más
+recibiendo solo los 4 archivos** (los sobres posteriores al 08/09, sin `repllar1.log`, §39.1) y **no
+ha respondido ni parece estar revisando**. Es decir:
+
+- **No hay realimentación**: esperar una confirmación escrita del central para decidir el formato es
+  esperar indefinidamente. Se diseña para el `.dmp`.
+- Pero el silencio **sí tolera** el sobre de 4 archivos: un mes de envíos degradados sin objeción es
+  la única evidencia disponible de que los logs no son lo que bloquea (evidencia débil, no
+  confirmación: ver §39.6.4).
+
+Eso cierra §39.3 a **una sola vía**: la 1 (**Oracle 10g intermedio + `exp`**). La 3 (script
+`imp`-compatible en texto) y la 4 (formato abierto) dejan de ser camino principal; la 2 (reconstruir
+el `.dmp` a mano) sigue descartada.
+
+#### 39.6.1 El espejo local **no sirve** para empaquetar (verificado hoy, tres hechos)
+
+| Hecho | Cómo se comprobó (04/11/2026) | Consecuencia |
+| --- | --- | --- |
+| El `exp` del contenedor `sis_oracle_legacy` (`gvenzl/oracle-xe:11.2.0.2`) es **Release 11.2.0.2.0** | `exp help=y` dentro del contenedor | — |
+| Ese `exp` **no acepta** `version=`: `LRM-00101: unknown parameter name 'version'` | `exp … tables=T_NOVER … version=10.1.0` | El `exp` clásico **no tiene** `VERSION` (solo `expdp`); **no hay forma de pedirle un dump 10g** |
+| Su `.dmp` sale con cabecera **`EXPORT:V11.02.00`**, mientras el sobre real es **`EXPORT:V10.01.00`** | `strings` sobre un `exp` de prueba (`T_PRUEBA_EXP`, 2 filas) vs `strings` del `routlar1.dmp` de `routlar1_2992026_137.ZIP` | El `imp` 10.1 del central **no lee un export de una release posterior** → un dump del espejo 11.2 **sería rechazado** |
+
+No se pudo probar el rechazo con un `imp` 10.1 real (no hay uno local): se apoya en la cabecera de
+versión y en la regla documentada de Oracle de que `imp` no lee exports de releases posteriores.
+
+#### 39.6.2 El Oracle 10g que hace falta **ya está instalado**: el de la oficina
+
+Verificado por SSH de **solo lectura** a `192.168.5.200` (sin tocar datos):
+
+| Comprobación | Resultado |
+| --- | --- |
+| `exp help=y` / `imp help=y` en `/opt/oracle` | **Release 10.1.0.3.0** — el mismo binario que produce hoy el sobre aceptado (y por tanto `EXPORT:V10.01.00`) |
+| Esquema `TEMP` | existe, con **82 tablas `T_%`** — exactamente las 82 que viajan en el `.dmp` |
+| Roles de `respaldo` | `CONNECT` + **`EXP_FULL_DATABASE`** + **`IMP_FULL_DATABASE`** → puede `exp owner=TEMP` **sin cuenta DBA** |
+| `sqlldr` en ese servidor | **Release 10.1.0.3.0** instalado → hay cómo cargar CSV en `TEMP` |
+| Privilegios de `respaldo` sobre `TEMP` | **0** `INSERT` sobre las tablas `TEMP` (82 tablas, 0 concesiones) |
+
+Conclusión: **empaquetar no necesita infraestructura nueva**. Se carga `TEMP` en el servidor de la
+oficina (que ya tiene el DDL real, los `TABLESPACE DATOS2/INDICE2` y el `exp` correcto) y se corre
+`exp owner=TEMP file=routlar1.dmp log=routlar1.log` — la misma invocación de
+`migracion/simulacion/03_generar_paquete.sh`. El dump queda formalmente idéntico al del legacy
+**por construcción**, no por imitación.
+
+**Lo único bloqueado ahí es la carga**, y es un tema de permiso, no de técnica: `respaldo` no puede
+insertar en `TEMP`. Dos salidas, ambas con autorización explícita de quien administra el servidor:
+
+1. **Mínima y reversible**: un DBA concede `INSERT` sobre las 82 tablas `TEMP` a `respaldo`. No se
+   toca estructura ni datos, y la carga y el `exp` quedan bajo la cuenta de solo lectura.
+2. Crear un esquema de empaque aparte. ⚠ **No sirve** si el central importa con `FROMUSER=TEMP`
+   fijo: el `owner` del dump tiene que ser `TEMP`. Habría que confirmarlo con el central, que no
+   responde → **preferir la opción 1**.
+
+La alternativa «Oracle 10.2 XE local» queda como plan B: solo existe el RPM **32-bit 10.2.0.1** de
+Oracle, y habría que recrear `DATOS2`/`INDICE2` y los `STORAGE(…)` para que el dump se parezca al
+real. Mucho más trabajo para un resultado *parecido*, cuando el servidor de la oficina da uno
+*idéntico*.
+
+#### 39.6.3 Lo que falta de verdad: el cargador **SISV → `TEMP`** (no existe)
+
+Es la única pieza nueva. Piezas que ya están:
+
+| Pieza | Dónde |
+| --- | --- |
+| El contenido (**83 CSV**: los 82 destinos del `spec` —que incluye `T_CERTNACI`, sin tabla en `TEMP`— + `T_EVENTOS.csv`, + `_conteos.txt`) | `manage.py exportar_rutalara` (§38) |
+| El DDL de `TEMP` (84 `CREATE TABLE`, remapeado a `USERS` porque es el del espejo) | `migracion/simulacion/00_ddl_temp_04082026.sql` — **en el servidor de la oficina no se usa: `TEMP` ya existe** |
+| El `exp` + armado del ZIP | `migracion/simulacion/03_generar_paquete.sh` |
+| La comparación contra el sobre real | `migracion/simulacion/` (§38) |
+
+Lo que hay que escribir es un generador de **control files de SQL*Loader** a partir del DDL y de los
+CSV de `exportar_rutalara`. Los CSV son **`|`-separados, con fila de cabecera, sin comillas**, NULL
+como campo vacío y fechas `AAAA-MM-DD HH:MM:SS`
+(`backend/registros/management/commands/exportar_rutalara.py:216`), así que cada `.ctl` es
+`FIELDS TERMINATED BY '|' … SKIP=1` + `NULLIF col = BLANKS` para los opcionales, con las columnas
+en el orden del CSV. Dos avisos de diseño:
+
+- Un `|` dentro de un texto rompe la carga (no hay escapado en el CSV). Hay que **fallar fuerte** si
+  aparece, no cargar torcido.
+- Tablas con **solo cabecera** (0 filas) son normales (§38) y deben cargar 0 filas sin error.
+
+**Estado de `TEMP` hoy (verificado, solo lectura):**
+
+- Las 82 tablas están en **`TABLESPACE DATOS2`** (los índices, en `INDICE2`): el dump saldrá con los
+  mismos `STORAGE`/`TABLESPACE` que el del legacy.
+- **No está vacío**: `TEMP.T_EVENTOS` tiene **10.150 filas** (la última replicación del legacy), así
+  que la carga es **`TRUNCATE` + carga**, no un añadido. Es el área de trabajo del legacy: hay que
+  hacerlo en una ventana acordada, aunque la fase `repl` lleve rota desde el 08/09 (§34).
+- **`T_CERTNACI` no existe en `TEMP`** y el sobre real tampoco la trae (§34): el `routlar1.log` del
+  sobre del 29/09 lista **82 tablas** y ninguna es `T_CERTNACI`. El `spec` de SISV sí la emite (82
+  destinos + `T_EVENTOS`) ⇒ el cargador **debe saltarla**; si no, el `sqlldr` falla buscando una
+  tabla que el legacy nunca tuvo. `T_EVENTOS` sí existe y es el manifiesto: se carga también.
+
+#### 39.6.4 Los 4 logs, y el charset
+
+- `routlar1.log` **sale gratis**: es el log del propio `exp` en el servidor de la oficina.
+- `bloqlar1.log`, `copyhistlar1.log` y `repllar1.log` son del **motor legacy**
+  (`SistemaTransferencia.exe` + la fase `repl` que arma `TEMP.T_*`). **No se reproducen**: si SISV
+  arma `TEMP`, esa fase desaparece por diseño. El sobre actual ya viaja **con 4** desde el 08/09 y el
+  central no ha objetado (§39.6, arriba).
+- **Charset**: el `.dmp` real sale en **`WE8ISO8859P1`** (lo dice su propio `routlar1.log`:
+  «Exportación realizada en el juego de caracteres WE8ISO8859P1»), mientras el `exp` del espejo 11.2
+  sale en `AL32UTF8`. En el servidor de la oficina hay que correr el `exp` con
+  **`NLS_LANG=AMERICAN_AMERICA.WE8ISO8859P1`**, no con el `AL32UTF8` que usan los scripts de
+  migración, para que el dump salga igual que el del legacy.
+
+#### 39.6.5 Qué queda abierto con el central (ya no bloquea el diseño)
+
+1. **¿El `.dmp` es imprescindible?** → **Sí**, por exigencia explícita (§39.6).
+2. **¿Usa los 4 logs?** → sin respuesta; la evidencia de un mes con 4 archivos dice que no son el
+   filtro. No hay que producirlos.
+3. **¿Le importa que los bytes del DDL/`STORAGE` no sean idénticos?** → no aplica por la vía elegida:
+   el `exp` corre en el mismo `TEMP` del mismo servidor, así que el DDL es el real.
+4. **La prueba definitiva es reenviar un sobre** armado por esta vía. Mientras no haya respuesta, el
+   único juez es el propio envío; no hay que esperar permiso para *construirlo*, solo para **escribir
+   en `TEMP`** del servidor de la oficina.
+
+**Siguiente paso concreto** (sin tocar producción): escribir el generador de `.ctl` + el script de
+carga y validarlo **en frío** contra el DDL real y contra los CSV del último `exportar_rutalara`
+(que las columnas y los tipos cuadren, que las tablas vacías den 0 filas). Después, pedir la
+autorización mínima del §39.6.2 opción 1 y hacer **un** envío de prueba.
 
 ## 40. [PENDIENTE OFICINA 20/10/2026] La oficina ve ceros porque el ETL solo corre en casa
 

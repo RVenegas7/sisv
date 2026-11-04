@@ -669,12 +669,29 @@ los sobres posteriores al corte del 08/09 viajan **con 4** (sin `repllar1.log`, 
 binario de `exp` (`EXPORT:V10.01.00`, corrido en Windows, `WE8ISO8859P1`) importado por el central
 como **`TEMP` → usuario `LEGACY`**, **pero su SQL está en claro dentro** (82 `CREATE TABLE`, 85
 `CREATE INDEX`, 82 `INSERT INTO`): la barrera es el **envoltorio**, no el contenido. Vías posibles,
-en §39.3: (1) Oracle intermedio + `exp` (⚠ los bytes no coinciden: el DDL sale con
-`TABLESPACE "DATOS2"`/`INDICE2` de las tablas reales), (2) reconstruir el contenedor `.dmp`,
+en §39.3: (1) Oracle intermedio + `exp` (⚠ los bytes no coinciden **si se empaqueta en otro Oracle**:
+el DDL sale con `TABLESPACE "DATOS2"`/`INDICE2` de las tablas reales; en el `TEMP` del servidor de la
+oficina sí coincide), (2) reconstruir el contenedor `.dmp`,
 (3) **script `imp`-compatible en texto** que el central corra con `sqlplus`, o (4) formato abierto
-pactado. **Nada de esto se decide desde acá: hay que preguntar al central** si el `.dmp` es
-imprescindible y si usa los logs. Además, en el repo **no existe importador del sobre** (solo
-`exportar_rutalara`); leer el `routlar1` siempre se hizo con `imp` de Oracle.
+pactado. Además, en el repo **no existe importador del sobre** (solo `exportar_rutalara`); leer el
+`routlar1` siempre se hizo con `imp` de Oracle.
+**(04/11/2026, §39.6) La vía ya está decidida: el central exige lo que genera Oracle** (dicho por el
+usuario; lleva casi un mes recibiendo solo 4 archivos **sin responder ni revisar**, así que no hay
+realimentación posible) ⇒ **Oracle 10g intermedio + `exp`**, y ese Oracle **ya existe al lado del
+legado**: el `exp`/`imp` de `192.168.5.200` es **Release 10.1.0.3.0** (el mismo que produce el sobre
+aceptado), el esquema **`TEMP` tiene las 82 `T_*`**, `respaldo` tiene **`EXP_FULL_DATABASE`** (puede
+`exp owner=TEMP` sin DBA) y hay **`sqlldr` 10.1.0.3.0**. El espejo local **no sirve para empaquetar**:
+el `exp` del contenedor XE **11.2** emite `EXPORT:V11.02.00` y **rechaza `version=`**
+(`LRM-00101`; el `exp` clásico no tiene ese parámetro), y un `imp` 10.1 no lee exports posteriores.
+**Lo único bloqueado es cargar `TEMP`**: `respaldo` tiene **0** `INSERT` sobre esas 82 tablas ⇒ hace
+falta autorización para concederlo (opción mínima y reversible) o la cuenta DBA. Falta una sola pieza
+de software: el generador de **`.ctl` de SQL*Loader** desde el DDL y los CSV `|`-separados de
+`exportar_rutalara` (cabecera ⇒ `SKIP=1`, NULL = campo vacío, fallar si aparece un `|` en un texto).
+Los logs `bloqlar1`/`copyhistlar1`/`repllar1` **no se reproducen** (son del motor legacy; el sobre ya
+viaja con 4 desde el 08/09 sin objeción); `routlar1.log` sale del propio `exp`. `TEMP` tiene las 82
+tablas en **`TABLESPACE DATOS2`** y hoy **no está vacío** (última replicación: 10.150 filas en
+`T_EVENTOS`), así que la carga es **`TRUNCATE` + carga** en ventana acordada; **`T_CERTNACI` no está
+en `TEMP`** (ni en el sobre real, §34) y el cargador **debe saltarla**.
 
 **Aviso de datos incompletos:** el tablero muestra un banner cuando la serie tiene un hueco
 (`registros/views.py::DashboardView._cobertura` → `cobertura.meses_sin_datos` y `cobertura.atraso_dias`).
@@ -752,9 +769,9 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
 - Componentes frontend clave: `CIESearch` (autocomplete + cascada CIE-11 + subgrupos obligatorios),
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
-- **Pruebas automatizadas (29/10/2026):** backend con `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
+- **Pruebas automatizadas (04/11/2026):** backend con `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
   (**correr desde `backend/`** — desde la raíz descubre 0 tests),
-  (**327 pruebas a 29/10/2026** (verificado): 115 de `backend/tests_sisv.py` + 49 de `backend/despacho/tests.py`
+  (**363 pruebas a 04/11/2026** (verificado): 115 de `backend/tests_sisv.py` + 49 de `backend/despacho/tests.py`
   (24 + 3 del reporte agrupado + 11 de las series deducidas + 7 del redondeo al corte de decena, §36
   + 1 del centro obligatorio sin organización, §37 + 3 del número impreso visible, §31.2)
   + 4 de `registros/tests_completar_numero_certificado.py`
@@ -763,7 +780,8 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
   9 neonatal + 8 materna) + 27 de `registros/tests.py` (2 EV-14, 7 de las secciones del
   certificado EV-14, 6 del EV-25, 7 del reporte semanal MM/MN y 5 de meses degradados) + 6 de `registros/tests_recuperar_establecimiento.py`
   + 6 de `registros/tests_completar_nacimiento.py` + 7 de `registros/tests_calidad.py` (§35)
-  + 5 de `registros/tests_dividir_nombres.py`; requiere
+  + 5 de `registros/tests_dividir_nombres.py` + **35 de `registros/tests_cargar_lara.py`** (§27.8.1);
+  requiere
   `__init__.py` en las
   apps — registros, seguridad, territorio y catalogos eran namespace packages y por eso el
   descubrimiento fallaba);
