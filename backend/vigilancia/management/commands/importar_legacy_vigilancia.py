@@ -569,6 +569,16 @@ class Command(BaseCommand):
     # ------------------------------------------------------------------
     # Helpers compartidos
     # ------------------------------------------------------------------
+    # Campos que el ETL genera en la ficha. Se reescriben en cada corrida para que el
+    # espejo mande: una ficha legacy es un reflejo de `CASOS_MMI`/`M_VIOLENTA`, no un
+    # registro capturado a mano.
+    CAMPOS_FICHA = [
+        "lote_id", "legacy_tabla", "legacy_id", "fecha_evento", "fecha_notificacion",
+        "nombre_evento", "clasificacion", "establecimiento", "estado", "municipio",
+        "parroquia", "paciente_nombres", "paciente_apellidos", "paciente_cedula",
+        "sexo", "nota",
+    ]
+
     def _fecha(self, valor):
         if not valor:
             return None
@@ -580,8 +590,26 @@ class Command(BaseCommand):
         return fecha if isinstance(fecha, date) and fecha >= date(1900, 1, 1) else None
 
     def _cargar_fichas_masivas(self, sql, lote, tabla, maker):
+        """Carga fichas legacy de forma idempotente (UPSERT por `codigo_notificacion`).
+
+        Antes solo hacía `bulk_create`, así que la segunda corrida sobre una base que ya
+        tenía fichas reventaba con `UniqueViolation` en `codigo_notificacion`
+        (`LEG-MMI-125315586`, visto el 05/11/2026): el resto del ETL no llegaba a correr.
+        Con `update_conflicts` el refresco actualiza la ficha existente en vez de
+        duplicarla y la corrida es repetible.
+        """
         total = 0
         buffer = []
+
+        def guardar(lote_actual):
+            FichaVigilancia.objects.bulk_create(
+                lote_actual,
+                batch_size=2000,
+                update_conflicts=True,
+                unique_fields=["codigo_notificacion"],
+                update_fields=self.CAMPOS_FICHA,
+            )
+
         with connection.cursor() as cur:
             cur.execute(sql)
             while True:
@@ -595,11 +623,11 @@ class Command(BaseCommand):
                     buffer.append(obj)
                     if len(buffer) >= 5000:
                         with transaction.atomic():
-                            FichaVigilancia.objects.bulk_create(buffer, batch_size=2000)
+                            guardar(buffer)
                         total += len(buffer)
                         buffer = []
         if buffer:
             with transaction.atomic():
-                FichaVigilancia.objects.bulk_create(buffer, batch_size=2000)
+                guardar(buffer)
             total += len(buffer)
         return total

@@ -4481,3 +4481,112 @@ contra la oficina es el **registro MMI** (§21), no el ENO.
 
 El CSV con los **251 casos** del registro 0-30 (semana, período, edad, centro, nº de certificado y
 marca de duplicado / 28-30 días) queda en `auditoria/mn_2026_casos_mmi_0_30.csv` (ignorado por git).
+
+---
+
+## 43. [HECHO 05/11/2026] Refresco del espejo en la oficina: `imp` perdía filas en silencio y el ETL no era repetible
+
+Primer refresco completo desde la oficina con el pipeline documentado (`exp` → Oracle XE local →
+CSV → PostgreSQL), y salieron dos fallos que hasta hoy nadie había visto porque **ninguno de los
+dos se queja con un error**: los dos terminan «OK».
+
+### 43.1 `imp` pierde las filas que llegan al límite de la columna (194 filas)
+
+El `.dmp` del `exp` trae las columnas como las tenía el origen, **`VARCHAR2(n BYTE)`**, e `imp` las
+recrea con esa semántica: **ignora `NLS_LENGTH_SEMANTICS` del cliente y del servidor** (comprobado:
+instancia en `CHAR`, variable de entorno en `CHAR`, y las tablas seguían saliendo BYTE; un
+`ALTER ... VARCHAR2(100 CHAR)` + reimport sí funciona). En una base `AL32UTF8` un texto con acentos
+ocupa 2 bytes por carácter, así que la fila que llega justo al límite se rechaza con
+`IMP-00019`/`ORA-12899`, **`imp` avisa, sigue y termina «successfully with warnings»**.
+
+Medido en el refresco: **194 filas** perdidas — `CERTNACIMIENTO` 50, `NAC_MADRE` 35, `CIE10` 37,
+`VALIDARCIE10` 36, `ORG_GEOGRAFICA` 21, `CASOS_MMI` 2, y el resto repartido. Entre ellas había
+certificados de nacimiento y madres que el ETL necesita para armar el recién nacido. Y lo peor:
+**la verificación de conteos del pipeline no lo detecta**, porque compara el Oracle local (ya
+importado, ya mutilado) contra PostgreSQL, no contra el origen.
+
+Arreglo, ya integrado en `migracion/actualizar_espejo_pg.sh` (paso 4b):
+**`migracion/espejo_reparar_rechazos.py`** lee los `imp_*.log`, saca las columnas rechazadas, las
+pasa a `VARCHAR2(n CHAR)` con el `maximum` que reporta el propio error, hace `TRUNCATE` y reimporta
+**solo esas tablas** con un parfile propio e `IGNORE=Y`. Tres detalles que costaron una corrida cada
+uno:
+
+- Al cambiar una columna, **los triggers del esquema quedan `INVALID`** y bloquean el `INSERT` del
+  reimport con `ORA-04098`. En un espejo de solo lectura no aportan nada: el SQL los deshabilita
+  antes de tocar las tablas.
+- **Un registro puede chocar con varias columnas**: al ensanchar la primera, el rechazo se muda a
+  la siguiente (`CIE10.DES_CLASIFICACIO2` solo apareció en la segunda vuelta). Por eso el reparador
+  **itera** hasta que la bitácora del reimport no trae ni un `ORA-12899`.
+- `--ejecutar` es obligatorio; sin él deja escritos el SQL y los parfiles y no toca nada.
+
+Resultado: **348/348 tablas sin diferencias** y los conteos del origen otra vez completos —
+`CERTNACIMIENTO` **440.833**, `NAC_MADRE` **440.850**, `CASOS_MMI` **10.798**.
+
+### 43.2 El ETL de fichas no era idempotente: reventaba en la segunda corrida
+
+`importar_legacy_vigilancia` hacía `bulk_create` de las fichas `LEGACY-MMI`/`LEGACY-VIOLENTA` sin
+mirar qué había. La primera vez funcionó; la segunda murió con
+`UniqueViolation: codigo_notificacion = LEG-MMI-125315586` y **dejó el resto del ETL sin correr**
+(`--ejecutar` con `set -e` corta ahí: ni recuperación de establecimiento, ni asignación de
+organización, ni números de certificado, ni backfill de nacimientos, ni registradores). Es decir, el
+refresco semanal podía terminar «a medias» sin que nada lo dijera.
+
+`_cargar_fichas_masivas` ahora hace **UPSERT** (`bulk_create(..., update_conflicts=True,
+unique_fields=["codigo_notificacion"], update_fields=CAMPOS_FICHA)`): la ficha legacy es un reflejo
+de `CASOS_MMI`/`M_VIOLENTA`, así que el refresco la actualiza en vez de duplicarla. Segunda corrida
+del día: `MMI: fichas creadas=10798`, `Violenta: fichas creadas=12409`, sin un solo conflicto.
+
+### 43.3 Estado del espejo y del ETL al 05/11/2026
+
+`exp` del Oracle vivo el 04/11 (SISMAI 1.084 MB, HISTORICO 97 MB, INBDLAR1 3 MB, SHA-256
+coincidente con el servidor). Se importó con `MONTAR=1` porque la raíz del equipo estaba al 100 % y
+los `.dmp` (1,2 GB) + CSV (0,7 GB) dentro del contenedor no cabían.
+
+| Tabla | Antes (base) | Ahora | Δ |
+| --- | --- | --- | --- |
+| Nacimientos | 439.859 | **440.520** | +661 |
+| Defunciones | 192.044 | **192.631** | +587 |
+| Consolidados ENO | 90.925 | **91.464** | +539 |
+| Filas de consolidado | 560.752 | **563.486** | +2.734 |
+| Consolidados EPI-15 | 21.356 | **21.558** | +202 |
+| Fichas de vigilancia | 22.185 | **23.207** | MMI 10.798 + violenta 12.409 |
+| CIE codificadas / pendientes | 141.213 / 50.831 | **141.214 / 51.417** | +1 / +586 |
+
+Cortes del origen: `CERTIFICADO."FECHA_M"` **2026-10-25**; `CERTNACIMIENTO."FECHACERTIFICADO"`
+**2026-11-04**; `DOCUMENTO."FECHA"` **2026-11-04**; `CASOS_MMI` **2026-10-27**; y
+`NAC_RNACIDO."FECHANACIMIENTO"` máx **2026-09-30** — este último es **atraso de replicación de
+natalidad del centro, no del espejo**: el certificado de nacimiento está al 04/11 pero el recién
+nacido llega un mes tarde.
+
+Semanas: la **43** (25–31 oct) entra completa con **267 consolidados de morbilidad + 1 de
+mortalidad**; el origen tiene **353 documentos ENO con fecha en esa semana** (el ETL agrupa por
+organización —varios establecimientos caen en la misma org o en el fallback `LEGACY-LARA`— y solo
+crea consolidado si el documento trae alguna enfermedad con equivalente ENO; la conciliación de §29
+sigue en diferencia 0). La **44** (1–7 nov) **no está consolidada todavía**: el último documento es
+del 04/11 y el cierre semanal lo hace el centro.
+
+Dump para casa: `descarga/sis_salud_db_20261105.dump` + `SHA256SUMS`; se aplica con
+`migracion/aplicar_dump_oficina.sh` (§32).
+
+### 43.4 Módulo nuevo «Registros → MM / MN» (cantidad por mes)
+
+Dos pantallas, `/registros/mm` y `/registros/mn`, sobre un solo endpoint
+**`GET /api/registros/reportes/mm-mn-mensual/?anio=`** (`ReportesMMMNView`), que devuelve los doce
+meses del año epidemiológico con ceros para que la tabla no cambie de forma.
+
+- **MM** sale del registro de investigación (`RENGLON_CASOSMM` → `CASOS_MMI`), con la misma regla
+  del tablero: si la fuente legacy no responde, o el alcance es acotado y no resuelve ningún
+  establecimiento, cae al certificado y lo declara (`mm_fuente`). 2026: **18** (lo que reporta la
+  oficina), con **8 certificados** que traen la marca de embarazo/puerperio.
+- **Violentas**: las del registro MMI de muertes violentas del legacy (`M_VIOLENTA` → fichas
+  `LEGACY-VIOLENTA`), **12.409 casos, 87 % hombres**. Se muestran aparte y se suman en
+  «Total MM + violentas», porque la oficina reporta el indicador como «17 + 1 violenta». Dos avisos
+  que la pantalla da y hay que tener presentes: **el legacy dejó de alimentar ese registro el
+  26/01/2022** (desde 2022 sale 0 y eso no significa que no haya habido muertes violentas, solo que
+  no se registran en el sistema viejo) y **8.683 de las 12.409 fichas no traen establecimiento**, así
+  que un usuario de centro solo ve las que tienen centro identificado.
+- **MN**: 0–30 días inclusive (§42), contado por el mes de la defunción. 2026: **269** (con datos
+  hasta octubre).
+
+Pruebas: `registros/tests.py::ReportesMMMNTests` (7: MM por mes, 0–30 días, doce meses, alcance de
+centro, violentas aparte y en el total, violentas con alcance, sesión obligatoria).

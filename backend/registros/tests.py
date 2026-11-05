@@ -11,7 +11,7 @@ from django.core.management.base import CommandError
 
 from tests_sisv import SISVBase, FECHA_CORTE
 
-from registros.models import ConfiguracionGeneral, Defuncion, Nacimiento
+from registros.models import ConfiguracionGeneral, Defuncion, FichaVigilancia, Nacimiento
 from vigilancia.services import semana_epidemiologica
 
 
@@ -1360,6 +1360,120 @@ class ReporteSemanalMMITests(SISVBase):
         self.login(self.u_admin)
         r = self.client.get("/api/registros/reportes/semanal-mmi/?anio=2023")
         self.assertEqual(r.status_code, 400)
+
+
+class ReportesMMMNTests(SISVBase):
+    """MM y MN por mes (módulo «Registros → MM / MN»).
+
+    Con la fuente legacy ausente (sqlite) el MM cae al certificado y lo declara, igual
+    que el tablero. El MN es 0-30 días inclusive, contado por el mes de la defunción.
+    """
+
+    def _def(self, uid, fecha, org=None, nacimiento=None, embarazo=False):
+        return Defuncion.objects.create(
+            registro_numero=uid, fecha_evento=fecha, organizacion=org or self.org_hcb,
+            fallecido_nombres="Test", fallecido_apellidos="Uno", sexo="F",
+            fecha_nacimiento=nacimiento, embarazo_o_puerperio=embarazo,
+        )
+
+    def _url(self, anio=2023):
+        return f"/api/registros/reportes/mm-mn-mensual/?anio={anio}"
+
+    def _violenta(self, uid, fecha, org=None):
+        return FichaVigilancia.objects.create(
+            codigo_notificacion=uid, lote_id="LEGACY-VIOLENTA",
+            nombre_evento="Muerte violenta — HOMICIDIO (legacy)",
+            fecha_notificacion=fecha, fecha_evento=fecha,
+            paciente_nombres="Test", paciente_apellidos="Violenta",
+            organizacion=org or self.org_hcb,
+        )
+
+    def test_mm_por_mes_cae_al_certificado_sin_fuente_legacy(self):
+        self._def("MM-1", date(2023, 2, 10), embarazo=True)
+        self._def("MM-2", date(2023, 2, 20), embarazo=True)
+        self._def("MM-3", date(2023, 5, 2), embarazo=True)
+        self._def("NO-MM", date(2023, 5, 3), embarazo=False)
+        self.login(self.u_admin)
+        r = self.client.get(self._url())
+        self.assertEqual(r.status_code, 200)
+        d = r.json()["data"]
+        self.assertEqual(d["mm_fuente"], "CERTIFICADO")
+        self.assertEqual(len(d["meses"]), 12)
+        meses = {m["mes"]: m for m in d["meses"]}
+        self.assertEqual(meses[2]["mm"], 2)
+        self.assertEqual(meses[5]["mm"], 1)
+        self.assertEqual(meses[1]["mm"], 0)
+        self.assertEqual(d["total"]["mm"], 3)
+        self.assertEqual(d["total"]["mm_certificadas"], 3)
+
+    def test_mn_0_a_30_dias_inclusive_por_mes(self):
+        self._def("MN-30", date(2023, 3, 10), nacimiento=date(2023, 2, 8))   # 30 días
+        self._def("MN-31", date(2023, 3, 11), nacimiento=date(2023, 2, 8))   # 31 días
+        self._def("MN-0", date(2023, 4, 1), nacimiento=date(2023, 4, 1))     # 0 días
+        self._def("SIN-FECHA-NAC", date(2023, 4, 2))
+        self.login(self.u_admin)
+        d = self.client.get(self._url()).json()["data"]
+        meses = {m["mes"]: m for m in d["meses"]}
+        self.assertEqual(meses[3]["mn"], 1)
+        self.assertEqual(meses[4]["mn"], 1)
+        self.assertEqual(meses[2]["mn"], 0)
+        self.assertEqual(d["total"]["mn"], 2)
+
+    def test_meses_siempre_son_doce_con_nombre(self):
+        self.login(self.u_admin)
+        d = self.client.get(self._url(anio=2026)).json()["data"]
+        self.assertEqual([m["mes"] for m in d["meses"]], list(range(1, 13)))
+        self.assertEqual(d["meses"][0]["nombre"], "enero")
+        self.assertEqual(d["meses"][11]["nombre"], "diciembre")
+        self.assertEqual(
+            d["total"], {"mm": 0, "mv": 0, "mm_mv": 0, "mn": 0, "mm_certificadas": 0}
+        )
+
+    def test_violentas_se_suman_aparte_y_en_el_total(self):
+        self._def("MM-1", date(2023, 2, 10), embarazo=True)
+        self._violenta("VIOL-1", date(2023, 2, 12))
+        self._violenta("VIOL-2", date(2023, 2, 20))
+        self._violenta("VIOL-3", date(2023, 4, 2))
+        # Una ficha de otro lote no cuenta como violenta.
+        FichaVigilancia.objects.create(
+            codigo_notificacion="MMI-1", lote_id="LEGACY-MMI",
+            nombre_evento="Caso de mortalidad materno-infantil (legacy)",
+            fecha_notificacion=date(2023, 2, 15), fecha_evento=date(2023, 2, 15),
+            paciente_nombres="Test", paciente_apellidos="Mmi",
+            organizacion=self.org_hcb,
+        )
+        self.login(self.u_admin)
+        d = self.client.get(self._url()).json()["data"]
+        meses = {m["mes"]: m for m in d["meses"]}
+        self.assertEqual(meses[2]["mm"], 1)
+        self.assertEqual(meses[2]["mv"], 2)
+        self.assertEqual(meses[2]["mm_mv"], 3)
+        self.assertEqual(meses[4]["mv"], 1)
+        self.assertEqual(d["total"]["mm"], 1)
+        self.assertEqual(d["total"]["mv"], 3)
+        self.assertEqual(d["total"]["mm_mv"], 4)
+
+    def test_violentas_respetan_alcance(self):
+        self._violenta("VIOL-HCB", date(2023, 2, 12), org=self.org_hcb)
+        self._violenta("VIOL-CAB", date(2023, 2, 13), org=self.org_cabudare)
+        self.login(self.u_trans_hcb)
+        d = self.client.get(self._url()).json()["data"]
+        self.assertEqual(d["total"]["mv"], 1)
+
+    def test_respeta_alcance_de_centro(self):
+        self._def("MM-HCB", date(2023, 2, 10), org=self.org_hcb, embarazo=True)
+        self._def("MM-CAB", date(2023, 2, 11), org=self.org_cabudare, embarazo=True)
+        self._def("MN-HCB", date(2023, 3, 10), org=self.org_hcb, nacimiento=date(2023, 3, 1))
+        self._def("MN-CAB", date(2023, 3, 12), org=self.org_cabudare, nacimiento=date(2023, 3, 2))
+        self.login(self.u_trans_hcb)
+        d = self.client.get(self._url()).json()["data"]
+        self.assertEqual(d["total"]["mm"], 1)
+        self.assertEqual(d["total"]["mn"], 1)
+
+    def test_exige_sesion(self):
+        self.client.logout()
+        r = self.client.get(self._url())
+        self.assertIn(r.status_code, (401, 403))
 
 
 class SugerenciaCatalogoTests(SISVBase):

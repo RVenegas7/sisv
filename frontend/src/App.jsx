@@ -16,6 +16,7 @@ import Seguridad from "./pages/Seguridad"
 import Asic from "./pages/Asic"
 import Despacho from "./pages/Despacho"
 import Registradores from "./pages/Registradores"
+import RegistroMMMN from "./pages/RegistroMMMN"
 import Login from "./pages/Login"
 
 const NAVEGACION = [
@@ -25,6 +26,8 @@ const NAVEGACION = [
     items: [
       { enlace: "/nacimientos", rotulo: "Nacimientos" },
       { enlace: "/defunciones", rotulo: "Defunciones" },
+      { enlace: "/registros/mm", rotulo: "MM (muertes maternas)" },
+      { enlace: "/registros/mn", rotulo: "MN (0–30 días)" },
       { enlace: "/codificacion", rotulo: "Codificación" },
     ],
   },
@@ -176,6 +179,8 @@ export default function App() {
           <Route path="/" element={<Tablero />} />
           <Route path="/nacimientos" element={<CargaNacimientos usuario={usuario} multicentro={esMulticentro} />} />
           <Route path="/defunciones" element={<CargaDefunciones usuario={usuario} multicentro={esMulticentro} />} />
+          <Route path="/registros/mm" element={<RegistroMMMN tipo="MM" />} />
+          <Route path="/registros/mn" element={<RegistroMMMN tipo="MN" />} />
           <Route path="/codificacion" element={<Codificacion usuario={usuario} />} />
           <Route path="/vigilancia" element={<Vigilancia usuario={usuario} />} />
           <Route path="/vigilancia/epi15" element={<Epi15 usuario={usuario} />} />

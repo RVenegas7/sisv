@@ -1489,6 +1489,116 @@ class ReporteSemanalMMIView(APIView):
         return respuesta
 
 
+def _neonatales_por_mes(qs):
+    """Muertes neonatales (0-30 días de vida, inclusive) por mes del evento {mes: n}.
+
+    Misma definición que `contar_neonatales`: se compara la fecha del evento con la de
+    nacimiento, porque el certificado no trae la edad en días y el mes del evento es el
+    que usa la oficina para el anexo.
+    """
+    contador = Counter()
+    for fecha_evento, fecha_nacimiento in (
+        qs.filter(fecha_nacimiento__isnull=False).values_list("fecha_evento", "fecha_nacimiento")
+    ):
+        if fecha_evento and fecha_nacimiento and 0 <= (fecha_evento - fecha_nacimiento).days <= 30:
+            contador[fecha_evento.month] += 1
+    return contador
+
+
+class ReportesMMMNView(APIView):
+    """Muertes maternas (MM), violentas y neonatales (MN, 0-30 días) por mes.
+
+    Alimenta el módulo «Registros → MM / MN». Devuelve los doce meses del año
+    epidemiológico, con ceros, para que la tabla no cambie de forma según los datos.
+
+    **MM sale del registro de investigación** (`RENGLON_CASOSMM` → `CASOS_MMI`, ver
+    `services.muerte_materna_detalle`), no de `Defuncion.embarazo_o_puerperio`: ese
+    campo del certificado solo se diligencia en una parte de los casos (18 en el
+    registro contra 7 certificados marcados en 2026). Si la fuente legacy no está
+    disponible, o el alcance es acotado y no resuelve ningún establecimiento, se cae
+    al certificado y se declara en `mm_fuente` — igual que el tablero, porque un 0 ahí
+    afirmaría que el centro no tuvo muertes maternas.
+
+    **Violentas** son las del registro MMI de muertes violentas del legacy
+    (`M_VIOLENTA` → fichas `LEGACY-VIOLENTA`). Se cuentan aparte y también sumadas
+    (`mm_violentas`), porque la oficina reporta el indicador como «MM + violenta».
+    El legacy dejó de alimentar esa tabla el 26/01/2022: de 2022 en adelante sale 0 y
+    eso **no** significa que no haya habido muertes violentas, solo que no se están
+    registrando en el sistema viejo. Además 8.683 de las 12.409 fichas no traen
+    establecimiento, así que un usuario con alcance de centro solo ve las atribuidas.
+
+    **MN es 0-30 días inclusive** (a los 31 ya no es neonatal) y sale de `Defuncion`
+    con fecha de nacimiento conocida, contando por mes de la defunción.
+    """
+
+    def get(self, request):
+        anio = _int_param(request.query_params.get("anio"), date.today().year)
+        desde, hasta = _rango_epidemiologico(anio)
+
+        qs_def = _por_alcance(Defuncion.objects.all(), request).filter(
+            fecha_evento__gte=desde, fecha_evento__lte=hasta
+        )
+        mn = _neonatales_por_mes(qs_def)
+
+        certificadas = Counter()
+        for (fecha_evento,) in qs_def.filter(embarazo_o_puerperio=True).values_list("fecha_evento"):
+            if fecha_evento:
+                certificadas[fecha_evento.month] += 1
+
+        detalle = muerte_materna_detalle(desde, hasta, _organizaciones_del_alcance(request))
+        if detalle is None or (not detalle and _alcance_acotado(request.user)):
+            mm, fuente = certificadas, "CERTIFICADO"
+        else:
+            mm = Counter()
+            for caso in detalle:
+                mes = _int_param((caso.get("fecha") or "")[5:7])
+                if mes:
+                    mm[mes] += 1
+            fuente = "REGISTRO_INVESTIGACION"
+
+        # Muertes violentas del registro MMI del legacy, por mes del evento.
+        violentas = Counter()
+        for (fecha_evento,) in (
+            _por_alcance(FichaVigilancia.objects.all(), request)
+            .filter(
+                lote_id="LEGACY-VIOLENTA",
+                fecha_evento__gte=desde,
+                fecha_evento__lte=hasta,
+            )
+            .values_list("fecha_evento")
+        ):
+            if fecha_evento:
+                violentas[fecha_evento.month] += 1
+
+        return ok(
+            {
+                "anio": anio,
+                "desde": desde.isoformat(),
+                "hasta": hasta.isoformat(),
+                "mm_fuente": fuente,
+                "total": {
+                    "mm": sum(mm.values()),
+                    "mv": sum(violentas.values()),
+                    "mm_mv": sum(mm.values()) + sum(violentas.values()),
+                    "mn": sum(mn.values()),
+                    "mm_certificadas": sum(certificadas.values()),
+                },
+                "meses": [
+                    {
+                        "mes": m,
+                        "nombre": MESES_ES[m - 1],
+                        "mm": mm.get(m, 0),
+                        "mv": violentas.get(m, 0),
+                        "mm_mv": mm.get(m, 0) + violentas.get(m, 0),
+                        "mn": mn.get(m, 0),
+                        "mm_certificadas": certificadas.get(m, 0),
+                    }
+                    for m in range(1, 13)
+                ],
+            }
+        )
+
+
 class ReportesExportView(APIView):
     COLUMNAS = [
         "modulo", "numero", "fecha_evento", "version_cie", "codigo_cie", "capitulo_cie11", "sexo",

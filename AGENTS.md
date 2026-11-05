@@ -248,6 +248,21 @@ Idioma de trabajo: **responder siempre en español**.
     recién nacido, no por parto; SISV no captura abortos). CSV con BOM de tres secciones
     RESUMEN/MATERNA/INFANTIL. Helper `vigilancia.services.rango_semana`. Frontend: sección en `/reportes`
     (`Reportes.jsx`). Pruebas `registros/tests.py::ReporteSemanalMMITests` (7).
+  - **Módulo «Registros → MM / MN» por mes (05/11/2026, §43.4):** dos pantallas, `/registros/mm` y
+    `/registros/mn` (`RegistroMMMN.jsx`, entradas «MM (muertes maternas)» y «MN (0–30 días)» del menú
+    Registros), sobre un solo endpoint **`GET /api/registros/reportes/mm-mn-mensual/?anio=`**
+    (`ReportesMMMNView`), que devuelve los **doce meses** con ceros para que la tabla no cambie de forma.
+    MM sale del registro de investigación con la misma regla y el mismo fallback al certificado que el
+    tablero (`mm_fuente`, `mm_certificadas`); MN es 0–30 días inclusive contado por mes de la defunción.
+    **Muertes violentas:** las fichas `LEGACY-VIOLENTA` (`M_VIOLENTA` del legacy, **12.409 casos, 87 %
+    hombres**) se muestran en columna aparte (`mv`) y se suman en `mm_mv` («Total MM + violentas»),
+    porque la oficina reporta el indicador como «17 + 1 violenta». Definición elegida por el usuario:
+    **todas las del registro legacy**, no solo mujeres ni edad fértil. Dos límites que la pantalla avisa:
+    el legacy **dejó de alimentar `M_VIOLENTA` el 26/01/2022** (2022 en adelante sale 0, y eso no
+    significa que no haya habido muertes violentas) y **8.683 de las 12.409 fichas no traen
+    establecimiento**, así que un usuario de centro solo ve las atribuidas. Datos al 05/11/2026:
+    2026 → MM 18 / violentas 0 / MN 269; 2025 → MM 39 / MN 395; 2021 → MM 58 / violentas 409 / MN 418.
+    Pruebas `registros/tests.py::ReportesMMMNTests` (7).
 - **Limpiar legacy fuera de Lara / demo (24/09/2026):** `manage.py limpiar_legacy_no_lara` (criterio
   **centro Lara + domicilio Lara**, economía del árbol DES LARA=67754/DPS LARA=3441583108; dry-run por
   defecto, `--ejecutar` aplica). Ejecutado: **Nacimientos 438.577, Defunciones 171.115, Fichas 0,
@@ -579,6 +594,33 @@ recordar qué traer:
   invocan los dos lados (`aplicar_dump_oficina.sh` paso 6, y `oficina_refrescar_y_exportar.sh` con
   `HACER_ETL=1`), para que «correr el ETL en la oficina» no vuelva a olvidarse. Dry-run por defecto,
   `--ejecutar` aplica, `--solo-certificados` es el camino rápido aditivo.
+- **Primer refresco completo en la oficina (05/11/2026, §43) — dos fallos silenciosos que ya están
+  arreglados:**
+  - **`imp` perdía 194 filas sin fallar.** El `.dmp` de `exp` recrea las columnas como
+    `VARCHAR2(n BYTE)` e `imp` **ignora `NLS_LENGTH_SEMANTICS`** (del cliente y del servidor): en una
+    base `AL32UTF8` un texto con acentos ocupa 2 bytes por carácter y la fila que llega al límite se
+    rechaza con `IMP-00019`/`ORA-12899`, pero `imp` **sigue y termina «successfully with warnings»**.
+    La verificación de conteos del pipeline **no lo detecta** (compara el Oracle local ya mutilado
+    contra PostgreSQL, no contra el origen). Arreglo integrado como **paso 4b**:
+    `migracion/espejo_reparar_rechazos.py` lee los `imp_*.log`, pasa las columnas a `VARCHAR2(n CHAR)`
+    con el `maximum` del propio error, **deshabilita los triggers del esquema** (quedan `INVALID` y
+    bloquean con `ORA-04098`), hace `TRUNCATE` + reimport por parfile con `IGNORE=Y` y **itera**, porque
+    un registro puede chocar con varias columnas. Resultado del día: **348/348 tablas sin diferencias**,
+    `CERTNACIMIENTO` 440.833 / `NAC_MADRE` 440.850 / `CASOS_MMI` 10.798.
+  - **`importar_legacy_vigilancia` no era idempotente.** El `bulk_create` de las fichas
+    `LEGACY-MMI`/`LEGACY-VIOLENTA` reventaba en la segunda corrida (`UniqueViolation` en
+    `codigo_notificacion`) y, con `set -e` en `etl_comandos.sh`, **dejaba el resto del ETL sin correr**
+    (establecimiento, organización, número de certificado, backfill de nacimientos, registradores).
+    Ahora `_cargar_fichas_masivas` hace **UPSERT** (`update_conflicts=True`,
+    `unique_fields=["codigo_notificacion"]`, `update_fields=CAMPOS_FICHA`): el refresco actualiza la
+    ficha en vez de duplicarla.
+  - **Estado del espejo al 05/11/2026** (`exp` del 04/11, `MONTAR=1` porque la raíz del equipo estaba
+    al 100 %): nacimientos **440.520**, defunciones **192.631**, consolidados ENO **91.464** (filas
+    **563.486**), EPI-15 **21.558**, fichas **23.207** (MMI 10.798 + violenta 12.409), CIE codificadas
+    **141.214** / pendientes **51.417**, registradores **3.915**. Semana **43** completa (267
+    consolidados de morbilidad + 1 de mortalidad; el origen tiene 353 documentos ENO en esa semana) y
+    **44 sin consolidar** (el último documento es del 04/11). Dump para casa:
+    `descarga/sis_salud_db_20261105.dump` + `SHA256SUMS`.
 - **Centros que la oficina agrupa y el certificado separa:** los dos `HOSP. DR. PASTOR OROPEZA`
   (IVSS/Barquisimeto vs Carora) comparten la org 800 de la oficina; casa los separa por
   `establecimiento` (org 22 Carora / org 426 IVSS). `asignar_organizacion_legacy` ahora prioriza
@@ -769,16 +811,17 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
 - Componentes frontend clave: `CIESearch` (autocomplete + cascada CIE-11 + subgrupos obligatorios),
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
-- **Pruebas automatizadas (04/11/2026):** backend con `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
+- **Pruebas automatizadas (05/11/2026):** backend con `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
   (**correr desde `backend/`** — desde la raíz descubre 0 tests),
-  (**363 pruebas a 04/11/2026** (verificado): 115 de `backend/tests_sisv.py` + 49 de `backend/despacho/tests.py`
+  (**370 pruebas a 05/11/2026** (verificado, 358 s): 115 de `backend/tests_sisv.py` + 49 de `backend/despacho/tests.py`
   (24 + 3 del reporte agrupado + 11 de las series deducidas + 7 del redondeo al corte de decena, §36
   + 1 del centro obligatorio sin organización, §37 + 3 del número impreso visible, §31.2)
   + 4 de `registros/tests_completar_numero_certificado.py`
   + 26 de `backend/registradores/tests.py` (§37)
   + 33 de `conciliacion` (16 ENO +
-  9 neonatal + 8 materna) + 27 de `registros/tests.py` (2 EV-14, 7 de las secciones del
-  certificado EV-14, 6 del EV-25, 7 del reporte semanal MM/MN y 5 de meses degradados) + 6 de `registros/tests_recuperar_establecimiento.py`
+  9 neonatal + 8 materna) + 34 de `registros/tests.py` (2 EV-14, 7 de las secciones del
+  certificado EV-14, 6 del EV-25, 7 del reporte semanal MM/MN, 5 de meses degradados y 7 del
+  módulo MM/MN de §43.4) + 6 de `registros/tests_recuperar_establecimiento.py`
   + 6 de `registros/tests_completar_nacimiento.py` + 7 de `registros/tests_calidad.py` (§35)
   + 5 de `registros/tests_dividir_nombres.py` + **35 de `registros/tests_cargar_lara.py`** (§27.8.1);
   requiere

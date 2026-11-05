@@ -150,6 +150,12 @@ export async function obtenerReporteSemanalMMI(params = {}) {
   return r.data.data
 }
 
+// MM (muertes maternas) y MN (0-30 días) por mes: las dos series en una sola llamada.
+export async function reportesMMMN(params = {}) {
+  const r = await api.get("/registros/reportes/mm-mn-mensual/", { params })
+  return r.data.data
+}
+
 export async function exportarReporteSemanalMMI(params = {}) {
   const r = await api.get("/registros/reportes/semanal-mmi/", {
     params: { ...params, formato: "csv" },
