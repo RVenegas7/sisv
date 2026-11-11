@@ -36,6 +36,11 @@ routlar1_*.ZIP
 # Análisis con datos personales de personas/instituciones legacy
 auditoria/
 
+# Control files de SQL*Loader (generados por migracion/generar_ctl_sqlldr.py,
+# artefacto intermedio para cargar TEMP; contienen los CSV que se copian al
+# servidor de la oficina). Ver PENDIENTES.md §39.6.3.
+ctl/
+
 # Respaldos de las bases del proyecto (para la oficina/producción, no versionar)
 dumps/
 *.dump

@@ -20,6 +20,15 @@ EXPORT_TABLE_RE = re.compile(r"(?:exporting table|exportando la tabla)\s+([A-Za-
 EXPORTED_ROWS_RE = re.compile(r"(\d+)\s+(?:rows? exported|filas? exportadas)")
 
 
+def _sanear(valor) -> str:
+    """Un `|` dentro de un texto partiría la línea del CSV (el separador es `|`
+    y no hay escapado). La data legacy trae `|` sueltos en direcciones/causas
+    (p. ej. `CAUSA2 = "|"` o `DIRECRESIDENCIA = "...4 N| 175"`): son artefactos
+    de transcripción, no dato, así que se reemplazan por un espacio para que el
+    CSV se pueda volver a cargar con SQL*Loader. Ver PENDIENTES.md §39.6.3."""
+    return str(valor).replace("|", " ")
+
+
 def _rango_semana(anio: int, semana: int) -> tuple[dt.date, dt.date]:
     """(inicio, fin+1) de la semana epidemiológica venezolana `semana` de `anio` (domingo→sábado).
 
@@ -209,7 +218,7 @@ class Command(BaseCommand):
                                 elif isinstance(v, float) and v.is_integer():
                                     partes.append(str(int(v)))
                                 else:
-                                    partes.append(str(v))
+                                    partes.append(_sanear(v))
                             lineas.append("|".join(partes))
                     conteos[destino] = len(lineas)
                     self.stdout.write(f"  {destino}: {len(lineas)} filas desde {src}")

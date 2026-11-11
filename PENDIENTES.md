@@ -4188,6 +4188,42 @@ carga y validarlo **en frío** contra el DDL real y contra los CSV del último `
 (que las columnas y los tipos cuadren, que las tablas vacías den 0 filas). Después, pedir la
 autorización mínima del §39.6.2 opción 1 y hacer **un** envío de prueba.
 
+#### 39.6.6 [HECHO 11/11/2026] El cargador SISV → TEMP ya existe, y el `|` en texto quedó saneado
+
+Cerrado el «siguiente paso concreto» de §39.6.5 (escribir el generador de `.ctl` + el script de carga
+y validarlo en frío). Se construyó y se validó contra los CSV reales del `exportar_rutalara` local:
+
+- **`migracion/generar_ctl_sqlldr.py`** — genera un `.ctl` por cada CSV (**82**: todas las `T_*` menos
+  `T_CERTNACI` + `T_EVENTOS`), leyendo el DDL real (`00_ddl_temp_04082026.sql`) y el `rutarala_spec.json`.
+  Reglas aplicadas: `FIELDS TERMINATED BY '|'` + `SKIP`, `NULLIF col = BLANKS` en opcionales, máscara
+  `DATE` deducida de los datos (`YYYY-MM-DD` o `YYYY-MM-DD HH24:MI:SS`), `CHARACTERSET UTF8` y
+  `--modo truncate|replace`. Casos especiales resueltos: **`T_CERTNACI` se salta** (no está en `TEMP`);
+  **`T_EVENTOS` sin cabecera** y con solo 4 de sus 6 columnas (`STATUS`/`AMS` quedan NULL); columnas del
+  CSV sin destino en `TEMP` se descartan con **FILLER** (`T_CERTMORT.VALSEXO/VALCAUSABASICA`,
+  `T_RCASOSMM.NUM_PARTOS/HIJOS_NACVIVOS/HIJOS_NACMUERTOS/HIJOS_NACABORTOS`, `T_SEGDIABE.EVALUACION2`).
+- **`migracion/cargar_temp_sqlldr.sh`** — carga `TEMP` con `sqlldr` (en el servidor de la oficina),
+  concatena los logs en **`repllar1.log`** (el que va al sobre) y falla si hay `ORA-*` o `.bad` con
+  filas rechazadas. Nota de permisos: `TRUNCATE` pide `DROP ANY TABLE`; `--modo replace` (DELETE+INSERT)
+  basta con `DELETE`+`INSERT`, que es la opción mínima y reversible del §39.6.2 opción 1.
+
+**Hallazgo de la validación en frío:** la data legacy trae **`|` dentro de campos de texto** — 72 en
+`CERTIFICADO.DIRECRESIDENCIA`, 23 en `CERTIFICADO.DIRECOCURRENCIA`, 4 en `CAUSA_MMEDICO.CAUSA1`, 1 en
+`CAUSA_MMEDICO.CAUSA2` y 1 en `CERTIFICADO.NOMBRE` (p. ej. `CAUSA2 = "|"` o una dirección
+`"...AVENIDA 4 N| 175"`). Como el delimitador del CSV es `|` sin escapado, esas filas partían la línea
+y el generador fallaba fuerte (correcto). **Fix aplicado en el productor**
+(`exportar_rutalara.py::_sanear`): reemplaza `|` → espacio al escribir; son artefactos de transcripción,
+no dato. Con eso los CSV salen limpios (0 líneas malas) y el generador corre completo.
+
+Pruebas: `migracion/tests_generar_ctl.py` (14, lógica pura del generador) y
+`registros/tests.py::ExportarRutalaraSanearTests` (3). Validado contra el `exportar_rutalara` local:
+**82 `.ctl`, 4.593 filas, `T_CERTNACI` saltada**.
+
+El sobre de 5 archivos se arma con: `exportar_rutalara` (CSV) → `generar_ctl_sqlldr.py` (`.ctl`) →
+`cargar_temp_sqlldr.sh` (`TEMP` + `repllar1.log`) → `generar_paquete_live.sh armar --con-stub`
+(`routlar1.dmp` + `routlar1.log` del `exp` + `repllar1.log` + 2 logs stub). El `repllar1.log` de esta
+vía es la salida real de `sqlldr` (más fiel que el del plan B), así que de los 3 logs «no reproducibles»
+de §39.6.4 quedan solo 2 (`copyhistlar1.log` y `bloqlar1.log`).
+
 ## 40. [PENDIENTE OFICINA 20/10/2026] La oficina ve ceros porque el ETL solo corre en casa
 
 **Síntoma reportado por el usuario:** en casa la aplicación muestra cifras reales y en la oficina

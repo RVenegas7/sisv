@@ -11,6 +11,7 @@ from django.core.management.base import CommandError
 
 from tests_sisv import SISVBase, FECHA_CORTE
 
+from registros.management.commands.exportar_rutalara import _sanear
 from registros.models import ConfiguracionGeneral, Defuncion, FichaVigilancia, Nacimiento
 from vigilancia.services import semana_epidemiologica
 
@@ -1864,4 +1865,19 @@ class ConsultaPorNumeroFisicoTests(SISVBase):
         self.assertEqual(data["numero_origen"], "registro")
         self.assertEqual(data["numero_fisico"], "")
         self.assertEqual(data["numero"], "FIC-2026-001")
+
+
+class ExportarRutalaraSanearTests(SISVBase):
+    """§39.6.3: el CSV es `|`-separado sin escapado, así que un `|` dentro de un
+    texto (artefacto del legacy) se reemplaza por un espacio al escribir, para
+    que el CSV se pueda recargar con SQL*Loader."""
+
+    def test_sanea_pipe_en_texto(self):
+        self.assertEqual(_sanear("AVENIDA 4 N| 175"), "AVENIDA 4 N  175")
+
+    def test_deja_intacto_lo_que_no_tiene_pipe(self):
+        self.assertEqual(_sanear("HOSPITAL CENTRAL"), "HOSPITAL CENTRAL")
+
+    def test_pipe_suelto_queda_espacio(self):
+        self.assertEqual(_sanear("|"), " ")
 

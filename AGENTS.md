@@ -726,14 +726,20 @@ aceptado), el esquema **`TEMP` tiene las 82 `T_*`**, `respaldo` tiene **`EXP_FUL
 el `exp` del contenedor XE **11.2** emite `EXPORT:V11.02.00` y **rechaza `version=`**
 (`LRM-00101`; el `exp` clásico no tiene ese parámetro), y un `imp` 10.1 no lee exports posteriores.
 **Lo único bloqueado es cargar `TEMP`**: `respaldo` tiene **0** `INSERT` sobre esas 82 tablas ⇒ hace
-falta autorización para concederlo (opción mínima y reversible) o la cuenta DBA. Falta una sola pieza
-de software: el generador de **`.ctl` de SQL*Loader** desde el DDL y los CSV `|`-separados de
-`exportar_rutalara` (cabecera ⇒ `SKIP=1`, NULL = campo vacío, fallar si aparece un `|` en un texto).
-Los logs `bloqlar1`/`copyhistlar1`/`repllar1` **no se reproducen** (son del motor legacy; el sobre ya
-viaja con 4 desde el 08/09 sin objeción); `routlar1.log` sale del propio `exp`. `TEMP` tiene las 82
+falta autorización para concederlo (opción mínima y reversible) o la cuenta DBA. **✅ (11/11/2026) la
+pieza de software ya existe:** `migracion/generar_ctl_sqlldr.py` (generador de **`.ctl` de SQL*Loader**
+desde el DDL y los CSV `|`-separados de `exportar_rutalara`: cabecera ⇒ `SKIP=1`, `NULLIF col = BLANKS`,
+máscara `DATE` deducida, `CHARACTERSET UTF8`, salta `T_CERTNACI`, `T_EVENTOS` sin cabecera con 4 de 6
+columnas, FILLER para columnas sin destino) + `migracion/cargar_temp_sqlldr.sh` (carga `TEMP` con
+`sqlldr` y produce **`repllar1.log`**). El productor sanea el **`|` dentro de texto** con
+`exportar_rutalara._sanear` (`|` → espacio; había 101 filas con `|` en direcciones/causas). Detalle en
+PENDIENTES.md §39.6.6.
+Los logs `bloqlar1`/`copyhistlar1` **no se reproducen** (son del motor legacy; el sobre ya
+viaja con 4 desde el 08/09 sin objeción); `routlar1.log` sale del propio `exp` y `repllar1.log` sale de
+`sqlldr`. `TEMP` tiene las 82
 tablas en **`TABLESPACE DATOS2`** y hoy **no está vacío** (última replicación: 10.150 filas en
 `T_EVENTOS`), así que la carga es **`TRUNCATE` + carga** en ventana acordada; **`T_CERTNACI` no está
-en `TEMP`** (ni en el sobre real, §34) y el cargador **debe saltarla**.
+en `TEMP`** (ni en el sobre real, §34) y el cargador **la salta**.
 
 **Aviso de datos incompletos:** el tablero muestra un banner cuando la serie tiene un hueco
 (`registros/views.py::DashboardView._cobertura` → `cobertura.meses_sin_datos` y `cobertura.atraso_dias`).
