@@ -213,13 +213,45 @@ def _por_semana(qs):
     return {int(se): n for se, n in contador.items()}
 
 
+# Días que representa cada unidad de edad del certificado (las horas van aparte,
+# porque se truncan al día antes de comparar contra los cortes del anexo).
+DIAS_POR_UNIDAD = {"DIAS": 1, "MESES": 30, "ANIOS": 365}
+
+
+def _dias_de_vida(edad=None, unidad="", fecha_evento=None, fecha_nacimiento=None):
+    """Días de vida del fallecido, **prefiriendo la edad declarada en el certificado**.
+
+    El certificado legacy guarda la edad del fallecido en ``EDAD`` + ``TIPOEDAD``
+    (``A`` años, ``M`` meses, ``D`` días, ``H`` horas; los recién nacidos se anotan en
+    horas). Esa es la fuente primaria porque ``FECHA_N`` a veces viene mal: el
+    certificado **4957244** (Jacob Alexander Cantillo Castillo, 20 minutos de vida,
+    Hospital Central de Barquisimeto) trae ``FECHA_N = 2025-01-10`` para una muerte del
+    ``2026-01-10``, así que derivar la edad solo de las fechas lo convertía en «1 año»
+    y lo sacaba de la mortalidad infantil (PENDIENTES.md §44).
+
+    Las fechas quedan como respaldo para los certificados sin edad declarada. Devuelve
+    ``None`` cuando no hay ni edad ni fechas utilizables.
+    """
+    if edad is not None and unidad in ("HORAS", *DIAS_POR_UNIDAD) and edad >= 0:
+        if unidad == "HORAS":
+            return edad // 24
+        return edad * DIAS_POR_UNIDAD[unidad]
+    if fecha_evento and fecha_nacimiento:
+        dias = (fecha_evento - fecha_nacimiento).days
+        return dias if dias >= 0 else None
+    return None
+
+
 def _neonatales_por_semana(qs):
     """Muertes neonatales (0-30 días de vida, inclusive) por semana epidemiológica venezolana."""
     contador = Counter()
-    for fecha_evento, fecha_nacimiento in (
-        qs.filter(fecha_nacimiento__isnull=False).values_list("fecha_evento", "fecha_nacimiento")
+    for fecha_evento, fecha_nacimiento, edad, unidad in qs.values_list(
+        "fecha_evento", "fecha_nacimiento", "edad", "edad_unidad"
     ):
-        if fecha_evento and fecha_nacimiento and 0 <= (fecha_evento - fecha_nacimiento).days <= 30:
+        if not fecha_evento:
+            continue
+        dias = _dias_de_vida(edad, unidad, fecha_evento, fecha_nacimiento)
+        if dias is not None and dias <= 30:
             contador[semana_epidemiologica(fecha_evento)[1]] += 1
     return {int(se): n for se, n in contador.items()}
 
@@ -227,10 +259,11 @@ def _neonatales_por_semana(qs):
 def contar_neonatales(qs):
     """Total de muertes neonatales (0-30 días de vida, inclusive) en el queryset."""
     total = 0
-    for fecha_evento, fecha_nacimiento in (
-        qs.filter(fecha_nacimiento__isnull=False).values_list("fecha_evento", "fecha_nacimiento")
+    for fecha_evento, fecha_nacimiento, edad, unidad in qs.values_list(
+        "fecha_evento", "fecha_nacimiento", "edad", "edad_unidad"
     ):
-        if fecha_evento and fecha_nacimiento and 0 <= (fecha_evento - fecha_nacimiento).days <= 30:
+        dias = _dias_de_vida(edad, unidad, fecha_evento, fecha_nacimiento)
+        if dias is not None and dias <= 30:
             total += 1
     return total
 
@@ -1244,17 +1277,17 @@ class ReporteComparativoView(APIView):
         )
 
 
-def _grupo_edad_anexo(fecha_evento, fecha_nacimiento):
-    """Grupo del anexo para una defunción, calculado desde las fechas reales.
+def _grupo_edad_anexo(fecha_evento, fecha_nacimiento, edad=None, unidad=""):
+    """Grupo del anexo para una defunción (neonatal, infantil, 1_4).
 
-    `Defuncion` no guarda la edad: se deriva de `fecha_evento - fecha_nacimiento`. Los
-    cortes son los del anexo: neonatal 0-30 días (inclusive), infantil 31-364 días (menor
-    de un año) y 1 a 4 años. Fuera de eso devuelve `None` y la muerte no entra al registro.
+    La edad sale de la **declarada en el certificado** (`edad`/`edad_unidad`, que es la
+    que trae horas para los recién nacidos) y, si no la hay, de
+    `fecha_evento - fecha_nacimiento`. Los cortes son los del anexo: neonatal 0-30 días
+    (inclusive), infantil 31-364 días (menor de un año) y 1 a 4 años. Fuera de eso
+    devuelve `None` y la muerte no entra al registro.
     """
-    if not fecha_evento or not fecha_nacimiento:
-        return None
-    dias = (fecha_evento - fecha_nacimiento).days
-    if dias < 0:
+    dias = _dias_de_vida(edad, unidad, fecha_evento, fecha_nacimiento)
+    if dias is None:
         return None
     if dias <= 30:
         return "neonatal"
@@ -1265,12 +1298,18 @@ def _grupo_edad_anexo(fecha_evento, fecha_nacimiento):
     return None
 
 
-def _edad_unidad_anexo(fecha_evento, fecha_nacimiento):
-    """`(edad, unidad)` para la columna Edad del anexo: D=días, M=meses, A=años."""
-    if not fecha_evento or not fecha_nacimiento:
-        return None, ""
-    dias = (fecha_evento - fecha_nacimiento).days
-    if dias < 0:
+def _edad_unidad_anexo(fecha_evento, fecha_nacimiento, edad=None, unidad=""):
+    """`(edad, unidad)` para la columna Edad del anexo: H=horas, D=días, M=meses, A=años.
+
+    Si el certificado declara la edad, se muestra tal cual (un neonato sale «0 H» o
+    «1 H», no «1 A»). Si no, se deriva de las fechas, que es el respaldo.
+    """
+    if edad is not None and edad >= 0:
+        codigo = {"HORAS": "H", "DIAS": "D", "MESES": "M", "ANIOS": "A"}.get(unidad)
+        if codigo:
+            return edad, codigo
+    dias = _dias_de_vida(None, "", fecha_evento, fecha_nacimiento)
+    if dias is None:
         return None, ""
     if dias <= 30:
         return dias, "D"
@@ -1350,11 +1389,12 @@ class ReporteSemanalMMIView(APIView):
         defs = _por_alcance(
             Defuncion.objects.filter(fecha_evento__gte=desde, fecha_evento__lte=hasta), request)
         for d in defs.values(
-            "organizacion_id", "fecha_evento", "fecha_nacimiento",
+            "organizacion_id", "fecha_evento", "fecha_nacimiento", "edad", "edad_unidad",
             "fallecido_nombres", "fallecido_apellidos", "sexo",
             "estado", "municipio", "parroquia",
         ):
-            grupo = _grupo_edad_anexo(d["fecha_evento"], d["fecha_nacimiento"])
+            grupo = _grupo_edad_anexo(
+                d["fecha_evento"], d["fecha_nacimiento"], d["edad"], d["edad_unidad"])
             if grupo is None:
                 continue
             f = fila(d["organizacion_id"])
@@ -1364,7 +1404,8 @@ class ReporteSemanalMMIView(APIView):
                 f["muertes_infantiles"] += 1
             else:
                 f["muertes_1_4"] += 1
-            edad, unidad = _edad_unidad_anexo(d["fecha_evento"], d["fecha_nacimiento"])
+            edad, unidad = _edad_unidad_anexo(
+                d["fecha_evento"], d["fecha_nacimiento"], d["edad"], d["edad_unidad"])
             f["detalle_infantil"].append({
                 "grupo": grupo,
                 "nombres": (d["fallecido_nombres"] or "").strip(),
@@ -1489,27 +1530,29 @@ class ReporteSemanalMMIView(APIView):
         return respuesta
 
 
-def _neonatales_por_mes(qs):
-    """Muertes neonatales (0-30 días de vida, inclusive) por mes del evento {mes: n}.
+def _domingo_de(fecha):
+    """Domingo (inicio) de la semana epidemiológica a la que pertenece `fecha`.
 
-    Misma definición que `contar_neonatales`: se compara la fecha del evento con la de
-    nacimiento, porque el certificado no trae la edad en días y el mes del evento es el
-    que usa la oficina para el anexo.
+    La semana venezolana va de domingo a sábado, así que el domingo es su inicio y
+    es el que sirve para decidir a qué mes pertenece (regla acordada: al mes donde
+    **empieza** la semana, para que un caso de la frontera no se cuente dos veces).
     """
-    contador = Counter()
-    for fecha_evento, fecha_nacimiento in (
-        qs.filter(fecha_nacimiento__isnull=False).values_list("fecha_evento", "fecha_nacimiento")
-    ):
-        if fecha_evento and fecha_nacimiento and 0 <= (fecha_evento - fecha_nacimiento).days <= 30:
-            contador[fecha_evento.month] += 1
-    return contador
+    return fecha - timedelta(days=(fecha.weekday() + 1) % 7)
+
+
+def _semana_de(fecha):
+    """`(año epidemiológico, semana, domingo, sábado)` de una fecha."""
+    anio_epi, semana = semana_epidemiologica(fecha)
+    inicio, fin = rango_semana(anio_epi, semana)
+    return int(anio_epi), int(semana), inicio, fin
 
 
 class ReportesMMMNView(APIView):
-    """Muertes maternas (MM), violentas y neonatales (MN, 0-30 días) por mes.
+    """Muertes maternas (MM), violentas e infantiles (MI, <1 año) por mes y semana.
 
-    Alimenta el módulo «Registros → MM / MN». Devuelve los doce meses del año
-    epidemiológico, con ceros, para que la tabla no cambie de forma según los datos.
+    Alimenta el módulo «Registros → MM / MI». Devuelve los doce meses del año
+    epidemiológico, con ceros, para que la tabla no cambie de forma según los datos,
+    y dentro de cada mes las semanas epidemiológicas que **empiezan** en él.
 
     **MM sale del registro de investigación** (`RENGLON_CASOSMM` → `CASOS_MMI`, ver
     `services.muerte_materna_detalle`), no de `Defuncion.embarazo_o_puerperio`: ese
@@ -1521,14 +1564,24 @@ class ReportesMMMNView(APIView):
 
     **Violentas** son las del registro MMI de muertes violentas del legacy
     (`M_VIOLENTA` → fichas `LEGACY-VIOLENTA`). Se cuentan aparte y también sumadas
-    (`mm_violentas`), porque la oficina reporta el indicador como «MM + violenta».
-    El legacy dejó de alimentar esa tabla el 26/01/2022: de 2022 en adelante sale 0 y
-    eso **no** significa que no haya habido muertes violentas, solo que no se están
-    registrando en el sistema viejo. Además 8.683 de las 12.409 fichas no traen
-    establecimiento, así que un usuario con alcance de centro solo ve las atribuidas.
+    (`mm_mv`), porque la oficina reporta el indicador como «MM + violenta». El legacy
+    dejó de alimentar esa tabla el 26/01/2022: de 2022 en adelante sale 0 y eso **no**
+    significa que no haya habido muertes violentas, solo que no se están registrando
+    en el sistema viejo. Además 8.683 de las 12.409 fichas no traen establecimiento,
+    así que un usuario con alcance de centro solo ve las atribuidas.
 
-    **MN es 0-30 días inclusive** (a los 31 ya no es neonatal) y sale de `Defuncion`
-    con fecha de nacimiento conocida, contando por mes de la defunción.
+    **MI son los menores de 1 año** (0 a 364 días de vida), contados por el mes de la
+    defunción, y se desglosan en **neonatal** (0-30 días inclusive: a los 31 ya no es
+    neonatal, regla del anexo §42) y **post-neonatal** (31-364 días). El total de MI es
+    la suma de los dos. La edad sale de la declarada en el certificado
+    (`edad`/`edad_unidad`, con horas para los recién nacidos) y solo si falta se deriva
+    de `fecha_evento - fecha_nacimiento`: hay certificados con `FECHA_N` mal (el
+    4957244, de 20 minutos de vida, la trae un año antes) que si no se perderían.
+
+    **Semanas:** cada semana se asigna al mes de su domingo. La semana va de domingo
+    a sábado y puede cruzar el cambio de mes, así que la suma de las semanas de un mes
+    puede diferir en unos pocos casos del total mensual (que es por mes calendario);
+    la pantalla lo advierte.
     """
 
     def get(self, request):
@@ -1538,26 +1591,53 @@ class ReportesMMMNView(APIView):
         qs_def = _por_alcance(Defuncion.objects.all(), request).filter(
             fecha_evento__gte=desde, fecha_evento__lte=hasta
         )
-        mn = _neonatales_por_mes(qs_def)
 
-        certificadas = Counter()
-        for (fecha_evento,) in qs_def.filter(embarazo_o_puerperio=True).values_list("fecha_evento"):
-            if fecha_evento:
-                certificadas[fecha_evento.month] += 1
+        # --- MI (<1 año), por mes calendario y por semana de su domingo ---
+        mi, mi_neo, mi_post = Counter(), Counter(), Counter()
+        mi_sem, mi_neo_sem, mi_post_sem = Counter(), Counter(), Counter()
+        for fecha_evento, fecha_nacimiento, edad, unidad in qs_def.values_list(
+            "fecha_evento", "fecha_nacimiento", "edad", "edad_unidad"
+        ):
+            if not fecha_evento:
+                continue
+            dias = _dias_de_vida(edad, unidad, fecha_evento, fecha_nacimiento)
+            if dias is None or dias > 364:
+                continue
+            mes = fecha_evento.month
+            domingo = _domingo_de(fecha_evento)
+            mi[mes] += 1
+            mi_sem[domingo] += 1
+            if dias <= 30:
+                mi_neo[mes] += 1
+                mi_neo_sem[domingo] += 1
+            else:
+                mi_post[mes] += 1
+                mi_post_sem[domingo] += 1
 
+        # --- MM: registro de investigación, con el certificado como respaldo ---
+        certificadas = [
+            f
+            for (f,) in qs_def.filter(embarazo_o_puerperio=True).values_list("fecha_evento")
+            if f
+        ]
         detalle = muerte_materna_detalle(desde, hasta, _organizaciones_del_alcance(request))
         if detalle is None or (not detalle and _alcance_acotado(request.user)):
-            mm, fuente = certificadas, "CERTIFICADO"
+            fechas_mm, fuente = certificadas, "CERTIFICADO"
         else:
-            mm = Counter()
+            fechas_mm, fuente = [], "REGISTRO_INVESTIGACION"
             for caso in detalle:
-                mes = _int_param((caso.get("fecha") or "")[5:7])
-                if mes:
-                    mm[mes] += 1
-            fuente = "REGISTRO_INVESTIGACION"
+                try:
+                    fechas_mm.append(date.fromisoformat(str(caso.get("fecha") or "")[:10]))
+                except ValueError:
+                    continue
 
-        # Muertes violentas del registro MMI del legacy, por mes del evento.
-        violentas = Counter()
+        mm, mm_sem = Counter(), Counter()
+        for fecha in fechas_mm:
+            mm[fecha.month] += 1
+            mm_sem[_domingo_de(fecha)] += 1
+
+        # --- Violentas del registro MMI del legacy ---
+        violentas, violentas_sem = Counter(), Counter()
         for (fecha_evento,) in (
             _por_alcance(FichaVigilancia.objects.all(), request)
             .filter(
@@ -1569,6 +1649,35 @@ class ReportesMMMNView(APIView):
         ):
             if fecha_evento:
                 violentas[fecha_evento.month] += 1
+                violentas_sem[_domingo_de(fecha_evento)] += 1
+
+        # Semanas del año: se generan del calendario (no solo las que tienen casos) y
+        # se reparten al mes de su domingo. Se cortan en la última que ya empezó, para
+        # no mostrar como «0 casos» una semana que todavía no ha ocurrido.
+        tope = min(hasta, date.today())
+
+        def semanas_de(mes):
+            filas = []
+            primero = date(anio, mes, 1)
+            domingo = primero + timedelta(days=(6 - primero.weekday()) % 7)
+            while domingo.month == mes and domingo <= tope:
+                anio_epi, semana, inicio, fin = _semana_de(domingo)
+                filas.append(
+                    {
+                        "anio": anio_epi,
+                        "semana": semana,
+                        "desde": inicio.isoformat(),
+                        "hasta": fin.isoformat(),
+                        "mm": mm_sem.get(domingo, 0),
+                        "mv": violentas_sem.get(domingo, 0),
+                        "mm_mv": mm_sem.get(domingo, 0) + violentas_sem.get(domingo, 0),
+                        "mi": mi_sem.get(domingo, 0),
+                        "mi_neonatal": mi_neo_sem.get(domingo, 0),
+                        "mi_postneonatal": mi_post_sem.get(domingo, 0),
+                    }
+                )
+                domingo += timedelta(days=7)
+            return filas
 
         return ok(
             {
@@ -1580,8 +1689,10 @@ class ReportesMMMNView(APIView):
                     "mm": sum(mm.values()),
                     "mv": sum(violentas.values()),
                     "mm_mv": sum(mm.values()) + sum(violentas.values()),
-                    "mn": sum(mn.values()),
-                    "mm_certificadas": sum(certificadas.values()),
+                    "mi": sum(mi.values()),
+                    "mi_neonatal": sum(mi_neo.values()),
+                    "mi_postneonatal": sum(mi_post.values()),
+                    "mm_certificadas": len(certificadas),
                 },
                 "meses": [
                     {
@@ -1590,8 +1701,11 @@ class ReportesMMMNView(APIView):
                         "mm": mm.get(m, 0),
                         "mv": violentas.get(m, 0),
                         "mm_mv": mm.get(m, 0) + violentas.get(m, 0),
-                        "mn": mn.get(m, 0),
-                        "mm_certificadas": certificadas.get(m, 0),
+                        "mi": mi.get(m, 0),
+                        "mi_neonatal": mi_neo.get(m, 0),
+                        "mi_postneonatal": mi_post.get(m, 0),
+                        "mm_certificadas": sum(1 for f in certificadas if f.month == m),
+                        "semanas": semanas_de(m),
                     }
                     for m in range(1, 13)
                 ],

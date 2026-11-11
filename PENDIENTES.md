@@ -4626,3 +4626,103 @@ meses del año epidemiológico con ceros para que la tabla no cambie de forma.
 
 Pruebas: `registros/tests.py::ReportesMMMNTests` (7: MM por mes, 0–30 días, doce meses, alcance de
 centro, violentas aparte y en el total, violentas con alcance, sesión obligatoria).
+
+**Actualizado el 11/11/2026 (§44):** la pantalla pasó a **MM / MI** (menores de 1 año, 0–364 días) y
+ganó la **cascada mes → semana epidemiológica**; el campo `mn` de la API es ahora `mi`, con
+`mi_neonatal`/`mi_postneonatal`. Lo de abajo se conserva como registro de la primera versión.
+
+## 44. [HECHO 11/11/2026] MM/MI por semana y la edad declarada del fallecido: el 4957244 no tenía 1 año, tenía 20 minutos
+
+**Pedido del analista (05/11/2026, transcripción en `quedo_pendiente.md`):** rotular el menú como
+«Muerte Materna (MM)» y «Muerte Infantil (MI)»; además del mes, mostrar la **semana epidemiológica en
+cascada** (dependiente del mes); y que MI tome de **0 a 364 días** conservando el desglose neonatal.
+
+### 44.1 Lo implementado
+
+- **Menú y rutas:** `Registros → Muerte Materna (MM)` y `Registros → Muerte Infantil (MI)`; las
+  pantallas quedan en `/registros/mm` y `/registros/mi`. `/registros/mn` se conserva como **alias
+  heredado** (marcadores viejos) y el componente acepta `tipo="MN"` como sinónimo de MI.
+- **`ReportesMMMNView`** (`GET /api/registros/reportes/mm-mn-mensual/?anio=`): el campo del mes pasó de
+  `mn` a **`mi`**, con **`mi_neonatal`** (0–30 días inclusive, regla de §42) y **`mi_postneonatal`**
+  (31–364 días); el total anual expone los tres. El endpoint atiende en
+  **`reportes/mm-mi-mensual/`** y conserva **`reportes/mm-mn-mensual/`** como alias por compatibilidad
+  con los clientes desplegados (misma vista, misma respuesta).
+- **Cascada semanal:** cada mes trae `semanas[]` con `anio`, `semana`, `desde`, `hasta`, `mm`, `mv`,
+  `mm_mv`, `mi`, `mi_neonatal` y `mi_postneonatal`. La semana epidemiológica va de **domingo a sábado**
+  y se asigna al **mes de su domingo**, para que un caso de la frontera no se cuente dos veces. Las
+  semanas se generan del calendario (no solo las que tienen casos) y se cortan en la última que ya
+  empezó, para no mostrar como «0» una semana futura. Como la semana puede cruzar el cambio de mes, la
+  suma de las semanas de un mes puede diferir en unos pocos casos del total mensual (que es calendario);
+  el año completo sí cuadra, y la pantalla lo advierte.
+- **Frontend** (`RegistroMMMN.jsx`): tabla mensual (MM/violentas/total/certificados, o MI/neonatal/
+  post-neonatal), columna «Semanas» que selecciona la fila (`.fila-activa`), selector de mes y tabla de
+  detalle por semana con su periodo (dd/mm–dd/mm).
+
+### 44.2 El caso 4957244: la fecha de nacimiento del legacy está mal
+
+El analista reportó (`revision_analista.md`) que el certificado **4957244** (Jacob Alexander Cantillo
+Castillo, Hospital Central Antonio María Pineda) murió a los **20 minutos** el **10/01/2026** y SISV lo
+mostraba como de **1 año**. Verificado contra el espejo:
+
+| campo legacy | valor |
+| --- | --- |
+| `CERTIFICADO."FECHA_M"` | `2026-01-10` |
+| `CERTIFICADO."FECHA_N"` | **`2025-01-10`** (un año antes) |
+| `CERTIFICADO."EDAD"` + `"TIPOEDAD"` | **`0` + `H`** (0 horas; el legacy admite mínimo 1 hora) |
+| `EDAD2` + `TIPOEDAD2` | `0` + `D` |
+
+No es un error del importador: **el origen trae la fecha mal**. El dato bueno está en la **edad
+declarada**. Por eso la regla cambió:
+
+- `registros/views.py::_dias_de_vida(edad, unidad, fecha_evento, fecha_nacimiento)` es ahora la
+  **única** regla de edad: usa `edad`/`edad_unidad` cuando existen (HORAS → días truncando, DIAS,
+  MESES × 30, ANIOS × 365) y solo cae a `fecha_evento − fecha_nacimiento` como respaldo.
+- La usan la MI del módulo, el **MN del tablero** (`contar_neonatales`, `_neonatales_por_semana`), el
+  **anexo semanal** (`_grupo_edad_anexo`, `_edad_unidad_anexo`) y la columna **Edad** del anexo, que
+  ahora puede salir en horas («0 H») y se rotula en `/reportes` (horas/días/meses/años).
+- `Defuncion.edad`/`edad_unidad` ya existían desde el EV-14, pero **el ETL no las llenaba** y
+  `EDAD_UNIDAD` no contemplaba horas: **migración `registros/0013_defuncion_edad_horas`** agrega
+  `HORAS`.
+- `importar_legacy_registros` lee ahora `c."EDAD"`/`c."TIPOEDAD"` y los mapea (`A/M/D/H` →
+  `ANIOS/MESES/DIAS/HORAS`) para las defunciones **nuevas**.
+- **`manage.py completar_edad_defuncion [--ejecutar]`** (dry-run por defecto, solo `edad IS NULL`,
+  idempotente, `UPDATE … FROM sismai."CERTIFICADO"`) rellena el histórico. Ejecutado en casa el
+  11/11/2026: **171.865** defunciones. Reporta además los certificados con edad en horas/días y
+  `FECHA_N` que no cuadra (**6** en el espejo local).
+
+### 44.3 Efecto en los datos
+
+`CERTIFICADO."TIPOEDAD"` en el espejo local: **A** 161.562, **D** 6.056, **M** 2.471, **H** 1.783,
+nulo 3.388. Tras el backfill, `Defuncion.edad_unidad`: ANIOS 177.530, DIAS 6.776, MESES 2.815,
+HORAS 1.779.
+
+Defunciones trasladadas a `edad`/`edad_unidad` y recalculadas: **171.865**. El cambio de definición
+(antes MN 0–30, ahora MI <1 año) mueve el total anual, como era de esperar; el desglose conserva la
+regla neonatal de §42:
+
+| año | MI (<1 año) | neonatal (0–30 d) | post-neonatal (31–364 d) |
+| --- | --- | --- | --- |
+| 2025 | 474 | 422 | 52 |
+| 2026 (al 11/11) | 330 | 290 | 40 |
+
+Un solo caso de 2026 se rescata **solo** por la edad declarada: el 4957244. Las cifras «MN 2026 = 269»
+de §43.4 y §42 eran con datos hasta octubre y con la definición 0–30 estricta.
+
+⚠ **La conciliación neonatal (`manage.py conciliar_neonatal`) sigue clasificando por fechas**: su lado
+SISV cuenta defunciones con `fecha_nacimiento` y 0–30 días, así que es un **mínimo** y puede diferir en
+unos pocos casos de los certificados con `FECHA_N` mal. No se tocó porque es una auditoría contra el
+registro MMI del legacy, no el indicador de pantalla.
+
+### 44.4 Pruebas
+
+- `registros/tests.py::ReportesMMMNTests` (**11**): MI 0–364 con desglose neonatal, **edad declarada
+  sobre `FECHA_N`** (regresión del 4957244), doce meses con su forma, semanas por mes con el corte del
+  domingo (el 01/03/2023 cae en la semana de febrero y el 31/03 en la de marzo; 2023 tiene 52 semanas),
+  semanas futuras excluidas, violentas y alcance, **alias `mm-mi-mensual/` = `mm-mn-mensual/`** y sesión
+  obligatoria.
+- `registros/tests.py::ReporteSemanalMMITests` (**8**): el anexo semanal clasifica como neonatal un
+  certificado de 0 horas y muestra la edad en horas.
+- `registros/tests_completar_edad_defuncion.py` (**3**): el `UPDATE` solo toca edades vacías, acepta
+  solo las cuatro unidades y el dry-run no modifica nada.
+- Suite backend **381 OK** (`Ran 381 tests in 358.569s`, corrida completa desde `backend/`);
+  `npm test` (18) y `npm run build` sin errores.

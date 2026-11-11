@@ -20,6 +20,13 @@ const MODULO_LABEL = { nacimientos: "Nacimientos", defunciones: "Defunciones", f
 const TIPO_ENO = { MORBILIDAD: "Morbilidad (EPI-12)", MORTALIDAD: "Mortalidad (EPI-14)" }
 const ESTADO_ENO = { BORRADOR: "Borrador", ENVIADO: "Enviado", CERRADO: "Cerrado" }
 const ORIGEN_ENO = { PROPIO: "Propio", CONSOLIDADO_SUPERIOR: "Consolidado de superiores" }
+// El anexo rotula la edad con la unidad del certificado: H=horas, D=días, M=meses,
+// A=años. Los neonatos suelen venir en horas («0 H», «1 H»), no en años.
+const UNIDAD_EDAD = { H: "horas", D: "días", M: "meses", A: "años" }
+const edadTexto = (d) =>
+  d.edad === null || d.edad === undefined || d.edad === ""
+    ? "—"
+    : `${d.edad} ${UNIDAD_EDAD[d.unidad_edad] || d.unidad_edad || ""}`.trim()
 
 export default function Reportes() {
   const [filtros, setFiltros] = useState({ modulo: "", desde: "", hasta: "", estado: "" })
@@ -462,9 +469,7 @@ export default function Reportes() {
                           <td>
                             {d.apellidos}, {d.nombres}
                           </td>
-                          <td>
-                            {d.edad} {d.unidad_edad}
-                          </td>
+                          <td>{edadTexto(d)}</td>
                           <td>{d.fecha}</td>
                           <td>{d.residencia}</td>
                         </tr>
@@ -498,9 +503,7 @@ export default function Reportes() {
                             {d.apellidos}, {d.nombres}
                           </td>
                           <td>{d.sexo}</td>
-                          <td>
-                            {d.edad} {d.unidad_edad}
-                          </td>
+                          <td>{edadTexto(d)}</td>
                           <td>{d.fecha}</td>
                           <td>{d.residencia}</td>
                         </tr>

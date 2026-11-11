@@ -53,13 +53,14 @@ if [ ! -x "$VENV" ]; then
 fi
 
 # Lista de comandos. Los dos importadores NO llevan --ejecutar (importan directo);
-# los cinco de mantenimiento SÍ (dry-run por defecto).
+# los seis de mantenimiento SÍ (dry-run por defecto).
 COMANDOS=(
   "importar_legacy_registros"
   "importar_legacy_vigilancia"
   "recuperar_establecimiento_defuncion --ejecutar"
   "asignar_organizacion_legacy --ejecutar"
   "completar_numero_certificado --ejecutar"
+  "completar_edad_defuncion --ejecutar"
   "completar_nacimiento_legacy --ejecutar"
   "sembrar_registradores_legacy --ejecutar"
 )
@@ -71,6 +72,7 @@ if [ "$SOLO_CERT" = 1 ]; then
     "recuperar_establecimiento_defuncion --ejecutar"
     "asignar_organizacion_legacy --ejecutar"
     "completar_numero_certificado --ejecutar"
+    "completar_edad_defuncion --ejecutar"
     "completar_nacimiento_legacy --ejecutar"
     "sembrar_registradores_legacy --ejecutar"
   )

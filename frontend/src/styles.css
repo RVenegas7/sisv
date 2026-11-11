@@ -1150,6 +1150,11 @@ main.contenido {
   font-weight: 600;
 }
 
+/* Fila del mes elegido en la cascada mes → semanas (Registros → MM / MI). */
+.fila-activa td {
+  background: #eef4ff;
+}
+
 /* Vigilancia — matriz del consolidado semanal (EPI-12/EPI-14) */
 .btn-mini.activo {
   background: var(--verde);

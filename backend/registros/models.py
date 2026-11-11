@@ -382,6 +382,7 @@ class Defuncion(RegistroConCIE):
         ("ANIOS", "Años"),
         ("MESES", "Meses"),
         ("DIAS", "Días"),
+        ("HORAS", "Horas"),
     ]
     AREA_OCURRENCIA = [
         ("RESIDENCIAL", "Residencial"),

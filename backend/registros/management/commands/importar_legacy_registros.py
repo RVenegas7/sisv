@@ -41,6 +41,10 @@ ESTADO_CIVIL = {
 #   03 = NO   04 = IGNORADO   05 = SIN INFORMACION
 # Ambos 1 y 2 son defunción materna; antes solo se tomaba el 1 y se perdía el puerperio.
 CODIGOS_MM = {1, 2}
+# Unidad de la edad del fallecido. El legacy anota los recién nacidos en HORAS
+# (1.783 certificados), y esa edad es más fiable que FECHA_N: hay certificados con la
+# fecha de nacimiento un año antes de la muerte (PENDIENTES.md §44).
+UNIDAD_EDAD = {"A": "ANIOS", "M": "MESES", "D": "DIAS", "H": "HORAS"}
 GEO_RE = re.compile(r"Estado\s+([^,]+),\s*Municipio\s+([^,]+),\s*Parroquia\s+([^,]+)", re.I)
 
 
@@ -301,7 +305,8 @@ class Command(BaseCommand):
             SELECT c."ID", c."NOMBRE", c."APELLIDO", c."CEDULA", c."SEXO", c."FECHA_M",
                    c."FECHA_N", c."HORAMUERTE", c."HSITIO_M", c."HESTABLECIMIENTO_OCUR",
                    c."HESTABLECIMIENTO", c."HLOCARESIDENCIA", c."HPRESENCIAEMBARAZO",
-                   c."AUTOPSIA", c."OTROMEDFIRMANTE", c."HCAUSABASICA", c."NUMEROMSDS"
+                   c."AUTOPSIA", c."OTROMEDFIRMANTE", c."HCAUSABASICA", c."NUMEROMSDS",
+                   c."EDAD", c."TIPOEDAD"
             FROM sismai."CERTIFICADO" c
             WHERE c."FECHA_M" IS NOT NULL AND c."FECHA_M" >= DATE '1900-01-01'
             ORDER BY c."ID"
@@ -322,7 +327,8 @@ class Command(BaseCommand):
         procesados = set()
         for f in filas:
             (cid, nombre, apellido, cedula, sexo, fecha_m, fecha_n, hora, sitio,
-             est_ocur, est_cert, geo_id, embarazo, autopsia, otro_med, causa_bas, msds) = f
+             est_ocur, est_cert, geo_id, embarazo, autopsia, otro_med, causa_bas, msds,
+             edad_legacy, tipo_edad) = f
             fecha = fecha_m.date() if hasattr(fecha_m, "date") else fecha_m
             legacy_id = str(int(cid))
             if legacy_id in existentes or legacy_id in procesados:
@@ -359,6 +365,10 @@ class Command(BaseCommand):
                     fallecido_cedula=(cedula or "").strip()[:20],
                     sexo=SEXO.get(como_entero(sexo), "I"),
                     fecha_nacimiento=(fecha_n.date() if hasattr(fecha_n, "date") else fecha_n) if fecha_n else None,
+                    # Edad declarada en el certificado (`EDAD` + `TIPOEDAD`); se prefiere
+                    # sobre las fechas al clasificar la muerte infantil (§44).
+                    edad=rango(edad_legacy, 0, 1000),
+                    edad_unidad=UNIDAD_EDAD.get((tipo_edad or "").strip().upper(), ""),
                     lugar_defuncion="ESTABLECIMIENTO" if como_entero(sitio) == 1 else "OTRO",
                     establecimiento=self.estable.get(est_id, ""),
                     estado=est, municipio=mun, parroquia=parr,

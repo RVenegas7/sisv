@@ -1300,6 +1300,21 @@ class ReporteSemanalMMITests(SISVBase):
         self.assertEqual(c["muertes_neonatales"], 1)
         self.assertEqual(c["muertes_infantiles"], 2)
 
+    def test_edad_declarada_manda_sobre_la_fecha_de_nacimiento(self):
+        """§44: 20 minutos de vida con FECHA_N un año antes sigue siendo neonatal."""
+        Defuncion.objects.create(
+            registro_numero="LEG-CERT-4957244", fecha_evento=self.fecha,
+            organizacion=self.org_hcb, fallecido_nombres="Jacob",
+            fallecido_apellidos="Cantillo", sexo="M",
+            fecha_nacimiento=self.fecha - timedelta(days=365),
+            edad=0, edad_unidad="HORAS",
+        )
+        self.login(self.u_admin)
+        c = self._centro(self.client.get(self._url()).json()["data"], self.org_hcb)
+        self.assertEqual(c["muertes_neonatales"], 1)
+        detalle = next(x for x in c["detalle_infantil"] if x["nombres"] == "Jacob")
+        self.assertEqual((detalle["edad"], detalle["unidad_edad"]), (0, "H"))
+
     def test_mm_sin_registro_legacy_cae_al_certificado(self):
         self._def("MM-1", None, embarazo=True)
         self._def("MM-2", None, embarazo=True)
@@ -1364,17 +1379,20 @@ class ReporteSemanalMMITests(SISVBase):
 
 
 class ReportesMMMNTests(SISVBase):
-    """MM y MN por mes (módulo «Registros → MM / MN»).
+    """MM y MI por mes y semana (módulo «Registros → MM / MI»).
 
     Con la fuente legacy ausente (sqlite) el MM cae al certificado y lo declara, igual
-    que el tablero. El MN es 0-30 días inclusive, contado por el mes de la defunción.
+    que el tablero. La MI son los menores de 1 año (0-364 días), desglosados en
+    neonatal (0-30 días inclusive) y post-neonatal (31-364), contados por el mes de la
+    defunción; cada semana se asigna al mes de su domingo.
     """
 
-    def _def(self, uid, fecha, org=None, nacimiento=None, embarazo=False):
+    def _def(self, uid, fecha, org=None, nacimiento=None, embarazo=False, edad=None, unidad=""):
         return Defuncion.objects.create(
             registro_numero=uid, fecha_evento=fecha, organizacion=org or self.org_hcb,
             fallecido_nombres="Test", fallecido_apellidos="Uno", sexo="F",
             fecha_nacimiento=nacimiento, embarazo_o_puerperio=embarazo,
+            edad=edad, edad_unidad=unidad,
         )
 
     def _url(self, anio=2023):
@@ -1407,18 +1425,35 @@ class ReportesMMMNTests(SISVBase):
         self.assertEqual(d["total"]["mm"], 3)
         self.assertEqual(d["total"]["mm_certificadas"], 3)
 
-    def test_mn_0_a_30_dias_inclusive_por_mes(self):
-        self._def("MN-30", date(2023, 3, 10), nacimiento=date(2023, 2, 8))   # 30 días
-        self._def("MN-31", date(2023, 3, 11), nacimiento=date(2023, 2, 8))   # 31 días
-        self._def("MN-0", date(2023, 4, 1), nacimiento=date(2023, 4, 1))     # 0 días
+    def test_mi_0_a_364_dias_con_desglose_neonatal(self):
+        self._def("MN-30", date(2023, 3, 10), nacimiento=date(2023, 2, 8))     # 30 días
+        self._def("MN-31", date(2023, 3, 11), nacimiento=date(2023, 2, 8))     # 31 días
+        self._def("MN-0", date(2023, 4, 1), nacimiento=date(2023, 4, 1))       # 0 días
+        self._def("MN-364", date(2023, 5, 1), nacimiento=date(2022, 5, 2))     # 364 días
+        self._def("ADULTO", date(2023, 5, 2), nacimiento=date(2000, 1, 1))
         self._def("SIN-FECHA-NAC", date(2023, 4, 2))
         self.login(self.u_admin)
         d = self.client.get(self._url()).json()["data"]
         meses = {m["mes"]: m for m in d["meses"]}
-        self.assertEqual(meses[3]["mn"], 1)
-        self.assertEqual(meses[4]["mn"], 1)
-        self.assertEqual(meses[2]["mn"], 0)
-        self.assertEqual(d["total"]["mn"], 2)
+        self.assertEqual((meses[3]["mi"], meses[3]["mi_neonatal"], meses[3]["mi_postneonatal"]), (2, 1, 1))
+        self.assertEqual((meses[4]["mi"], meses[4]["mi_neonatal"]), (1, 1))
+        self.assertEqual((meses[5]["mi"], meses[5]["mi_postneonatal"]), (1, 1))
+        self.assertEqual(meses[2]["mi"], 0)
+        self.assertEqual(d["total"]["mi"], 4)
+        self.assertEqual(d["total"]["mi_neonatal"], 2)
+        self.assertEqual(d["total"]["mi_postneonatal"], 2)
+
+    def test_mi_usa_la_edad_declarada_sobre_la_fecha_de_nacimiento(self):
+        """§44: el certificado 4957244 murió a los 20 minutos y trae FECHA_N un año antes."""
+        self._def("CERT-4957244", date(2026, 1, 10), nacimiento=date(2025, 1, 10),
+                  edad=0, unidad="HORAS")
+        self._def("EDAD-ANIOS", date(2026, 1, 11), edad=1, unidad="ANIOS")
+        self.login(self.u_admin)
+        d = self.client.get(self._url(anio=2026)).json()["data"]
+        meses = {m["mes"]: m for m in d["meses"]}
+        self.assertEqual(meses[1]["mi"], 1)
+        self.assertEqual(meses[1]["mi_neonatal"], 1)
+        self.assertEqual(meses[1]["mi_postneonatal"], 0)
 
     def test_meses_siempre_son_doce_con_nombre(self):
         self.login(self.u_admin)
@@ -1427,8 +1462,42 @@ class ReportesMMMNTests(SISVBase):
         self.assertEqual(d["meses"][0]["nombre"], "enero")
         self.assertEqual(d["meses"][11]["nombre"], "diciembre")
         self.assertEqual(
-            d["total"], {"mm": 0, "mv": 0, "mm_mv": 0, "mn": 0, "mm_certificadas": 0}
+            d["total"],
+            {"mm": 0, "mv": 0, "mm_mv": 0, "mi": 0, "mi_neonatal": 0,
+             "mi_postneonatal": 0, "mm_certificadas": 0},
         )
+
+    def test_semanas_por_mes_y_corte_del_domingo(self):
+        """La semana pertenece al mes de su domingo; el total mensual sí cuadra al año."""
+        # 2023-03-01 es miércoles: su domingo (26/02) cae en febrero.
+        self._def("MM-FEB", date(2023, 3, 1), embarazo=True)
+        # 2023-03-31 es viernes: su domingo (26/03) cae en marzo.
+        self._def("MM-MAR", date(2023, 3, 31), embarazo=True)
+        self.login(self.u_admin)
+        d = self.client.get(self._url(anio=2023)).json()["data"]
+        meses = {m["mes"]: m for m in d["meses"]}
+        self.assertEqual(meses[3]["mm"], 2)
+        self.assertEqual(sum(s["mm"] for s in meses[3]["semanas"]), 1)
+        self.assertEqual(sum(s["mm"] for s in meses[2]["semanas"]), 1)
+        for m in (2, 3):
+            for s in meses[m]["semanas"]:
+                desde = date.fromisoformat(s["desde"])
+                hasta = date.fromisoformat(s["hasta"])
+                self.assertEqual(desde.weekday(), 6)   # domingo
+                self.assertEqual(hasta.weekday(), 5)   # sábado
+                self.assertEqual((hasta - desde).days, 6)
+        # Año epidemiológico 2023 completo: 52 semanas, y las semanas suman el total.
+        self.assertEqual(sum(len(m["semanas"]) for m in d["meses"]), 52)
+        self.assertEqual(
+            sum(s["mm"] for m in d["meses"] for s in m["semanas"]), d["total"]["mm"])
+
+    def test_semanas_no_muestran_semanas_futuras(self):
+        hoy = date.today()
+        self.login(self.u_admin)
+        d = self.client.get(self._url(anio=hoy.year)).json()["data"]
+        for m in d["meses"]:
+            for s in m["semanas"]:
+                self.assertLessEqual(date.fromisoformat(s["desde"]), hoy)
 
     def test_violentas_se_suman_aparte_y_en_el_total(self):
         self._def("MM-1", date(2023, 2, 10), embarazo=True)
@@ -1469,7 +1538,16 @@ class ReportesMMMNTests(SISVBase):
         self.login(self.u_trans_hcb)
         d = self.client.get(self._url()).json()["data"]
         self.assertEqual(d["total"]["mm"], 1)
-        self.assertEqual(d["total"]["mn"], 1)
+        self.assertEqual(d["total"]["mi"], 1)
+        self.assertEqual(d["total"]["mi_neonatal"], 1)
+
+    def test_alias_mm_mi_responde_igual(self):
+        """La ruta nueva `mm-mi-mensual/` y la heredada `mm-mn-mensual/` son la misma vista."""
+        self.login(self.u_admin)
+        nueva = self.client.get("/api/registros/reportes/mm-mi-mensual/?anio=2023")
+        vieja = self.client.get("/api/registros/reportes/mm-mn-mensual/?anio=2023")
+        self.assertEqual(nueva.status_code, 200)
+        self.assertEqual(nueva.json(), vieja.json())
 
     def test_exige_sesion(self):
         self.client.logout()

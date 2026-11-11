@@ -36,6 +36,11 @@ routlar1_*.ZIP
 # Análisis con datos personales de personas/instituciones legacy
 auditoria/
 
+# Notas del analista sobre casos concretos (transcritas a PENDIENTES.md §44; la
+# segunda nombra a un menor fallecido, así que no se versiona)
+quedo_pendiente.md
+revision_analista.md
+
 # Control files de SQL*Loader (generados por migracion/generar_ctl_sqlldr.py,
 # artefacto intermedio para cargar TEMP; contienen los CSV que se copian al
 # servidor de la oficina). Ver PENDIENTES.md §39.6.3.

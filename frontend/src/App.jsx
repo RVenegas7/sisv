@@ -26,8 +26,8 @@ const NAVEGACION = [
     items: [
       { enlace: "/nacimientos", rotulo: "Nacimientos" },
       { enlace: "/defunciones", rotulo: "Defunciones" },
-      { enlace: "/registros/mm", rotulo: "MM (muertes maternas)" },
-      { enlace: "/registros/mn", rotulo: "MN (0–30 días)" },
+      { enlace: "/registros/mm", rotulo: "Muerte Materna (MM)" },
+      { enlace: "/registros/mi", rotulo: "Muerte Infantil (MI)" },
       { enlace: "/codificacion", rotulo: "Codificación" },
     ],
   },
@@ -180,7 +180,9 @@ export default function App() {
           <Route path="/nacimientos" element={<CargaNacimientos usuario={usuario} multicentro={esMulticentro} />} />
           <Route path="/defunciones" element={<CargaDefunciones usuario={usuario} multicentro={esMulticentro} />} />
           <Route path="/registros/mm" element={<RegistroMMMN tipo="MM" />} />
-          <Route path="/registros/mn" element={<RegistroMMMN tipo="MN" />} />
+          <Route path="/registros/mi" element={<RegistroMMMN tipo="MI" />} />
+          {/* Alias heredado: el módulo se llamaba MN (0–30 días) y pasó a MI (<1 año). */}
+          <Route path="/registros/mn" element={<RegistroMMMN tipo="MI" />} />
           <Route path="/codificacion" element={<Codificacion usuario={usuario} />} />
           <Route path="/vigilancia" element={<Vigilancia usuario={usuario} />} />
           <Route path="/vigilancia/epi15" element={<Epi15 usuario={usuario} />} />

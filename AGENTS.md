@@ -181,6 +181,12 @@ Idioma de trabajo: **responder siempre en español**.
     no se toca** (es lo que leen el tablero y `conciliar_mm`; el bloque de la madre es respaldo, no
     reemplazo). Pruebas en `registros/tests.py::DefuncionEV14Tests`. Análisis de las capturas del usuario y
     el registro semanal MM/MN ya hecho en `PENDIENTES.md` §23.
+    **(11/11/2026, §44) `edad`/`edad_unidad` son la fuente primaria de la edad del fallecido:** el ETL
+    las lee de `CERTIFICADO."EDAD"`/`"TIPOEDAD"` (`A/M/D/H`) y `edad_unidad` admite **`HORAS`**
+    (migración `0013`); el histórico se rellena con `manage.py completar_edad_defuncion [--ejecutar]`
+    (dry-run, solo `edad IS NULL`, idempotente, ya en `etl_comandos.sh`). Mandan sobre
+    `fecha_nacimiento` en todas las cuentas de mortalidad infantil (`registros/views.py::_dias_de_vida`)
+    porque hay certificados con la fecha de nacimiento mal (el 4957244 la trae un año antes).
     Las capturas están en `capturas/`; para leerlas **hay que pasar por OCR** (`rapidocr_onnxruntime` en
     `.venv`, tesseract no está instalado), porque este entorno no ve imágenes.
   - **Certificado de nacimiento = EV-25 oficial (02/10/2026, migración `0006_nacimiento_ev25`):**
@@ -247,22 +253,34 @@ Idioma de trabajo: **responder siempre en español**.
     desde `Defuncion` + `fecha_nacimiento`. **`partos` y `abortos` no se generan** (el certificado es por
     recién nacido, no por parto; SISV no captura abortos). CSV con BOM de tres secciones
     RESUMEN/MATERNA/INFANTIL. Helper `vigilancia.services.rango_semana`. Frontend: sección en `/reportes`
-    (`Reportes.jsx`). Pruebas `registros/tests.py::ReporteSemanalMMITests` (7).
-  - **Módulo «Registros → MM / MN» por mes (05/11/2026, §43.4):** dos pantallas, `/registros/mm` y
-    `/registros/mn` (`RegistroMMMN.jsx`, entradas «MM (muertes maternas)» y «MN (0–30 días)» del menú
-    Registros), sobre un solo endpoint **`GET /api/registros/reportes/mm-mn-mensual/?anio=`**
-    (`ReportesMMMNView`), que devuelve los **doce meses** con ceros para que la tabla no cambie de forma.
+    (`Reportes.jsx`). Pruebas `registros/tests.py::ReporteSemanalMMITests` (9).
+  - **Módulo «Registros → MM / MI» por mes y semana (05/11/2026 §43.4; MI y semanas 11/11/2026 §44):**
+    dos pantallas, `/registros/mm` y `/registros/mi` (`RegistroMMMN.jsx`, entradas «Muerte Materna (MM)»
+    y «Muerte Infantil (MI)» del menú Registros; `/registros/mn` queda como alias heredado), sobre un
+    solo endpoint **`GET /api/registros/reportes/mm-mi-mensual/?anio=`** (`ReportesMMMNView`, con
+    `mm-mn-mensual/` como alias heredado), que
+    devuelve los **doce meses** con ceros para que la tabla no cambie de forma y, dentro de cada mes, la
+    **cascada de semanas epidemiológicas que empiezan en él** (la semana va de domingo a sábado y se
+    asigna al mes de su domingo, así que la suma de las semanas puede diferir en unos casos del total
+    mensual, que es calendario; el año sí cuadra) con tope en la última semana ya empezada.
     MM sale del registro de investigación con la misma regla y el mismo fallback al certificado que el
-    tablero (`mm_fuente`, `mm_certificadas`); MN es 0–30 días inclusive contado por mes de la defunción.
+    tablero (`mm_fuente`, `mm_certificadas`); **MI son los menores de 1 año (0–364 días)**, con el
+    desglose **neonatal** (0–30 días inclusive) y **post-neonatal** (31–364), contados por el mes de la
+    defunción. **La edad declarada en el certificado manda sobre las fechas**: `edad`/`edad_unidad`
+    (que admite `HORAS`, migración `0013`) sale de `CERTIFICADO."EDAD"`/`"TIPOEDAD"` en el ETL y con
+    `manage.py completar_edad_defuncion` en el histórico; `fecha_nacimiento` es solo el respaldo, porque
+    hay certificados con la fecha mal (el **4957244**, 20 minutos de vida, la trae un año antes y se
+    mostraba como «1 año», fuera de la mortalidad infantil).
     **Muertes violentas:** las fichas `LEGACY-VIOLENTA` (`M_VIOLENTA` del legacy, **12.409 casos, 87 %
     hombres**) se muestran en columna aparte (`mv`) y se suman en `mm_mv` («Total MM + violentas»),
     porque la oficina reporta el indicador como «17 + 1 violenta». Definición elegida por el usuario:
     **todas las del registro legacy**, no solo mujeres ni edad fértil. Dos límites que la pantalla avisa:
     el legacy **dejó de alimentar `M_VIOLENTA` el 26/01/2022** (2022 en adelante sale 0, y eso no
     significa que no haya habido muertes violentas) y **8.683 de las 12.409 fichas no traen
-    establecimiento**, así que un usuario de centro solo ve las atribuidas. Datos al 05/11/2026:
-    2026 → MM 18 / violentas 0 / MN 269; 2025 → MM 39 / MN 395; 2021 → MM 58 / violentas 409 / MN 418.
-    Pruebas `registros/tests.py::ReportesMMMNTests` (7).
+    establecimiento**, así que un usuario de centro solo ve las atribuidas. Datos al 05/11/2026 (con la
+    definición MN 0–30 de entonces; ahora la pantalla cuenta MI <1 año): 2026 → MM 18 / violentas 0 /
+    MN 269; 2025 → MM 39 / MN 395; 2021 → MM 58 / violentas 409 / MN 418.
+    Pruebas `registros/tests.py::ReportesMMMNTests` (11).
 - **Limpiar legacy fuera de Lara / demo (24/09/2026):** `manage.py limpiar_legacy_no_lara` (criterio
   **centro Lara + domicilio Lara**, economía del árbol DES LARA=67754/DPS LARA=3441583108; dry-run por
   defecto, `--ejecutar` aplica). Ejecutado: **Nacimientos 438.577, Defunciones 171.115, Fichas 0,
@@ -586,7 +604,8 @@ recordar qué traer:
   reemplaza el espejo crudo local (`sismai`/`inbdlar1`/`historico`; conserva `legacy`), copia
   `espejo_extra` y **corre el ETL en casa** (importar_legacy_registros/vigilancia,
   recuperar_establecimiento_defuncion, asignar_organizacion_legacy, completar_numero_certificado,
-  completar_nacimiento_legacy, sembrar_registradores_legacy). `--solo-certificados` es el camino
+  completar_edad_defuncion, completar_nacimiento_legacy, sembrar_registradores_legacy).
+  `--solo-certificados` es el camino
   rápido aditivo (`aplicar_dump_oficina.py`, resuelve centro por `establecimiento`).
   **Nunca trae** `territorio_apn` (estática) ni tablas de la app; el refresco es aditivo y
   conserva la codificación CIE (124.500 codificadas / 49.840 pendientes) y la configuración.
@@ -817,26 +836,32 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
 - Componentes frontend clave: `CIESearch` (autocomplete + cascada CIE-11 + subgrupos obligatorios),
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
-- **Pruebas automatizadas (05/11/2026):** backend con `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
+- **Pruebas automatizadas (11/11/2026):** backend con
+  `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
   (**correr desde `backend/`** — desde la raíz descubre 0 tests),
-  (**370 pruebas a 05/11/2026** (verificado, 358 s): 115 de `backend/tests_sisv.py` + 49 de `backend/despacho/tests.py`
-  (24 + 3 del reporte agrupado + 11 de las series deducidas + 7 del redondeo al corte de decena, §36
-  + 1 del centro obligatorio sin organización, §37 + 3 del número impreso visible, §31.2)
-  + 4 de `registros/tests_completar_numero_certificado.py`
-  + 26 de `backend/registradores/tests.py` (§37)
-  + 33 de `conciliacion` (16 ENO +
-  9 neonatal + 8 materna) + 34 de `registros/tests.py` (2 EV-14, 7 de las secciones del
-  certificado EV-14, 6 del EV-25, 7 del reporte semanal MM/MN, 5 de meses degradados y 7 del
-  módulo MM/MN de §43.4) + 6 de `registros/tests_recuperar_establecimiento.py`
-  + 6 de `registros/tests_completar_nacimiento.py` + 7 de `registros/tests_calidad.py` (§35)
-  + 5 de `registros/tests_dividir_nombres.py` + **35 de `registros/tests_cargar_lara.py`** (§27.8.1);
-  requiere
-  `__init__.py` en las
-  apps — registros, seguridad, territorio y catalogos eran namespace packages y por eso el
-  descubrimiento fallaba);
-  frontend con `npm test` (Vitest, 18 pruebas en `src/utils/cie.test.js`, `src/utils/numero.test.js`
-  y `src/api/sisv.test.js`).
-  Verificación manual: `manage.py check` y `npm run build`.
+  (**381 pruebas a 11/11/2026** — verificado, `Ran 381 tests in 358.569s`, `OK`):
+  - `registros/tests.py` **135**: CRUD de nacimientos (8), permisos (4), alcance (5), tablero (2),
+    reportes/configuración (5), año epidemiológico (3), MM (4), defunción y ficha (2),
+    **EV-14 (7 + 7 ampliado)**, cobertura del tablero (4), meses degradados (5), `CargarMMMNTests` (20),
+    **EV-25 (9)**, **`ReporteSemanalMMITests` (9)**, **`ReportesMMMNTests` (11, §43.4/§44:
+    MI 0–364 con desglose, edad declarada sobre `FECHA_N`, cascada semanal, alias de ruta)**,
+    sugerencia por catálogo (4), `proponer_codificacion` (5), consulta/confirmación (8),
+    número físico (10) y saneo del `|` de `exportar_rutalara` (3).
+  - `despacho/tests.py` **49** (talonarios, cruce, novedades, alcance, reportes 12,
+    series deducidas 11, redondeo al corte de decena 7, §36/§37).
+  - `conciliacion/tests.py` **33** (ENO 16, neonatal 9, materna 8), `vigilancia/tests.py` **32**
+    (semana 9, eventos 2, consolidados 9, resumen 3, EPI-15 mensual 5, mapeo legacy 4),
+    `seguridad/tests.py` **12**, `territorio/tests.py` **11**, `registradores/tests.py` **26** (§37),
+    `catalogos/tests.py` **5**, `legacy/tests.py` **5**.
+  - Comandos de mantenimiento: `tests_completar_numero_certificado.py` **4**,
+    `tests_recuperar_establecimiento.py` **6**, `tests_completar_nacimiento.py` **6**,
+    `tests_calidad.py` **9** (§35), `tests_dividir_nombres.py` **10**,
+    **`tests_completar_edad_defuncion.py` 3 (§44)**, `tests_cargar_lara.py` **35** (§27.8.1).
+  - Requiere `__init__.py` en las apps — registros, seguridad, territorio y catalogos eran
+    namespace packages y por eso el descubrimiento fallaba.
+  - Frontend con `npm test` (Vitest, 18 pruebas en `src/utils/cie.test.js`,
+    `src/utils/numero.test.js` y `src/api/sisv.test.js`).
+  - Verificación manual: `manage.py check` y `npm run build`.
 - **Seguridad (23/09/2026):** la API exige sesión por defecto (`IsAuthenticated` global; públicos solo
   `/api/auth/login|logout|me|csrf` y `/api/`). Rate limiting del login en `seguridad/throttle.py`
   (5 intentos/5 min → 429 con bloqueo 15 min). Dependencias auditadas sin vulnerabilidades
