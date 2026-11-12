@@ -4834,53 +4834,87 @@ la auditoría neonatal y el indicador de pantalla ya salen de la misma regla y n
 - Suite backend **382 OK** (`Ran 382 tests in 179 s`, corrida completa desde `backend/`);
   `npm test` (18) y `npm run build` sin errores.
 
-## 45. [PENDIENTE] Reporte de productividad: transcripciones por usuario
+## 45. [ANÁLISIS 11/11/2026] Productividad por usuario: el legacy ya la guarda para natalidad; SISV no la captura
 
-**Pedido (11/11/2026):** un reporte de **transcripciones por usuario** («algo así como
-productividad»): cuántos certificados/fichas transcribió cada persona, y si se puede cuántos codificó,
-en un rango de fechas y por centro.
+**Pedido:** un reporte de **transcripciones por usuario** («algo así como productividad»): cuántos
+certificados cargó cada persona al sistema. En el legacy **ese reporte ya existe** y su dato está en
+la misma tabla del certificado; lo que no existe es en SISV.
 
-**Lo que hay hoy en la base:**
+**El legacy sí lo tiene (esto corrige lo que se creía).** `sismai."CERTNACIMIENTO"."USUARIO"` guarda el
+**login del transcriptor** y está lleno en **el 100 %** de las filas:
 
-- `RegistroConCIE` (base de `Nacimiento`, `Defuncion` y `FichaVigilancia`) guarda
-  **`codificado_por`/`codificado_en`** (quién confirmó el CIE y cuándo) y **`creado_en`**, pero
-  **no guarda quién transcribió**: el alta no deja autor. Por eso **el reporte no se puede calcular
-  con los datos actuales**.
-- `ConsolidadoSemanal` (vigilancia) **sí** tiene `creado_por`; `Talonario`, `RegistroCivil` y
-  `DesignacionRegistrador` también. Esas partes ya se pueden medir.
-- **El histórico no tiene usuario.** El ETL importa sin autor y el legacy no lo guarda: lo único que
-  existe es `HISTDOC.INSTANCIA`, que es la **estación de trabajo**, no una cuenta verificada, y solo
-  desde el **05/08/2019** (§17). No sirve para atribuir productividad.
-- Tampoco sirve la propuesta de codificación en lote (§41): escribe `sugerencia_*` y deja
-  `codificado_por`/`codificado_en` nulos a propósito (la confirmación es humana).
+| Tabla legacy | Columna | Filas | Con usuario | Logins distintos |
+| --- | --- | --- | --- | --- |
+| `CERTNACIMIENTO` (cabecera del certificado de nacimiento) | `USUARIO` | 439.596 | **439.596 (100 %)** | **311** |
+| `NAC_RNACIDO` / `NAC_MADRE` | `USUARIO` | 439.332 / 439.628 | 100 % | 313 / 318 |
+| `CERTIFICADO` (defunciones) | — | 173.976 | **no existe la columna** | — |
+| `HISTDOC` (bitácora de documentos) | `USUARIO` / `INSTANCIA` | 59.603 | **0** | — |
+| `FICHAS_EPIDEMIOLOGICAS` / `FICHAEPI13` | `USUARIO` | **0 en el espejo** | — | — |
+| `R_TRANSFERENCIA` | `USUARIO` | 0 | — | — |
+| `MOR_ANULADOS` (anulaciones de defunción) | `USUARIO` | 12.630 | 12.630 (100 %) | 34 |
 
-**Propuesta (a aprobar antes de implementar):**
+- **Natalidad es el único módulo con atribución real y completa** (2004–2026). El reporte que la
+  oficina ya usa es, en el fondo, `CERTNACIMIENTO GROUP BY USUARIO` (con `USUARIOS` para el nombre).
+- **Defunciones no se pueden medir así**: `CERTIFICADO` no tiene usuario y `HISTDOC.USUARIO` está
+  **vacío en las 59.603 filas**; lo único que hay es `INSTANCIA`, la **estación de trabajo**, y solo
+  desde el 05/08/2019 (§17). No es una cuenta. La única atribución del módulo es
+  `MOR_ANULADOS.USUARIO` (12.630 anulaciones, 34 logins), que dice **quién anuló**, no quién transcribió.
+- **Fichas**: las dos tablas tienen la columna, pero en el espejo vienen **vacías** (0 filas). Hay que
+  confirmar en producción si es que no se extrajeron o si de verdad no se usan.
 
-1. **Campo nuevo** en `RegistroConCIE`: `transcrito_por` FK a `auth.User` (`null=True`,
-   `on_delete=SET_NULL`, `related_name="+"`, verbose_name «Transcrito por») + migración. Se llena en
-   el **`POST` desde `request.user`**; el ETL, los comandos y las cargas masivas lo dejan **nulo**
-   (no se inventa autor). **No** se toca en `PATCH`: la transcripción es el alta; quien corrige
-   después no se lleva el crédito.
-2. **Serializers y tablas:** exponer `transcrito_por` y `transcrito_por_nombre`, y una columna
-   «Transcrito por» en `/nacimientos`, `/defunciones` y `/vigilancia/fichas` (opcional, para que el
-   transcriptor vea su propio trabajo).
-3. **Endpoint de solo lectura** `GET /api/registros/productividad/` con
-   `?desde=&hasta=&modulo=nacimientos|defunciones|fichas|todos&usuario=&agrupar=dia|semana|mes`:
-   - por usuario: **transcritos**, **codificados** (`codificado_por`), **pendientes de CIE**,
-     promedio por día trabajado y último registro;
-   - respeta `alcance_registros` (CENTRO: solo su gente; REGIONAL: los centros de su estado;
-     MINISTERIO/superusuario: todo) y `organizacion_destino_valida` no aplica porque es lectura;
-   - `formato=csv` con **BOM**, como el resto de reportes.
-4. **Pantalla `/productividad`** en el menú Registros: filtros de fechas, módulo y usuario; tabla por
-   usuario y exportación CSV. **Solo lectura para todos los roles** (es un indicador de gestión, no
-   una acción).
-5. **Consolidados de vigilancia**: ya tienen `creado_por`, así que se incluyen en la misma pantalla
-   como una columna/pestaña aparte («consolidados ENO») en vez de mezclarlos con los certificados.
+**Lo que el reporte da hoy (2026, con el espejo local):**
 
-**Decisión pendiente:** qué cuenta como productividad. La propuesta es **columnas separadas** —
-transcripciones (altas), codificaciones confirmadas y pendientes— y **no un número único**, porque
-transcribir y codificar son roles distintos (TRANSCRIPTOR vs CODIFICADOR en `permisos_de`).
+| Login | Certificados | Nombre (catálogo `USUARIOS`) | Cargo |
+| --- | --- | --- | --- |
+| MARINAT | 5.325 | MARIANNIS SILVA | OPERADOR ADMINISTRATIVO BACHILLER I |
+| ISISCNAT | 2.632 | ISIS CEDILLO | TRANSCRIPTORA MUNICIPIO 1 |
+| DELIANAT | 1.337 | DELIA MARIANA SANCHEZ | TRANSCRIPTORA MUNICIPIO 1 |
+| YOLISINAT | 340 | YOLIMAR SIRA | TRANSCRIPCIÓN NATALIDAD |
+| JUANANAT | 246 | JUANA E. ALVAREZ BELLO | PROFESIONAL 1 |
+| THANIANAT | 92 | THANIA COLMENAREZ | APOYO TRANSCRIPCIÓN NATALIDAD |
+| MILDRENAT | 66 | MILDREHT LISEHT BALZA | TRANSCRIPCIÓN NATALIDAD |
+| YASMINNAT | 63 | YASMIN HERNANDEZ | MIC |
 
-**Límite honesto:** el reporte **empieza a contar cuando se despliegue el campo**; hacia atrás no hay
-atribución posible. La pantalla debe mostrar una fila **«Sin atribuir»** con el total histórico en
-vez de esconderlo, y el CSV debe llevar la misma aclaración.
+Total 2026: **10.101 certificados** con **8 logins** (2025: 16.896/13; 2024: 17.521/18; 2023:
+19.927/21; 2022: 22.108/26).
+
+**Se puede hacer hoy mismo, sin campo nuevo,** cruzando SISV con el legacy:
+`registros_nacimiento.legacy_id` → `sismai."NAC_RNACIDO"."ID"` → `"HCERTIFICADO"` →
+`sismai."CERTNACIMIENTO"."ID"` → `"USUARIO"`. Comprobado: **439.282 de 439.476** nacimientos unen
+(50 tienen madre/recién nacido pero no certificado; ~144 no encuentran `NAC_RNACIDO`, a revisar si son
+de `cargar_lara_2019_2020`/`cargar_mm_mn_roto`).
+
+**Cuidados al construir el reporte:**
+
+- **El catálogo `USUARIOS` tiene logins repetidos** (`MARIANAT` 9 veces, `MARIAMOR` 7, `MARIAN` 6…):
+  hay que **deduplicar por `LOGIN`** (quedarse con el de `ESTATUS` no nulo / `CREADO` más reciente) o
+  el conteo se duplica. El join ingenuo devolvía 5.325 dos veces para MARINAT.
+- `USUARIOS` trae `NOMBRE`, `CARGO`, `ESTATUS` y `HESTABLECIMIENTO`: sirve para mostrar **quién es** y
+  **dónde** trabaja, no solo el login.
+- **Fecha del indicador:** `FECHACERTIFICADO` es la del certificado y es la que usa el reporte;
+  `FECHAOPERACION` difiere en **44.301 de 439.596 filas (10 %)**. Usar `FECHACERTIFICADO` por defecto y
+  decirlo, porque el mes de productividad es el de la certificación, **no** el del nacimiento.
+- `STATUS` es **0 en las 439.596** (no sirve para filtrar anulados; las anulaciones van a
+  `NAC_ANULADOS`).
+
+**Lo que hay que construir en SISV (para el reporte unificado):**
+
+1. **`transcrito_por`** (FK a `auth.User`, `null`, `SET_NULL`) en `RegistroConCIE`, llenado en el
+   **POST** desde `request.user`; **no** en el `PATCH` (la transcripción es el alta). Aplica a
+   nacimientos, defunciones y fichas nuevas.
+2. **`transcrito_legacy`** (`CharField(20)`) en `Nacimiento`: el login de `CERTNACIMIENTO.USUARIO`,
+   porque los logins legacy (`JUANANAT`) no son cuentas de SISV (`laraepid`) y no se deben mezclar.
+3. **Backfill** `manage.py completar_transcritor_nacimiento [--ejecutar] [--limite N]`: idempotente,
+   solo campos vacíos, por el cruce de arriba; informa de los que no unen. Va a `etl_comandos.sh`.
+4. **Endpoint** `GET /api/registros/productividad/` con `?desde=&hasta=&modulo=&usuario=&agrupar=dia|semana|mes`:
+   por persona y por **origen** (`SISV` / `LEGACY`), con certificados transcritos, codificados
+   (`codificado_por`), pendientes de CIE y promedio por día trabajado; respeta `alcance_registros` y
+   exporta CSV con BOM.
+5. **Pantalla `/productividad`** (menú Registros), solo lectura para todos los roles.
+6. **Defunciones**: hasta que exista `transcrito_por` en SISV, la pantalla debe mostrar **«Sin
+   atribuir»** con el total, no un cero que parezca «no trabajó».
+
+**Decisión pendiente:** si el reporte se hace **leyendo el legacy en vivo** (inmediato, sin migración,
+pero depende del espejo) o **consolidado en SISV** con el campo + backfill (recomendado), y si la
+productividad se mide en **altas** o también en **codificaciones confirmadas** (son roles distintos:
+TRANSCRIPTOR vs CODIFICADOR).

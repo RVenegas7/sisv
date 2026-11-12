@@ -162,10 +162,13 @@ Idioma de trabajo: **responder siempre en español**.
   muertes_maternas (M, `embarazo_o_puerperio=True`) y mmi (fichas `LEGACY-MMI`/`LEGACY-VIOLENTA`),
   respetando alcance; en `/reportes` se renderiza con `GraficoLineas` (SVG propio, anio1 sólido/anio2
   punteado, sin dependencias).
-  **Pendiente (§45 de PENDIENTES.md):** reporte de **productividad por usuario** (transcripciones y
-  codificaciones). Hoy `RegistroConCIE` **no guarda quién transcribió** (solo `codificado_por` y
-  `creado_en`), así que requiere un campo nuevo `transcrito_por` llenado en el POST; el histórico no
-  se puede atribuir.
+  **Pendiente (§45 de PENDIENTES.md):** reporte de **productividad por usuario**. El **legacy sí lo
+  guarda para natalidad**: `sismai."CERTNACIMIENTO"."USUARIO"` (login) está lleno en las **439.596**
+  filas (311 logins) y se une por `registros_nacimiento.legacy_id` → `NAC_RNACIDO."HCERTIFICADO"` →
+  `CERTNACIMIENTO`; **defunciones no** (`CERTIFICADO` sin usuario y `HISTDOC.USUARIO` vacío; solo
+  `MOR_ANULADOS` dice quién anuló). En SISV `RegistroConCIE` **no guarda quién transcribió** (solo
+  `codificado_por`/`creado_en`): faltan `transcrito_por` (altas nuevas) y `transcrito_legacy` +
+  backfill (histórico).
   - **Certificado de defunción = EV-14 oficial (01/10/2026, migración `0005_defuncion_ev14`):**
     `Defuncion` tiene **50 campos más**, todos opcionales (`null`/`blank`) para no romper los certificados
     ya cargados ni el ETL, organizados por las secciones del EV-14: **I** identificación
