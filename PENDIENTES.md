@@ -4834,7 +4834,7 @@ la auditoría neonatal y el indicador de pantalla ya salen de la misma regla y n
 - Suite backend **382 OK** (`Ran 382 tests in 179 s`, corrida completa desde `backend/`);
   `npm test` (18) y `npm run build` sin errores.
 
-## 45. [ANÁLISIS 11/11/2026] Productividad por usuario: el legacy ya la guarda para natalidad; SISV no la captura
+## 45. [PENDIENTE — se implementa después de la prueba del sobre] Productividad por usuario: el legacy ya la guarda para natalidad; SISV no la captura
 
 **Pedido:** un reporte de **transcripciones por usuario** («algo así como productividad»): cuántos
 certificados cargó cada persona al sistema. En el legacy **ese reporte ya existe** y su dato está en
@@ -4918,3 +4918,7 @@ de `cargar_lara_2019_2020`/`cargar_mm_mn_roto`).
 pero depende del espejo) o **consolidado en SISV** con el campo + backfill (recomendado), y si la
 productividad se mide en **altas** o también en **codificaciones confirmadas** (son roles distintos:
 TRANSCRIPTOR vs CODIFICADOR).
+
+**Acuerdo (11/11/2026): queda anotado y NO se implementa todavía.** El usuario pidió hacerlo **después
+de cerrar la prueba del sobre** (§34.1), que es lo urgente. Cuando se retome, el orden es: migración
+(`transcrito_por` + `transcrito_legacy`) → backfill → endpoint → pantalla → pruebas.
