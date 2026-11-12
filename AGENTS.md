@@ -162,6 +162,10 @@ Idioma de trabajo: **responder siempre en español**.
   muertes_maternas (M, `embarazo_o_puerperio=True`) y mmi (fichas `LEGACY-MMI`/`LEGACY-VIOLENTA`),
   respetando alcance; en `/reportes` se renderiza con `GraficoLineas` (SVG propio, anio1 sólido/anio2
   punteado, sin dependencias).
+  **Pendiente (§45 de PENDIENTES.md):** reporte de **productividad por usuario** (transcripciones y
+  codificaciones). Hoy `RegistroConCIE` **no guarda quién transcribió** (solo `codificado_por` y
+  `creado_en`), así que requiere un campo nuevo `transcrito_por` llenado en el POST; el histórico no
+  se puede atribuir.
   - **Certificado de defunción = EV-14 oficial (01/10/2026, migración `0005_defuncion_ev14`):**
     `Defuncion` tiene **50 campos más**, todos opcionales (`null`/`blank`) para no romper los certificados
     ya cargados ni el ETL, organizados por las secciones del EV-14: **I** identificación
@@ -559,13 +563,16 @@ Idioma de trabajo: **responder siempre en español**.
     servidor (`/home/salud/Aplicaciones/SISMAI/`). Desde el equipo de desarrollo responde SMB
     139/445 y RPC 135; **RDP 3389 cerrado**. Es el que produce el quinto archivo del sobre
     (`repllar1*.log`), y por eso **no hay ningún cron en el Linux que lo genere**.
-    **(11/11/2026, §34.1) Prueba en VM (Proxmox + respaldo de producción): sale con 4 de 5, igual que
-    en producción** ⇒ el defecto es del cliente Windows y del estado de `TEMP`, no de la VM ni del
-    respaldo. En los 14 sobres de `enviados/`, los 10 hasta el **04/08/2026** traen 5 archivos, `exp`
-    en inglés, **83 tablas** y `T_CERTNACI`; los 4 desde el **08/09/2026** traen **4**, `exp` en
+    **(11/11/2026, §34.1) Prueba en VM (Proxmox + respaldo de producción) y en un Windows 10 de 32
+    bits instalado desde cero** (cliente SISMAI y cliente de transferencia instalados según las
+    guías): el sobre sale con **4 de 5, igual que en producción** ⇒ el defecto no es de la VM, del
+    respaldo, del Oracle ni de una instalación sucia, sino del **paquete/guía** o de un paso que la
+    guía no cubre. En los 14 sobres de `enviados/`, los 10 hasta el **04/08/2026** traen 5 archivos,
+    `exp` en inglés, **83 tablas** y `T_CERTNACI`; los 4 desde el **08/09/2026** traen **4**, `exp` en
     español, **82 tablas** y **ni `T_CERTNACI` ni `repllar1.log`**: el cambio en el cliente coincidió
     con que la rama de natalidad del `repl` dejara de crear la cabecera (madre y recién nacido sí
-    viajan, huérfanos). El cliente **no aborta** (sin `WHENEVER SQLERROR EXIT`).
+    viajan, huérfanos). El cliente **no aborta** (sin `WHENEVER SQLERROR EXIT`). Falta monitorear el
+    proceso (`procmon`) al generar el envío desde Windows.
   - **Respaldo verificado (02/10/2026, §23):** `migracion/respaldo_total.sh` produjo los 4 `.dmp`
     (SISMAI 1.023 MB / HISTORICO 91 MB / INBDLAR1 2,9 MB / TEMP 16 KB) con `imp SHOW=Y FROMUSER=`
     confirmando que se leen. El parfile lleva `OWNER=` **sin** `FULL=Y` (son excluyentes:

@@ -3570,12 +3570,17 @@ Se ejecutó el reconocimiento de solo lectura `migracion/recon_repllar1.sh` cont
 
 ### 34.1 Prueba en la VM con el sistema legacy (11/11/2026): el defecto se reproduce y no es del servidor
 
-Se instaló **Proxmox en otro disco**, se creó una **VM con el sistema legacy** y se restauró un
-**respaldo actualizado de producción**; desde el cliente Windows se apuntó al servidor nuevo y se
-generó un sobre: **salieron 4 archivos de 5, igual que en producción**. Eso **descarta la VM, el
-respaldo y el Oracle**: el defecto viaja con el **cliente Windows** (`SistemaTransferencia.exe`) y con
-el **estado de `TEMP`** que trae el respaldo (a producción y a la VM les falta exactamente lo mismo).
-La prueba se termina **mañana en la oficina**, que es donde está el acceso al servidor y al cliente.
+Se instaló **Proxmox en otro disco** y se creó una **VM con el sistema legacy** con un **respaldo
+actualizado de producción**. En un **computador con Windows 10 de 32 bits instalado desde cero** se
+instalaron **desde cero y siguiendo las guías** el **cliente SISMAI** y el **cliente de transferencia**,
+y se apuntó al servidor nuevo (la VM); al generar el sobre **salieron 4 archivos de 5, igual que en
+producción**. Eso **descarta la VM, el respaldo, el Oracle y una instalación sucia del cliente**: una
+máquina limpia con el software recién instalado según la guía se comporta igual, así que el defecto
+está en **la versión del paquete/guía de instalación o en un paso que la guía no cubre**, no en el
+estado del equipo. **Mañana se revisa a fondo**, incluida la **ejecución de la generación del envío
+desde Windows con el proceso monitoreado**, para ver exactamente qué hace el paso `repl` (si lanza
+`sqlplus`, con qué script, qué escribe en `T:` y por qué no queda el log). Todo eso se hace **mañana
+en la oficina**, que es donde está el acceso al servidor y al cliente.
 
 **Evidencia en los 14 sobres guardados en `enviados/`** (se abrió cada ZIP y se leyó su
 `routlar1.log`):
@@ -3623,12 +3628,18 @@ La prueba se termina **mañana en la oficina**, que es donde está el acceso al 
 4. **Rehacer el `exp` de `TEMP`** en la VM y comprobar que `routlar1.log` vuelve a listar **83 tablas**
    con `T_CERTNACI` y sus filas. Después, generar el sobre desde el Windows contra la VM y contar
    **5 archivos**.
-5. **En el cliente Windows `192.168.5.133`:** buscar `T:\routlar1\repllar1.log` y
-   `C:\sincfich\nata\replla1_nata.log`, revisar el `.bat`/tarea programada que arma el ZIP (¿sigue
-   redirigiendo la salida y copiándola?, ¿qué unidad `T:` mapea?) y contrastarlo con la guía
-   `SISMAI/GUIAS/Guia_Transferencia_Y_Sincronizaciones_Win.pdf`. Es el único sitio donde puede estar
-   la copia del log que falta.
-6. **Reconocimiento de solo lectura contra producción** (sin tocar nada):
+5. **En el cliente Windows (el de la oficina y el Windows 10 de 32 bits de la prueba):** buscar
+   `T:\routlar1\repllar1.log` y `C:\sincfich\nata\replla1_nata.log`, revisar el `.bat`/tarea
+   programada que arma el ZIP (¿sigue redirigiendo la salida y copiándola?, ¿qué unidad `T:` mapea?)
+   y contrastarlo con la guía `SISMAI/GUIAS/Guia_Transferencia_Y_Sincronizaciones_Win.pdf`. Es el
+   único sitio donde puede estar la copia del log que falta.
+6. **Monitorear la generación del sobre desde Windows** (lo que se hará mañana): lanzar
+   `SistemaTransferencia.exe` con **Process Monitor** (`procmon`, filtrado por el proceso y por
+   `T:\routlar1\`) y/o desde una consola, y observar **si invoca `sqlplus`/`sqlplusw`, qué `.sql`
+   abre, si se crea `repllar1.log` y qué código de salida recibe**. Repetir contra la VM y contra
+   producción: la diferencia entre ambas dice si el paso `repl` no corre, corre y falla, o corre y su
+   salida no se copia al ZIP. Revisar también el visor de eventos de Windows y la tarea programada.
+7. **Reconocimiento de solo lectura contra producción** (sin tocar nada):
    `./migracion/recon_repllar1.sh` + `migracion/diagnostico_certnaci.sql`; comparar `LAST_DDL_TIME`,
    la lista de `TEMP.T_*` y el pulso de la cola viva.
 
@@ -3641,8 +3652,9 @@ importable con `imp SHOW=Y`. **Nada de esto se aplica en producción hasta repro
 > arregla el del legacy. Sirve como prueba de que el quinto archivo es solo la salida de `sqlplus`.
 
 **Datos por confirmar del usuario (mañana):** nombres exactos de los 4 archivos que salieron en la
-prueba de la VM, si la VM es accesible desde la oficina y si `SistemaTransferencia.exe` mostró algún
-error (hasta ahora no aborta ni avisa).
+prueba de la VM (¿son `routlar1.dmp`, `routlar1.log`, `bloqlar1.log`, `copyhistlar1.log`?), si la VM es
+accesible desde la oficina y si `SistemaTransferencia.exe` mostró algún error (hasta ahora no aborta ni
+avisa).
 
 **Repetir tras la actualización del servidor** (mismo reconocimiento, solo lectura):
 `./migracion/recon_repllar1.sh` y `diagnostico_certnaci.sql`; comparar `LAST_DDL_TIME` de `TEMP.T_*`,
@@ -4821,3 +4833,54 @@ la auditoría neonatal y el indicador de pantalla ya salen de la misma regla y n
   `tests_cargar_lara`).
 - Suite backend **382 OK** (`Ran 382 tests in 179 s`, corrida completa desde `backend/`);
   `npm test` (18) y `npm run build` sin errores.
+
+## 45. [PENDIENTE] Reporte de productividad: transcripciones por usuario
+
+**Pedido (11/11/2026):** un reporte de **transcripciones por usuario** («algo así como
+productividad»): cuántos certificados/fichas transcribió cada persona, y si se puede cuántos codificó,
+en un rango de fechas y por centro.
+
+**Lo que hay hoy en la base:**
+
+- `RegistroConCIE` (base de `Nacimiento`, `Defuncion` y `FichaVigilancia`) guarda
+  **`codificado_por`/`codificado_en`** (quién confirmó el CIE y cuándo) y **`creado_en`**, pero
+  **no guarda quién transcribió**: el alta no deja autor. Por eso **el reporte no se puede calcular
+  con los datos actuales**.
+- `ConsolidadoSemanal` (vigilancia) **sí** tiene `creado_por`; `Talonario`, `RegistroCivil` y
+  `DesignacionRegistrador` también. Esas partes ya se pueden medir.
+- **El histórico no tiene usuario.** El ETL importa sin autor y el legacy no lo guarda: lo único que
+  existe es `HISTDOC.INSTANCIA`, que es la **estación de trabajo**, no una cuenta verificada, y solo
+  desde el **05/08/2019** (§17). No sirve para atribuir productividad.
+- Tampoco sirve la propuesta de codificación en lote (§41): escribe `sugerencia_*` y deja
+  `codificado_por`/`codificado_en` nulos a propósito (la confirmación es humana).
+
+**Propuesta (a aprobar antes de implementar):**
+
+1. **Campo nuevo** en `RegistroConCIE`: `transcrito_por` FK a `auth.User` (`null=True`,
+   `on_delete=SET_NULL`, `related_name="+"`, verbose_name «Transcrito por») + migración. Se llena en
+   el **`POST` desde `request.user`**; el ETL, los comandos y las cargas masivas lo dejan **nulo**
+   (no se inventa autor). **No** se toca en `PATCH`: la transcripción es el alta; quien corrige
+   después no se lleva el crédito.
+2. **Serializers y tablas:** exponer `transcrito_por` y `transcrito_por_nombre`, y una columna
+   «Transcrito por» en `/nacimientos`, `/defunciones` y `/vigilancia/fichas` (opcional, para que el
+   transcriptor vea su propio trabajo).
+3. **Endpoint de solo lectura** `GET /api/registros/productividad/` con
+   `?desde=&hasta=&modulo=nacimientos|defunciones|fichas|todos&usuario=&agrupar=dia|semana|mes`:
+   - por usuario: **transcritos**, **codificados** (`codificado_por`), **pendientes de CIE**,
+     promedio por día trabajado y último registro;
+   - respeta `alcance_registros` (CENTRO: solo su gente; REGIONAL: los centros de su estado;
+     MINISTERIO/superusuario: todo) y `organizacion_destino_valida` no aplica porque es lectura;
+   - `formato=csv` con **BOM**, como el resto de reportes.
+4. **Pantalla `/productividad`** en el menú Registros: filtros de fechas, módulo y usuario; tabla por
+   usuario y exportación CSV. **Solo lectura para todos los roles** (es un indicador de gestión, no
+   una acción).
+5. **Consolidados de vigilancia**: ya tienen `creado_por`, así que se incluyen en la misma pantalla
+   como una columna/pestaña aparte («consolidados ENO») en vez de mezclarlos con los certificados.
+
+**Decisión pendiente:** qué cuenta como productividad. La propuesta es **columnas separadas** —
+transcripciones (altas), codificaciones confirmadas y pendientes— y **no un número único**, porque
+transcribir y codificar son roles distintos (TRANSCRIPTOR vs CODIFICADOR en `permisos_de`).
+
+**Límite honesto:** el reporte **empieza a contar cuando se despliegue el campo**; hacia atrás no hay
+atribución posible. La pantalla debe mostrar una fila **«Sin atribuir»** con el total histórico en
+vez de esconderlo, y el CSV debe llevar la misma aclaración.
