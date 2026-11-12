@@ -3516,7 +3516,7 @@ llega a **53** (semana epidemiológica). El origen lo confirma: el ETL saca el p
   `?anio=2026&mes=8` da 165 consolidados y el CSV sale con cabecera `mes`. Suite **263 pruebas OK**,
   `makemigrations --check` sin cambios, `npm test` 13 OK y `npm run build` OK.
 
-## 34. [PENDIENTE OFICINA 14/10/2026] Por qué el sobre al central sale con 4 archivos y no 5
+## 34. [PENDIENTE OFICINA 14/10/2026, ampliado 11/11/2026] Por qué el sobre al central sale con 4 archivos y no 5
 
 Se ejecutó el reconocimiento de solo lectura `migracion/recon_repllar1.sh` contra `192.168.5.200`
 (reporte en `auditoria/recon_repllar1_20261014.txt`) y el diagnóstico
@@ -3567,6 +3567,82 @@ Se ejecutó el reconocimiento de solo lectura `migracion/recon_repllar1.sh` cont
    06/10 ya no está en la cola. Si hace falta reenviar ese tramo, el candidato preparado es
    `migracion/encolar_natalidad_legacy.sql` (dry-run por defecto, requiere usuario de aplicación/DBA y
    respaldo de la cola), pero hoy **no es el cuello de botella**: la cola viva funciona.
+
+### 34.1 Prueba en la VM con el sistema legacy (11/11/2026): el defecto se reproduce y no es del servidor
+
+Se instaló **Proxmox en otro disco**, se creó una **VM con el sistema legacy** y se restauró un
+**respaldo actualizado de producción**; desde el cliente Windows se apuntó al servidor nuevo y se
+generó un sobre: **salieron 4 archivos de 5, igual que en producción**. Eso **descarta la VM, el
+respaldo y el Oracle**: el defecto viaja con el **cliente Windows** (`SistemaTransferencia.exe`) y con
+el **estado de `TEMP`** que trae el respaldo (a producción y a la VM les falta exactamente lo mismo).
+La prueba se termina **mañana en la oficina**, que es donde está el acceso al servidor y al cliente.
+
+**Evidencia en los 14 sobres guardados en `enviados/`** (se abrió cada ZIP y se leyó su
+`routlar1.log`):
+
+| Sobres | Archivos | `routlar1.log` | Tablas exportadas | `T_CERTNACI` | `repllar1.log` |
+| --- | --- | --- | --- | --- | --- |
+| 12/11/2025, 15/10/2025, 06/01/2026, 20/01/2026, 24/02/2026, 17/03/2026, 26/05/2026, 30/06/2026, 07/07/2026, **04/08/2026** (10) | **5** | inglés | **83** | **sí** | **24.237 B** |
+| **08/09/2026**, **16/09/2026**, **14/10/2026**, **20/10/2026** (4) | **4** | español | **82** | **no** | **falta** |
+
+- **No es que la tabla venga vacía: no viaja.** `exp` exporta también las tablas sin filas
+  (`. . exporting table … 0 rows exported`), así que la única forma de que `T_CERTNACI` no aparezca en
+  el `.dmp` es que **no exista en `TEMP`**, que es justo lo que confirmó el reconocimiento del 06/10
+  (arriba). **Las tablas dependientes sí viajan:** en el sobre del 08/09 van `T_MADRNACI` (277 filas) y
+  `T_RNACNACI` (277); en el del 14/10, 197/197; en el del 20/10, 186/186. Es decir, el central recibe
+  **madre y recién nacido sin la cabecera del certificado**, huérfanos. El último sobre bueno
+  (04/08/2026) llevaba `T_CERTNACI` con **422 filas**.
+- **Los dos síntomas nacieron juntos.** El `routlar1.log` **cambió de inglés a español** en ese mismo
+  corte, lo que delata que **el cliente Windows (su `NLS_LANG`/instalación) se tocó o reinstaló entre
+  el 04/08 y el 08/09/2026**. En el mismo cambio, el paso `repl` dejó de **copiar su log al sobre** y
+  dejó de **crear `TEMP.T_CERTNACI`**. No son dos fallos independientes: es un solo cambio de
+  orquestador con dos consecuencias.
+- **`repllar1.log` es la salida de `sqlplus`, no del `exp`.** Los logs de los sobres buenos cierran con
+  el **conteo de cada `TEMP.T_*`** (`T_AUDITORIA` 9.118, `T_CASOSMM` 8, `T_CERTMORT` 398,
+  **`T_CERTNACI` 422**, `T_MADRNACI` 422, `T_RNACNACI` 422, …) y traen 83 `Table created.` Es la
+  evidencia de que quien lo genera es la fase de replicación, y por eso su ausencia apunta
+  directamente a esa fase y no al empaquetado.
+- **El cliente no aborta:** `cr_repli.sql` no usa `WHENEVER SQLERROR EXIT`, así que si el `CREATE` de
+  una tabla falla sigue con las demás, termina "bien" y el sobre sale incompleto sin avisar. El
+  `TEMP.T_*` del 06/10 se recreó (40 tablas), pero **sin `T_CERTNACI`**: el fallo es de una rama, no de
+  la fase entera.
+
+**Plan de mañana (oficina), en este orden y empezando por la VM (es desechable):**
+
+1. **Estado de `TEMP` en la VM** (solo lectura):
+   `SELECT object_name, created, last_ddl_time FROM all_objects WHERE owner='TEMP' AND object_type='TABLE' ORDER BY object_name;`
+   y `SELECT COUNT(*) FROM TEMP.T_CERTNACI;` → debe dar **ORA-00942** (no existe). Confirmar también
+   `TEMP.T_EVENTOS` y las colas (`SISMAI.EVENTOS` viva, `EVENTOS_SINC` congelada).
+2. **Leer el SQL de natalidad** en el share (`SincFich/*/cr_repli*.sql`, `cr_repli_nata.sql`) y ubicar
+   el `CREATE TABLE TEMP.T_CERTNACI AS SELECT … FROM SISMAI.CERTNACIMIENTO …`. Compararlo con la copia
+   que corresponda al sobre del **04/08/2026** (el último bueno) para ver qué se cambió.
+3. **Correr ese `repl` a mano en la VM** con `sqlplus` y **capturar el ORA real** (añadiendo
+   `WHENEVER SQLERROR EXIT SQL.SQLCODE` en la prueba, no en producción). Como ya se verificó que
+   **ninguna columna** de la lista falta en `SISMAI.CERTNACIMIENTO` (§34), la sospecha se desplaza a
+   permisos, `TABLESPACE`, una tabla/índice preexistente o una sentencia que se saltó.
+4. **Rehacer el `exp` de `TEMP`** en la VM y comprobar que `routlar1.log` vuelve a listar **83 tablas**
+   con `T_CERTNACI` y sus filas. Después, generar el sobre desde el Windows contra la VM y contar
+   **5 archivos**.
+5. **En el cliente Windows `192.168.5.133`:** buscar `T:\routlar1\repllar1.log` y
+   `C:\sincfich\nata\replla1_nata.log`, revisar el `.bat`/tarea programada que arma el ZIP (¿sigue
+   redirigiendo la salida y copiándola?, ¿qué unidad `T:` mapea?) y contrastarlo con la guía
+   `SISMAI/GUIAS/Guia_Transferencia_Y_Sincronizaciones_Win.pdf`. Es el único sitio donde puede estar
+   la copia del log que falta.
+6. **Reconocimiento de solo lectura contra producción** (sin tocar nada):
+   `./migracion/recon_repllar1.sh` + `migracion/diagnostico_certnaci.sql`; comparar `LAST_DDL_TIME`,
+   la lista de `TEMP.T_*` y el pulso de la cola viva.
+
+**Criterio de aceptación:** sobre con **5 archivos**, `repllar1.log` no vacío y cerrando con los
+conteos, `T_CERTNACI` presente en `TEMP` y en `routlar1.log` (83 tablas) con filas, y el `.dmp`
+importable con `imp SHOW=Y`. **Nada de esto se aplica en producción hasta reproducirlo en la VM.**
+
+> La ruta de SISV (`migracion/generar_ctl_sqlldr.py` + `cargar_temp_sqlldr.sh`) ya produce un
+> `repllar1.log` real y un `TEMP` completo, pero es para **su** sobre (CSV → `sqlldr` → `exp`), no
+> arregla el del legacy. Sirve como prueba de que el quinto archivo es solo la salida de `sqlplus`.
+
+**Datos por confirmar del usuario (mañana):** nombres exactos de los 4 archivos que salieron en la
+prueba de la VM, si la VM es accesible desde la oficina y si `SistemaTransferencia.exe` mostró algún
+error (hasta ahora no aborta ni avisa).
 
 **Repetir tras la actualización del servidor** (mismo reconocimiento, solo lectura):
 `./migracion/recon_repllar1.sh` y `diagnostico_certnaci.sql`; comparar `LAST_DDL_TIME` de `TEMP.T_*`,

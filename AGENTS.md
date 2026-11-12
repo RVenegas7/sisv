@@ -559,6 +559,13 @@ Idioma de trabajo: **responder siempre en español**.
     servidor (`/home/salud/Aplicaciones/SISMAI/`). Desde el equipo de desarrollo responde SMB
     139/445 y RPC 135; **RDP 3389 cerrado**. Es el que produce el quinto archivo del sobre
     (`repllar1*.log`), y por eso **no hay ningún cron en el Linux que lo genere**.
+    **(11/11/2026, §34.1) Prueba en VM (Proxmox + respaldo de producción): sale con 4 de 5, igual que
+    en producción** ⇒ el defecto es del cliente Windows y del estado de `TEMP`, no de la VM ni del
+    respaldo. En los 14 sobres de `enviados/`, los 10 hasta el **04/08/2026** traen 5 archivos, `exp`
+    en inglés, **83 tablas** y `T_CERTNACI`; los 4 desde el **08/09/2026** traen **4**, `exp` en
+    español, **82 tablas** y **ni `T_CERTNACI` ni `repllar1.log`**: el cambio en el cliente coincidió
+    con que la rama de natalidad del `repl` dejara de crear la cabecera (madre y recién nacido sí
+    viajan, huérfanos). El cliente **no aborta** (sin `WHENEVER SQLERROR EXIT`).
   - **Respaldo verificado (02/10/2026, §23):** `migracion/respaldo_total.sh` produjo los 4 `.dmp`
     (SISMAI 1.023 MB / HISTORICO 91 MB / INBDLAR1 2,9 MB / TEMP 16 KB) con `imp SHOW=Y FROMUSER=`
     confirmando que se leen. El parfile lleva `OWNER=` **sin** `FULL=Y` (son excluyentes:
@@ -729,7 +736,8 @@ los **conteos** cuadren a cero y poder plantear retirar el `exp` del legado.
 **hoy no puede enviar** aunque el dato sea correcto: falta el **contenedor**. El sobre real son
 **5 archivos** (`routlar1.dmp` + `routlar1.log` + `bloqlar1.log` + `copyhistlar1.log` +
 `repllar1.log`), de los cuales **el `.dmp` es el 99,5 % del peso** y los logs son del motor legacy;
-los sobres posteriores al corte del 08/09 viajan **con 4** (sin `repllar1.log`, §34). El `.dmp` es
+los sobres posteriores al corte del 08/09 viajan **con 4** (sin `repllar1.log`, §34) y además **sin
+`T_CERTNACI`** (83→82 tablas, §34.1). El `.dmp` es
 binario de `exp` (`EXPORT:V10.01.00`, corrido en Windows, `WE8ISO8859P1`) importado por el central
 como **`TEMP` → usuario `LEGACY`**, **pero su SQL está en claro dentro** (82 `CREATE TABLE`, 85
 `CREATE INDEX`, 82 `INSERT INTO`): la barrera es el **envoltorio**, no el contenido. Vías posibles,
