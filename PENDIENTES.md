@@ -4708,10 +4708,22 @@ regla neonatal de §42:
 Un solo caso de 2026 se rescata **solo** por la edad declarada: el 4957244. Las cifras «MN 2026 = 269»
 de §43.4 y §42 eran con datos hasta octubre y con la definición 0–30 estricta.
 
-⚠ **La conciliación neonatal (`manage.py conciliar_neonatal`) sigue clasificando por fechas**: su lado
-SISV cuenta defunciones con `fecha_nacimiento` y 0–30 días, así que es un **mínimo** y puede diferir en
-unos pocos casos de los certificados con `FECHA_N` mal. No se tocó porque es una auditoría contra el
-registro MMI del legacy, no el indicador de pantalla.
+**Cerrado el 11/11/2026.** La conciliación neonatal tenía su propia copia de la regla (SQL con
+`fecha_nacimiento IS NOT NULL` y `fecha_evento - fecha_nacimiento BETWEEN 0 AND 30`), así que era un
+**mínimo** y dejaba fuera a los certificados con `FECHA_N` mal. Ahora `_sisv` usa la regla única
+`registros.services.dias_de_vida` (la misma del tablero y del módulo MM/MI): la edad declarada manda y
+las fechas son respaldo. Dos efectos deliberados:
+
+- El 4957244 vuelve a entrar a la conciliación (antes quedaba como «1 año»).
+- Un certificado **con edad declarada y sin `fecha_nacimiento`** ahora cuenta; antes no entraba nunca.
+  Por eso el lado SISV puede subir unos pocos casos frente a las cifras históricas de esta sección.
+
+La regla vive en un solo lugar (`registros/services.py::dias_de_vida`) y la importan el tablero, el
+anexo, el módulo MM/MI y este comando: no hay dos criterios que se puedan separar otra vez.
+
+Comprobado con el espejo local (datos hasta el 20/09/2026): `conciliar_neonatal --anio 2026` da
+**SISV 253**, exactamente el mismo `mi_neonatal` de la pantalla MM/MI. Es la comprobación que faltaba:
+la auditoría neonatal y el indicador de pantalla ya salen de la misma regla y no pueden discrepar.
 
 ### 44.4 Pruebas
 
@@ -4724,5 +4736,12 @@ registro MMI del legacy, no el indicador de pantalla.
   certificado de 0 horas y muestra la edad en horas.
 - `registros/tests_completar_edad_defuncion.py` (**3**): el `UPDATE` solo toca edades vacías, acepta
   solo las cuatro unidades y el dry-run no modifica nada.
-- Suite backend **381 OK** (`Ran 381 tests in 358.569s`, corrida completa desde `backend/`);
+- `conciliacion/tests.py::test_la_edad_declarada_manda_sobre_la_fecha_de_nacimiento` (**1**, 11/11/2026):
+  el lado SISV de `conciliar_neonatal` cuenta el caso de 0 horas con `FECHA_N` un año antes, cuenta un
+  certificado sin fecha de nacimiento pero con edad declarada y **no** cuenta uno con un año declarado
+  aunque las fechas digan dos días.
+- `openpyxl==3.1.5` se declaró en `backend/requirements.txt`: `cargar_lara_2019_2020` lo importa al
+  cargar el módulo, así que sin él la suite entera fallaba en un clon limpio (se perdían los 35 tests de
+  `tests_cargar_lara`).
+- Suite backend **382 OK** (`Ran 382 tests in 179 s`, corrida completa desde `backend/`);
   `npm test` (18) y `npm run build` sin errores.

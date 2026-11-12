@@ -224,3 +224,35 @@ def validar_seleccion_cie(version, cie10, cie11, fecha_evento):
         if cie10 and version == "CIE11":
             errores["cie10"] = "Use el catálogo CIE-11 para este evento."
     return errores
+
+
+# Días que representa cada unidad de edad del certificado (las horas van aparte,
+# porque se truncan al día antes de comparar contra los cortes del anexo).
+DIAS_POR_UNIDAD = {"DIAS": 1, "MESES": 30, "ANIOS": 365}
+
+
+def dias_de_vida(edad=None, unidad="", fecha_evento=None, fecha_nacimiento=None):
+    """Días de vida del fallecido, **prefiriendo la edad declarada en el certificado**.
+
+    El certificado legacy guarda la edad del fallecido en ``EDAD`` + ``TIPOEDAD``
+    (``A`` años, ``M`` meses, ``D`` días, ``H`` horas; los recién nacidos se anotan en
+    horas). Esa es la fuente primaria porque ``FECHA_N`` a veces viene mal: el
+    certificado **4957244** (Jacob Alexander Cantillo Castillo, 20 minutos de vida,
+    Hospital Central de Barquisimeto) trae ``FECHA_N = 2025-01-10`` para una muerte del
+    ``2026-01-10``, así que derivar la edad solo de las fechas lo convertía en «1 año»
+    y lo sacaba de la mortalidad infantil (PENDIENTES.md §44).
+
+    Las fechas quedan como respaldo para los certificados sin edad declarada. Devuelve
+    ``None`` cuando no hay ni edad ni fechas utilizables.
+
+    Es la **única** regla de edad de mortalidad infantil: la usan el tablero, el anexo
+    semanal, el módulo MM/MI y la conciliación neonatal, para que no haya dos criterios.
+    """
+    if edad is not None and unidad in ("HORAS", *DIAS_POR_UNIDAD) and edad >= 0:
+        if unidad == "HORAS":
+            return edad // 24
+        return edad * DIAS_POR_UNIDAD[unidad]
+    if fecha_evento and fecha_nacimiento:
+        dias = (fecha_evento - fecha_nacimiento).days
+        return dias if dias >= 0 else None
+    return None

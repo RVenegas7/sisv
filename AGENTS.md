@@ -327,7 +327,8 @@ Idioma de trabajo: **responder siempre en español**.
     era 0-27 hasta el **23/10/2026**, cuando el usuario confirmó la definición de la oficina
     (**0-30 inclusive**: a los 31 días ya no es neonatal). Se aplicó en `registros/views.py`
     (`_neonatales_por_semana`, `contar_neonatales`, `_grupo_edad_anexo`, `_edad_unidad_anexo`),
-    `conciliar_neonatal` (`HORAS_NEONATAL = 30*24`, SQL `<= 30` y `BETWEEN 0 AND 30`),
+    `conciliar_neonatal` (lado legacy con `HORAS_NEONATAL = 30*24` y SQL `<= 30`; lado SISV con la
+    regla compartida `dias_de_vida`),
     `cargar_mm_mn_roto`, rótulos del frontend y pruebas. Con 0-27 el 2026 daba 213 = 213 (corte de
     septiembre); con 0-30 y el espejo al 30/09 el registro aporta **251** y el certificado **243**
     (`conciliar_neonatal --anio 2026`: 62 CUADRA / 20 DIFERENCIA / 9 SOLO_CRUDO / 3 SOLO_SISV,
@@ -363,8 +364,9 @@ Idioma de trabajo: **responder siempre en español**.
     **(año, semana, organización)**. Lado legacy = `sismai."CASOS_MMI"` (registro materno-infantil,
     10.754 casos 2009-2026): los neonatos son edad en **horas** (≤720) o en **días ≤30**, y el centro
     sale de `HDOCUMENTO` → `DOCUMENTO.HORIGEN` → nombre normalizado. Lado SISV =
-    `registros.Defuncion` con fecha de nacimiento conocida y 0-30 días. Dry-run por defecto, `--csv`
-    con BOM, 9 pruebas.
+    `registros.Defuncion` con **la edad declarada en el certificado** (`edad`/`edad_unidad`) y las
+    fechas solo como respaldo, 0-30 días, usando la **misma** regla que el tablero
+    (`registros.services.dias_de_vida`). Dry-run por defecto, `--csv` con BOM, 10 pruebas.
     - ⚠ **`DOCUMENTO."PERIODO"` NO es una semana**: es un número de formulario del centro y sus
       rangos se solapan (en 2019 el periodo 29 va del 2 de enero al 12 de septiembre; 20.446 pares
       solapados). La semana se calcula **en cada lado desde la fecha real** con
@@ -375,7 +377,8 @@ Idioma de trabajo: **responder siempre en español**.
       2025 -1 %, 2026 +7 %): valida la definición de 0-30 días del tablero y el importador.
       2009-2018 sale -10 % a -30 % (el formulario MMI se rellenaba menos que el certificado). Solo
       2019-2020 se invierte (+53 % y +1464 %) por la caída de captura (§20).
-    - El lado SISV solo cuenta defunciones **con fecha de nacimiento**: es un mínimo.
+    - El lado SISV ya no exige fecha de nacimiento: la edad declarada basta, y las fechas son solo el
+      respaldo (11/11/2026, §44). Aun así sigue siendo un mínimo frente al registro de la oficina.
     - **No concilia MM** (eso es `conciliar_mm`, 29/09/2026): `CASOS_MMI` mezcla materna, infantil y
       otras sin marcarlas, y usa `HSEXO` con la convención **inversa** a `RENGLONTELE` (aquí 2 = F,
       allá 2 = M).
@@ -839,7 +842,7 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
 - **Pruebas automatizadas (11/11/2026):** backend con
   `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
   (**correr desde `backend/`** — desde la raíz descubre 0 tests),
-  (**381 pruebas a 11/11/2026** — verificado, `Ran 381 tests in 358.569s`, `OK`):
+  (**382 pruebas a 11/11/2026** — verificado, `Ran 382 tests`, `OK`):
   - `registros/tests.py` **135**: CRUD de nacimientos (8), permisos (4), alcance (5), tablero (2),
     reportes/configuración (5), año epidemiológico (3), MM (4), defunción y ficha (2),
     **EV-14 (7 + 7 ampliado)**, cobertura del tablero (4), meses degradados (5), `CargarMMMNTests` (20),
@@ -849,7 +852,7 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
     número físico (10) y saneo del `|` de `exportar_rutalara` (3).
   - `despacho/tests.py` **49** (talonarios, cruce, novedades, alcance, reportes 12,
     series deducidas 11, redondeo al corte de decena 7, §36/§37).
-  - `conciliacion/tests.py` **33** (ENO 16, neonatal 9, materna 8), `vigilancia/tests.py` **32**
+  - `conciliacion/tests.py` **34** (ENO 16, neonatal 10, materna 8), `vigilancia/tests.py` **32**
     (semana 9, eventos 2, consolidados 9, resumen 3, EPI-15 mensual 5, mapeo legacy 4),
     `seguridad/tests.py` **12**, `territorio/tests.py` **11**, `registradores/tests.py` **26** (§37),
     `catalogos/tests.py` **5**, `legacy/tests.py` **5**.

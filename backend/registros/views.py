@@ -19,6 +19,7 @@ from .calidad import q_sospechosos
 from .presentacion import detalle_certificado
 from .serializers import DefuncionSerializer, FichaVigilanciaSerializer, NacimientoSerializer
 from .services import (
+    dias_de_vida,
     muerte_materna_detalle,
     muerte_materna_por_organizacion,
     muerte_materna_por_semana,
@@ -213,35 +214,6 @@ def _por_semana(qs):
     return {int(se): n for se, n in contador.items()}
 
 
-# Días que representa cada unidad de edad del certificado (las horas van aparte,
-# porque se truncan al día antes de comparar contra los cortes del anexo).
-DIAS_POR_UNIDAD = {"DIAS": 1, "MESES": 30, "ANIOS": 365}
-
-
-def _dias_de_vida(edad=None, unidad="", fecha_evento=None, fecha_nacimiento=None):
-    """Días de vida del fallecido, **prefiriendo la edad declarada en el certificado**.
-
-    El certificado legacy guarda la edad del fallecido en ``EDAD`` + ``TIPOEDAD``
-    (``A`` años, ``M`` meses, ``D`` días, ``H`` horas; los recién nacidos se anotan en
-    horas). Esa es la fuente primaria porque ``FECHA_N`` a veces viene mal: el
-    certificado **4957244** (Jacob Alexander Cantillo Castillo, 20 minutos de vida,
-    Hospital Central de Barquisimeto) trae ``FECHA_N = 2025-01-10`` para una muerte del
-    ``2026-01-10``, así que derivar la edad solo de las fechas lo convertía en «1 año»
-    y lo sacaba de la mortalidad infantil (PENDIENTES.md §44).
-
-    Las fechas quedan como respaldo para los certificados sin edad declarada. Devuelve
-    ``None`` cuando no hay ni edad ni fechas utilizables.
-    """
-    if edad is not None and unidad in ("HORAS", *DIAS_POR_UNIDAD) and edad >= 0:
-        if unidad == "HORAS":
-            return edad // 24
-        return edad * DIAS_POR_UNIDAD[unidad]
-    if fecha_evento and fecha_nacimiento:
-        dias = (fecha_evento - fecha_nacimiento).days
-        return dias if dias >= 0 else None
-    return None
-
-
 def _neonatales_por_semana(qs):
     """Muertes neonatales (0-30 días de vida, inclusive) por semana epidemiológica venezolana."""
     contador = Counter()
@@ -250,7 +222,7 @@ def _neonatales_por_semana(qs):
     ):
         if not fecha_evento:
             continue
-        dias = _dias_de_vida(edad, unidad, fecha_evento, fecha_nacimiento)
+        dias = dias_de_vida(edad, unidad, fecha_evento, fecha_nacimiento)
         if dias is not None and dias <= 30:
             contador[semana_epidemiologica(fecha_evento)[1]] += 1
     return {int(se): n for se, n in contador.items()}
@@ -262,7 +234,7 @@ def contar_neonatales(qs):
     for fecha_evento, fecha_nacimiento, edad, unidad in qs.values_list(
         "fecha_evento", "fecha_nacimiento", "edad", "edad_unidad"
     ):
-        dias = _dias_de_vida(edad, unidad, fecha_evento, fecha_nacimiento)
+        dias = dias_de_vida(edad, unidad, fecha_evento, fecha_nacimiento)
         if dias is not None and dias <= 30:
             total += 1
     return total
@@ -1286,7 +1258,7 @@ def _grupo_edad_anexo(fecha_evento, fecha_nacimiento, edad=None, unidad=""):
     (inclusive), infantil 31-364 días (menor de un año) y 1 a 4 años. Fuera de eso
     devuelve `None` y la muerte no entra al registro.
     """
-    dias = _dias_de_vida(edad, unidad, fecha_evento, fecha_nacimiento)
+    dias = dias_de_vida(edad, unidad, fecha_evento, fecha_nacimiento)
     if dias is None:
         return None
     if dias <= 30:
@@ -1308,7 +1280,7 @@ def _edad_unidad_anexo(fecha_evento, fecha_nacimiento, edad=None, unidad=""):
         codigo = {"HORAS": "H", "DIAS": "D", "MESES": "M", "ANIOS": "A"}.get(unidad)
         if codigo:
             return edad, codigo
-    dias = _dias_de_vida(None, "", fecha_evento, fecha_nacimiento)
+    dias = dias_de_vida(None, "", fecha_evento, fecha_nacimiento)
     if dias is None:
         return None, ""
     if dias <= 30:
@@ -1600,7 +1572,7 @@ class ReportesMMMNView(APIView):
         ):
             if not fecha_evento:
                 continue
-            dias = _dias_de_vida(edad, unidad, fecha_evento, fecha_nacimiento)
+            dias = dias_de_vida(edad, unidad, fecha_evento, fecha_nacimiento)
             if dias is None or dias > 364:
                 continue
             mes = fecha_evento.month

@@ -278,6 +278,42 @@ class ConciliarNeonatalCommandTests(TestCase):
         self.assertEqual(f.legado, 2)
         self.assertEqual(f.cantidad_centros_legacy, 1)
 
+    def test_la_edad_declarada_manda_sobre_la_fecha_de_nacimiento(self):
+        """Regresión del 4957244: 0 horas con FECHA_N un año antes sigue siendo neonatal.
+
+        `_sisv` no filtra con `fecha_evento - fecha_nacimiento` en SQL: usa la regla
+        única del tablero (`registros.services.dias_de_vida`), donde la edad declarada
+        manda y las fechas son solo respaldo. Antes, el caso real del analista quedaba
+        fuera de la conciliación por traer la fecha de nacimiento un año antes, y un
+        certificado sin fecha de nacimiento no se contaba nunca.
+        """
+        from datetime import date
+
+        from registros.models import Defuncion
+
+        # 0 horas de vida y FECHA_N un año antes (el 4957244): neonatal igual.
+        Defuncion.objects.create(
+            registro_numero="D-4957244", fecha_evento=date(2026, 1, 10),
+            fecha_nacimiento=date(2025, 1, 10), edad=0, edad_unidad="HORAS",
+            organizacion=self.org, fallecido_nombres="Jacob", sexo="M",
+        )
+        # 5 días declarados y sin fecha de nacimiento: cuenta por la edad.
+        Defuncion.objects.create(
+            registro_numero="D-SIN-FECHA-N", fecha_evento=date(2026, 1, 10),
+            edad=5, edad_unidad="DIAS",
+            organizacion=self.org, fallecido_nombres="Cinco", sexo="F",
+        )
+        # 1 año declarado con FECHA_N de hace dos días: no es neonatal.
+        Defuncion.objects.create(
+            registro_numero="D-1ANIO", fecha_evento=date(2026, 1, 10),
+            fecha_nacimiento=date(2026, 1, 8), edad=1, edad_unidad="ANIOS",
+            organizacion=self.org, fallecido_nombres="Otro", sexo="F",
+        )
+
+        from conciliacion.management.commands.conciliar_neonatal import Command
+        filas = Command()._sisv(2026)
+        self.assertEqual(sum(n for _o, _a, _s, n in filas), 2)
+
     def test_sin_ejecutar_no_escribe_nada(self):
         self._correr(legacy=[(10, 2026, 5, 4)], sisv=[(self.org.id, 2026, 5, 4)],
                      ejecutar=False)

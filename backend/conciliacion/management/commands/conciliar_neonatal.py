@@ -4,8 +4,12 @@ Lado legacy: `sismai."CASOS_MMI"` (registro materno-infantil), tomando solo los
 neonatos —edad en horas, o en días de 0 a 30 (inclusive)— y atribuyendo cada caso al
 establecimiento que reportó el sobre ENO (`HDOCUMENTO` → `DOCUMENTO.HORIGEN`).
 
-Lado SISV: `registros.Defuncion` con fecha de nacimiento conocida y 0 a 30 días
-de vida, inclusive. Es la misma definición que usa el tablero.
+Lado SISV: `registros.Defuncion` con 0 a 30 días de vida, inclusive, tomando la
+**edad declarada en el certificado** (`EDAD`/`TIPOEDAD` → `edad`/`edad_unidad`) y
+las fechas solo como respaldo. Es la misma regla que el tablero
+(`registros.services.dias_de_vida`), porque `FECHA_N` a veces viene mal: el
+certificado 4957244 trae un año de diferencia y con las fechas salía como «1 año»
+(PENDIENTES.md §44).
 
 ⚠ **La semana se calcula en los dos lados desde la fecha real del evento**, nunca
 desde `DOCUMENTO."PERIODO"`: en el legacy ese campo no es una semana, es un número
@@ -20,12 +24,15 @@ indicador de MM sale de `Defuncion.embarazo_o_puerperio`. Ver PENDIENTES.md §20
 import csv
 import os
 from collections import defaultdict
+from datetime import date
 
 from django.core.management.base import BaseCommand
 from django.db import connection, transaction
 
 from conciliacion.models import ConciliacionNeonatal
 from conciliacion.services import normalizar_centro
+from registros.models import Defuncion
+from registros.services import dias_de_vida
 from seguridad.models import Organizacion
 from vigilancia.services import semana_epidemiologica
 
@@ -178,23 +185,32 @@ class Command(BaseCommand):
         return [(e, a, s, n) for (e, a, s), n in salida.items()]
 
     def _sisv(self, desde):
-        """[(organizacion, anio, semana, neonatos)] de `registros.Defuncion`."""
-        sql = """
-            SELECT d."organizacion_id", d."fecha_evento"::date, count(*)
-            FROM registros_defuncion d
-            WHERE d."fecha_evento" >= %s AND d."fecha_nacimiento" IS NOT NULL
-              AND (d."fecha_evento"::date - d."fecha_nacimiento"::date) BETWEEN 0 AND 30
-              AND d."organizacion_id" IS NOT NULL
-            GROUP BY 1, 2
+        """[(organizacion, anio, semana, neonatos)] de `registros.Defuncion`.
+
+        La edad sale de la **declarada en el certificado** (`edad`/`edad_unidad`, que
+        es la que trae las horas de los recién nacidos) y, si no la hay, de
+        `fecha_evento - fecha_nacimiento`. Es la regla única del tablero
+        (`registros.services.dias_de_vida`), no una copia: así un certificado con
+        `FECHA_N` mal pero con edad declarada cuenta donde corresponde (el 4957244,
+        §44) y uno con 365 días declarados no entra aunque las fechas digan otra cosa.
+
+        Antes se filtraba en SQL con `fecha_nacimiento IS NOT NULL` y
+        `fecha_evento - fecha_nacimiento BETWEEN 0 AND 30`, lo que dejaba fuera a los
+        certificados sin fecha de nacimiento y metía a los de fecha equivocada.
         """
         salida = defaultdict(int)
-        with connection.cursor() as cur:
-            cur.execute(sql, [f"{desde}-01-01"])
-            for org_id, fecha, n in cur.fetchall():
-                if not fecha:
-                    continue
-                anio, semana = semana_epidemiologica(fecha)
-                salida[(int(org_id), anio, semana)] += int(n or 0)
+        qs = (Defuncion.objects
+              .filter(fecha_evento__gte=date(desde, 1, 1), organizacion__isnull=False)
+              .values_list("organizacion_id", "fecha_evento",
+                           "edad", "edad_unidad", "fecha_nacimiento"))
+        for org_id, fecha, edad, unidad, fecha_nacimiento in qs.iterator():
+            if not fecha:
+                continue
+            dias = dias_de_vida(edad, unidad, fecha, fecha_nacimiento)
+            if dias is None or dias > 30:
+                continue
+            anio, semana = semana_epidemiologica(fecha)
+            salida[(int(org_id), anio, semana)] += 1
         return [(o, a, s, n) for (o, a, s), n in salida.items()]
 
     # ------------------------------------------------------------------  salida
