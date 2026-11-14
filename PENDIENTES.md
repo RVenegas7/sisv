@@ -3516,7 +3516,7 @@ llega a **53** (semana epidemiológica). El origen lo confirma: el ETL saca el p
   `?anio=2026&mes=8` da 165 consolidados y el CSV sale con cabecera `mes`. Suite **263 pruebas OK**,
   `makemigrations --check` sin cambios, `npm test` 13 OK y `npm run build` OK.
 
-## 34. [PENDIENTE OFICINA 14/10/2026, ampliado 11/11/2026] Por qué el sobre al central sale con 4 archivos y no 5
+## 34. [PENDIENTE OFICINA 14/10/2026, ampliado 11/11/2026; **causa raíz hallada 13/11/2026, §34.2**] Por qué el sobre al central sale con 4 archivos y no 5
 
 Se ejecutó el reconocimiento de solo lectura `migracion/recon_repllar1.sh` contra `192.168.5.200`
 (reporte en `auditoria/recon_repllar1_20261014.txt`) y el diagnóstico
@@ -3660,6 +3660,59 @@ avisa).
 `./migracion/recon_repllar1.sh` y `diagnostico_certnaci.sql`; comparar `LAST_DDL_TIME` de `TEMP.T_*`,
 si aparece `T_CERTNACI`, y el pulso de la cola viva `SISMAI.EVENTOS` (debe crecer a diario con
 `CERTIFICADO`/`CERTNACIMIENTO`).
+
+### 34.2 [CAUSA RAÍZ IDENTIFICADA 13/11/2026] Dos erratas en los scripts del cliente: `IDOLD` por `ID_OLD` y `SPOOL T:/…`
+
+**Confirmado por el usuario en la oficina (13/11/2026).** El sobre sale con 4 archivos y sin
+`T_CERTNACI` por **dos defectos de escritura en los `.sql` de la fase `repl`** que corre el cliente
+Windows, no por la VM, el respaldo, el Oracle ni el empaquetado:
+
+| Script | Dice hoy | Debe decir | Consecuencia del error |
+| --- | --- | --- | --- |
+| `cr_repli.sql` (maestro) y `cr_nacimi.sql` (natalidad) | `IDOLD` | **`ID_OLD`** | `ORA-00904: "IDOLD": invalid identifier` en el `CREATE TABLE TEMP.T_CERTNACI AS SELECT … FROM SISMAI.CERTNACIMIENTO`. El cliente **no aborta** (no hay `WHENEVER SQLERROR EXIT`), sigue con las otras 82 tablas y deja el sobre incompleto. |
+| ambos | `SPOOL T:/rout<id>` | **`C:\RoutLar1\…`** | La unidad `T:` no existe en el cliente. `SPOOL` falla con `SP2-0606: Cannot create SPOOL file` — **no es error SQL**, así que tampoco aborta: `repllar1.log` nunca se escribe y por eso el sobre viaja con 4 archivos. |
+
+**Por qué esto cierra §34 y §34.1 (y por qué la verificación anterior no lo vio):**
+
+- La revisión del §34 comprobó que **todas las columnas de la lista existen** en
+  `SISMAI.CERTNACIMIENTO`, y es cierto: `ID_OLD` **sí** está (`backend/legacy/models_legacy.py`,
+  `Certnacimiento.id_old` → `db_column='ID_OLD'`). El `ORA-00904` no venía de una columna de la lista
+  sino **del nombre mal escrito en el `WHERE`/`SELECT`**, que esa comprobación no cubría. De ahí la
+  sospecha errada de «permisos, `TABLESPACE` o sentencia saltada» de §34.1 paso 3.
+  Comprobado en el espejo (`sis_postgres_dev`): `sismai.CERTNACIMIENTO` tiene **`ID_OLD`** y
+  **`ANNO_IDOLD`**, y **ninguna** columna llamada `IDOLD` existe en el esquema `sismai`.
+- **Los dos síntomas nacieron juntos el 08/09/2026** (§34.1): el cliente se reinstaló/actualizó con
+  estos `.sql` ya tocados, y de una sola edición salieron las dos consecuencias — la rama de
+  natalidad no crea la cabecera (`T_CERTNACI`) y la fase `repl` no deja su log (`repllar1.log`).
+- **`T_MADRNACI`/`T_RNACNACI` sí viajan** porque su `CREATE` no depende de la columna mal escrita:
+  madre y recién nacido llegan huérfanos, sin cabecera del certificado, exactamente lo observado.
+
+**Arreglo (oficina, primero en la VM):**
+
+1. Localizar **todos** los `.sql` de la fase `repl` que usen la variable —el `cr_repli.sql` maestro,
+   `cr_nacimi.sql`/`cr_repli_nata.sql` y cualquier copia en `SincFich\*\`— y sustituir
+   `IDOLD` → `ID_OLD`. **Cuidado: `ANNO_IDOLD` es una columna real que lleva la «O» pegada; no se
+   toca.** Conviene buscar `IDOLD` y revisar cada aparición a mano, o con Git Bash en el cliente:
+   ```bash
+   grep -rn "IDOLD" /c/ruta/al/SincFich /c/ruta/al/RoutLar1
+   sed -i 's/\bIDOLD\b/ID_OLD/g' archivo.sql   # solo tras revisar el diff
+   ```
+2. Sustituir la ruta del `SPOOL`: `T:/rout<id>` → `C:\RoutLar1\routlar1_<id>.log` (o el nombre que
+   use el `.bat` para recogerlo). **Crear `C:\RoutLar1\`** y dar permiso de escritura al usuario que
+   corre la tarea programada; si el `.bat` copia el log al ZIP desde `T:`, corregir también esa ruta.
+3. **Recomendado** (no obligatorio para el envío): añadir `WHENEVER SQLERROR EXIT SQL.SQLCODE` al
+   inicio de cada `CREATE`, para que un fallo de una rama **no se pierda en silencio** otra vez. Si el
+   `.bat` captura el código de salida, que avise.
+4. Repetir el `repl` en la VM y verificar antes de tocar producción:
+   `SELECT COUNT(*) FROM TEMP.T_CERTNACI;` (deja de dar `ORA-00942`), `TEMP.T_CERTNACI` en
+   `routlar1.log` (**83 tablas**) y `repllar1.log` creado y cerrando con los conteos de cada `T_*`.
+5. Generar el sobre desde Windows y contar **5 archivos**. Criterio de aceptación de §34.1 sin cambios.
+
+> Los `.sql` **no viven en este repositorio** (están en el share `\\SRVSIS\Salud\SISMAI\` y en el
+> disco del cliente `192.168.5.133`), así que no hay cambio de código que commitear: la corrección es
+> en el cliente. Lo que se conserva aquí es el diagnóstico y el procedimiento. Si el usuario consigue
+> una copia de los `.sql`, conviene guardarla en `migracion/cliente_windows/` para poder versionar la
+> diferencia (hoy no existe esa carpeta).
 
 ## 35. [HECHO 14/10/2026 — informe de calidad] Duplicados, transcripción y caracteres raros en el número real del certificado
 

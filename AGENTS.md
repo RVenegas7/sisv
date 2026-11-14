@@ -576,6 +576,13 @@ Idioma de trabajo: **responder siempre en español**.
     con que la rama de natalidad del `repl` dejara de crear la cabecera (madre y recién nacido sí
     viajan, huérfanos). El cliente **no aborta** (sin `WHENEVER SQLERROR EXIT`). Falta monitorear el
     proceso (`procmon`) al generar el envío desde Windows.
+    **(13/11/2026, §34.2) Causa raíz hallada:** son **dos erratas en los `.sql` del cliente** —
+    `IDOLD` en vez de **`ID_OLD`** (columna real de `SISMAI.CERTNACIMIENTO`; `ANNO_IDOLD` no se toca)
+    en `cr_repli.sql`/`cr_nacimi.sql`, que hace fallar el `CREATE TABLE TEMP.T_CERTNACI` con
+    `ORA-00904` y el cliente sigue sin abortar; y `SPOOL T:/rout<id>` en una unidad `T:` que no existe
+    → `SP2-0606`, que **no es error SQL**, así que `repllar1.log` nunca se escribe. Los dos síntomas
+    del 08/09/2026 salen de la misma edición del cliente. El arreglo (rutas y reemplazo exacto) está
+    en §34.2; **los `.sql` no están en el repo**, la corrección es en el share/cliente.
   - **Respaldo verificado (02/10/2026, §23):** `migracion/respaldo_total.sh` produjo los 4 `.dmp`
     (SISMAI 1.023 MB / HISTORICO 91 MB / INBDLAR1 2,9 MB / TEMP 16 KB) con `imp SHOW=Y FROMUSER=`
     confirmando que se leen. El parfile lleva `OWNER=` **sin** `FULL=Y` (son excluyentes:
