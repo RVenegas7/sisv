@@ -86,6 +86,12 @@ class _CIEDetalleMixin:
         usuario = obj.codificado_por
         return usuario.get_full_name() or usuario.get_username()
 
+    def get_transcrito_por_nombre(self, obj):
+        if not obj.transcrito_por_id:
+            return None
+        usuario = obj.transcrito_por
+        return usuario.get_full_name() or usuario.get_username()
+
 
 class _OrganizacionMixin:
     def get_organizacion(self, obj):
@@ -123,6 +129,7 @@ class NacimientoSerializer(_VaciosANullMixin, _CIEDetalleMixin, _OrganizacionMix
     organizacion_nivel = serializers.SerializerMethodField()
     sugerencia_origen_label = serializers.SerializerMethodField()
     codificado_por_nombre = serializers.SerializerMethodField()
+    transcrito_por_nombre = serializers.SerializerMethodField()
     sexo_label = serializers.CharField(source="get_sexo_display", read_only=True)
     tipo_parto_label = serializers.CharField(source="get_tipo_parto_display", read_only=True)
     madre_residencia_territorio = serializers.SerializerMethodField()
@@ -164,8 +171,11 @@ class NacimientoSerializer(_VaciosANullMixin, _CIEDetalleMixin, _OrganizacionMix
             "sugerencia_codigo", "sugerencia_titulo", "sugerencia_origen",
             "sugerencia_origen_label", "sugerencia_en",
             "codificado_por", "codificado_por_nombre", "codificado_en",
+            "transcrito_por", "transcrito_por_nombre", "transcrito_en", "transcrito_legacy",
             "organizacion", "organizacion_id", "organizacion_nombre", "organizacion_nivel",
         ]
+        # La autoría la pone el servidor en el POST; nunca el cliente.
+        read_only_fields = ["transcrito_por", "transcrito_en", "transcrito_legacy"]
 
     def get_madre_residencia_territorio(self, obj):
         return _ubicacion_nombres(obj.residencia_ubicacion("madre"))
@@ -198,6 +208,7 @@ class DefuncionSerializer(_VaciosANullMixin, _CIEDetalleMixin, _OrganizacionMixi
     organizacion_nivel = serializers.SerializerMethodField()
     sugerencia_origen_label = serializers.SerializerMethodField()
     codificado_por_nombre = serializers.SerializerMethodField()
+    transcrito_por_nombre = serializers.SerializerMethodField()
 
     class Meta:
         model = Defuncion
@@ -238,8 +249,10 @@ class DefuncionSerializer(_VaciosANullMixin, _CIEDetalleMixin, _OrganizacionMixi
             "sugerencia_codigo", "sugerencia_titulo", "sugerencia_origen",
             "sugerencia_origen_label", "sugerencia_en",
             "codificado_por", "codificado_por_nombre", "codificado_en",
+            "transcrito_por", "transcrito_por_nombre", "transcrito_en",
             "organizacion", "organizacion_id", "organizacion_nombre", "organizacion_nivel",
         ]
+        read_only_fields = ["transcrito_por", "transcrito_en"]
 
     def validate(self, attrs):
         _validar_cie(attrs, getattr(self, "partial", False), getattr(self, "instance", None))
@@ -256,6 +269,7 @@ class FichaVigilanciaSerializer(_VaciosANullMixin, _CIEDetalleMixin, _Organizaci
     organizacion_nivel = serializers.SerializerMethodField()
     sugerencia_origen_label = serializers.SerializerMethodField()
     codificado_por_nombre = serializers.SerializerMethodField()
+    transcrito_por_nombre = serializers.SerializerMethodField()
 
     class Meta:
         model = FichaVigilancia
@@ -270,8 +284,10 @@ class FichaVigilanciaSerializer(_VaciosANullMixin, _CIEDetalleMixin, _Organizaci
             "sugerencia_codigo", "sugerencia_titulo", "sugerencia_origen",
             "sugerencia_origen_label", "sugerencia_en",
             "codificado_por", "codificado_por_nombre", "codificado_en",
+            "transcrito_por", "transcrito_por_nombre", "transcrito_en",
             "organizacion", "organizacion_id", "organizacion_nombre", "organizacion_nivel",
         ]
+        read_only_fields = ["transcrito_por", "transcrito_en"]
 
     def validate(self, attrs):
         _validar_cie(attrs, getattr(self, "partial", False), getattr(self, "instance", None))

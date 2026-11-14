@@ -156,6 +156,21 @@ export async function reportesMMMN(params = {}) {
   return r.data.data
 }
 
+// §45: certificados transcritos (alta) y codificados (confirmación CIE) por persona.
+export async function productividad(params = {}) {
+  const r = await api.get("/registros/productividad/", { params })
+  return r.data.data
+}
+
+export async function exportarProductividad(params = {}) {
+  const r = await api.get("/registros/productividad/", {
+    params: { ...params, formato: "csv" },
+    responseType: "blob",
+    timeout: TIMEOUT_EXPORT,
+  })
+  return r.data
+}
+
 export async function exportarReporteSemanalMMI(params = {}) {
   const r = await api.get("/registros/reportes/semanal-mmi/", {
     params: { ...params, formato: "csv" },

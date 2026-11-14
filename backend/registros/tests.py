@@ -3,11 +3,12 @@
 import os
 import shutil
 import tempfile
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from unittest.mock import patch
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.utils import timezone
 
 from tests_sisv import SISVBase, FECHA_CORTE
 
@@ -1959,3 +1960,158 @@ class ExportarRutalaraSanearTests(SISVBase):
     def test_pipe_suelto_queda_espacio(self):
         self.assertEqual(_sanear("|"), " ")
 
+
+
+class ProductividadTests(SISVBase):
+    """§45: quién transcribió (alta) y quién codificó, por persona y periodo.
+
+    Se mide en dos columnas porque son roles distintos: TRANSCRIPTOR da de alta y
+    CODIFICADOR confirma el CIE. El histórico de natalidad trae el login de Oracle
+    (`transcrito_legacy`) y no se mezcla con las cuentas de SISV; las defunciones del
+    legacy no se pueden atribuir y se informan como «sin atribuir».
+    """
+
+    def _nac(self, uid, fecha, **extra):
+        datos = dict(
+            registro_numero=uid, fecha_evento=fecha, organizacion=self.org_hcb,
+            madre_nombres="Ana", madre_apellidos="Pérez", madre_cedula="V-1", madre_edad=25,
+        )
+        datos.update(extra)
+        return Nacimiento.objects.create(**datos)
+
+    def _def(self, uid, fecha, **extra):
+        return Defuncion.objects.create(
+            registro_numero=uid, fecha_evento=fecha, organizacion=self.org_hcb,
+            fallecido_nombres="Test", fallecido_apellidos="Uno", sexo="F", **extra,
+        )
+
+    def _url(self, **params):
+        base = {"desde": "2023-01-01", "hasta": "2023-12-31", "modulo": "nacimientos"}
+        base.update(params)
+        partes = "&".join(f"{k}={v}" for k, v in base.items() if v not in (None, ""))
+        return f"/api/registros/productividad/?{partes}"
+
+    def test_el_alta_registra_quien_transcribio(self):
+        self.login(self.u_trans_hcb)
+        r = self.crear_nacimiento("P-ALTA")
+        self.assertEqual(r.status_code, 201)
+        d = r.json()["data"]
+        self.assertEqual(d["transcrito_por"], self.u_trans_hcb.pk)
+        self.assertEqual(
+            d["transcrito_por_nombre"],
+            self.u_trans_hcb.get_full_name() or self.u_trans_hcb.get_username(),
+        )
+        self.assertIsNotNone(d["transcrito_en"])
+
+    def test_el_patch_no_cambia_el_transcriptor(self):
+        self.login(self.u_trans_hcb)
+        creado = self.crear_nacimiento("P-PATCH").json()["data"]
+        self.login(self.u_dire_hcb)
+        r = self.client.patch(
+            f"/api/registros/nacimientos/{creado['id']}/",
+            {"madre_edad": 31, "transcrito_por": self.u_dire_hcb.pk},
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 200)
+        # El campo es read-only en el serializer: el PATCH no lo cambia.
+        self.assertEqual(r.json()["data"]["transcrito_por"], self.u_trans_hcb.pk)
+
+    def test_reporte_agrupa_por_persona_y_mes(self):
+        self._nac("P-1", date(2023, 5, 2), transcrito_por=self.u_trans_hcb,
+                  transcrito_en=timezone.make_aware(datetime(2023, 5, 2, 9, 0)))
+        self._nac("P-2", date(2023, 5, 3), transcrito_por=self.u_trans_hcb,
+                  transcrito_en=timezone.make_aware(datetime(2023, 5, 3, 9, 0)))
+        self._nac("P-3", date(2023, 6, 4), transcrito_por=self.u_trans_hcb,
+                  transcrito_en=timezone.make_aware(datetime(2023, 6, 4, 9, 0)))
+        self._nac("P-SIN", date(2023, 6, 5))  # importado, sin autor
+        self.login(self.u_admin)
+        d = self.client.get(self._url(agrupar="mes")).json()["data"]
+        filas = {(f["usuario"], f["periodo"]): f for f in d["filas"]}
+        mayo = filas[("trans_hcb", "2023-05")]
+        self.assertEqual((mayo["transcritos"], mayo["dias_trabajados"], mayo["promedio_dia"]),
+                         (2, 2, 1.0))
+        self.assertEqual(filas[("trans_hcb", "2023-06")]["transcritos"], 1)
+        self.assertEqual(d["total"]["transcritos"], 3)
+        sin = {s["modulo"]: s for s in d["sin_atribuir"]}
+        self.assertEqual(sin["nacimientos"]["sin_atribuir"], 1)
+        self.assertEqual(sin["nacimientos"]["total"], 4)
+
+    def test_reporte_agrupa_por_dia_y_semana(self):
+        self._nac("P-D", date(2023, 5, 2), transcrito_por=self.u_trans_hcb,
+                  transcrito_en=timezone.make_aware(datetime(2023, 5, 2, 9, 0)))
+        self.login(self.u_admin)
+        dia = self.client.get(self._url(agrupar="dia")).json()["data"]
+        self.assertEqual(dia["filas"][0]["periodo"], "2023-05-02")
+        semana = self.client.get(self._url(agrupar="semana")).json()["data"]
+        self.assertTrue(semana["filas"][0]["periodo"].startswith("2023-S"))
+
+    def test_codificados_se_miden_aparte_de_transcritos(self):
+        self._nac(
+            "P-COD", date(2023, 5, 2), transcrito_por=self.u_trans_hcb,
+            transcrito_en=timezone.make_aware(datetime(2023, 5, 2, 9, 0)),
+            codificado_por=self.u_cod_hcb,
+            codificado_en=timezone.make_aware(datetime(2023, 5, 3, 10, 0)),
+            codificacion_pendiente=False,
+        )
+        self.login(self.u_admin)
+        d = self.client.get(self._url(agrupar="mes")).json()["data"]
+        filas = {(f["usuario"], f["periodo"]): f for f in d["filas"]}
+        self.assertEqual(filas[("trans_hcb", "2023-05")]["transcritos"], 1)
+        self.assertEqual(filas[("trans_hcb", "2023-05")]["codificados"], 0)
+        self.assertEqual(filas[("cod_hcb", "2023-05")]["codificados"], 1)
+
+    def test_el_login_legacy_no_se_mezcla_con_cuentas_sisv(self):
+        self._nac("P-LEG", date(2023, 5, 2), transcrito_legacy="JUANANAT",
+                  transcrito_en=timezone.make_aware(datetime(2023, 5, 2, 9, 0)))
+        self.login(self.u_admin)
+        d = self.client.get(self._url(agrupar="mes")).json()["data"]
+        fila = d["filas"][0]
+        self.assertEqual((fila["origen"], fila["usuario"], fila["transcritos"]), ("LEGACY", "JUANANAT", 1))
+        sin = {s["modulo"]: s for s in d["sin_atribuir"]}
+        self.assertEqual(sin["nacimientos"]["sin_atribuir"], 0)
+
+    def test_defunciones_sin_atribuir_se_informan_con_su_total(self):
+        self._def("D-1", date(2023, 3, 1))
+        self._def("D-2", date(2023, 3, 2))
+        self.login(self.u_admin)
+        d = self.client.get(self._url(modulo="defunciones")).json()["data"]
+        sin = {s["modulo"]: s for s in d["sin_atribuir"]}
+        self.assertEqual(sin["defunciones"]["total"], 2)
+        self.assertEqual(sin["defunciones"]["sin_atribuir"], 2)
+
+    def test_respeta_el_alcance_del_centro(self):
+        self._nac("P-HCB", date(2023, 5, 2), transcrito_por=self.u_trans_hcb,
+                  transcrito_en=timezone.make_aware(datetime(2023, 5, 2, 9, 0)))
+        self._nac("P-CAB", date(2023, 5, 3), organizacion=self.org_cabudare,
+                  transcrito_por=self.u_trans_hcb,
+                  transcrito_en=timezone.make_aware(datetime(2023, 5, 3, 9, 0)))
+        self.login(self.u_trans_hcb)
+        d = self.client.get(self._url()).json()["data"]
+        self.assertEqual(d["total"]["transcritos"], 1)
+        self.assertEqual(len(d["filas"]), 1)
+
+    def test_filtra_por_usuario(self):
+        self._nac("P-1", date(2023, 5, 2), transcrito_por=self.u_trans_hcb,
+                  transcrito_en=timezone.make_aware(datetime(2023, 5, 2, 9, 0)))
+        self._nac("P-2", date(2023, 5, 2), transcrito_por=self.u_dire_hcb,
+                  transcrito_en=timezone.make_aware(datetime(2023, 5, 2, 9, 0)))
+        self.login(self.u_admin)
+        d = self.client.get(self._url(usuario="dire_hcb")).json()["data"]
+        self.assertEqual([f["usuario"] for f in d["filas"]], ["dire_hcb"])
+
+    def test_csv_lleva_bom_y_cabecera(self):
+        self._nac("P-CSV", date(2023, 5, 2), transcrito_por=self.u_trans_hcb,
+                  transcrito_en=timezone.make_aware(datetime(2023, 5, 2, 9, 0)))
+        self.login(self.u_admin)
+        r = self.client.get(self._url(formato="csv"))
+        self.assertEqual(r.status_code, 200)
+        texto = r.content.decode("utf-8")
+        self.assertTrue(texto.startswith("\ufeff"))
+        cabecera = texto.lstrip("\ufeff").splitlines()[0]
+        self.assertIn("transcritos", cabecera)
+        self.assertIn("dias_trabajados", cabecera)
+
+    def test_periodo_invalido_devuelve_400(self):
+        self.login(self.u_admin)
+        r = self.client.get(self._url(agrupar="trimestre"))
+        self.assertEqual(r.status_code, 400)

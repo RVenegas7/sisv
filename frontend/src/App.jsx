@@ -17,6 +17,7 @@ import Asic from "./pages/Asic"
 import Despacho from "./pages/Despacho"
 import Registradores from "./pages/Registradores"
 import RegistroMMMN from "./pages/RegistroMMMN"
+import Productividad from "./pages/Productividad"
 import Login from "./pages/Login"
 
 const NAVEGACION = [
@@ -29,6 +30,7 @@ const NAVEGACION = [
       { enlace: "/registros/mm", rotulo: "Muerte Materna (MM)" },
       { enlace: "/registros/mi", rotulo: "Muerte Infantil (MI)" },
       { enlace: "/codificacion", rotulo: "Codificación" },
+      { enlace: "/productividad", rotulo: "Productividad por usuario" },
     ],
   },
   {
@@ -184,6 +186,7 @@ export default function App() {
           {/* Alias heredado: el módulo se llamaba MN (0–30 días) y pasó a MI (<1 año). */}
           <Route path="/registros/mn" element={<RegistroMMMN tipo="MI" />} />
           <Route path="/codificacion" element={<Codificacion usuario={usuario} />} />
+          <Route path="/productividad" element={<Productividad />} />
           <Route path="/vigilancia" element={<Vigilancia usuario={usuario} />} />
           <Route path="/vigilancia/epi15" element={<Epi15 usuario={usuario} />} />
           <Route path="/vigilancia/fichas" element={<CargaFichasVigilancia usuario={usuario} multicentro={esMulticentro} />} />

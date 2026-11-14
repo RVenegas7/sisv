@@ -5,6 +5,7 @@ from collections import Counter
 from datetime import date, timedelta
 from statistics import median
 
+from django.db import connection
 from django.db.models import Q, Count, Max
 from django.db.models.functions import TruncMonth, ExtractYear, ExtractMonth
 from django.db.models.functions import Coalesce
@@ -35,7 +36,7 @@ def _int_param(valor, defecto=None):
     except (TypeError, ValueError):
         return defecto
 from catalogos.models import CIE10, CIE11, MapeoCIE
-from seguridad.models import Organizacion
+from seguridad.models import Organizacion, Perfil
 from vigilancia.models import ConsolidadoSemanal
 
 MESES_ES = [
@@ -459,7 +460,13 @@ class _RegistroAPI(APIView):
         org_id = organizacion_por_defecto(request.user, datos)
         if org_id is not None and not organizacion_destino_valida(request.user, org_id):
             return error("La organización destino está fuera de su alcance geográfico.", status=403)
-        obj = s.save(organizacion_id=org_id)
+        # §45: la transcripción se atribuye en el alta, nunca en el PATCH. El autor es
+        # siempre `request.user` (los serializers lo declaran read-only).
+        obj = s.save(
+            organizacion_id=org_id,
+            transcrito_por=request.user if request.user.is_authenticated else None,
+            transcrito_en=timezone.now(),
+        )
         return ok(self.serializer(obj).data, message=f"{self.etiqueta.title()} creado", status=201)
 
     def put(self, request, pk):
@@ -1683,6 +1690,281 @@ class ReportesMMMNView(APIView):
                 ],
             }
         )
+
+
+class ProductividadView(APIView):
+    """§45 — Certificados transcritos y codificados por persona y periodo.
+
+    ``GET /api/registros/productividad/?desde=&hasta=&modulo=&usuario=&agrupar=mes``
+    (``agrupar`` = ``dia`` | ``semana`` | ``mes``; ``formato=csv`` para exportar).
+
+    **Qué mide.** Dos roles distintos, en dos columnas separadas:
+
+    - **Transcritos**: quién dio de alta el certificado (SISV: ``transcrito_por``; el
+      histórico de natalidad: ``transcrito_legacy``, el login de
+      ``sismai."CERTNACIMIENTO"."USUARIO"``).
+    - **Codificados**: quién confirmó el CIE (``codificado_por``), que puede ser otra
+      persona. ``pendientes`` son los transcritos por esa persona que siguen sin código.
+
+    **Fecha del periodo.** ``transcrito_en``: en SISV es el alta real; en el histórico
+    se rellenó con ``CERTNACIMIENTO."FECHACERTIFICADO"``, que es la fecha que usa el
+    reporte de la oficina (el mes de productividad es el de la certificación, no el del
+    nacimiento). ``dias_trabajados`` = días distintos con al menos una transcripción y
+    ``promedio_dia`` = transcritos / días trabajados del periodo.
+
+    **Lo que no se puede atribuir se dice, no se inventa.** Las defunciones del legacy no
+    guardan usuario (``CERTIFICADO`` no tiene la columna y ``HISTDOC.USUARIO`` está vacío),
+    así que aparecen en ``sin_atribuir`` con su total en vez de un cero que parezca «no
+    trabajó». Los logins legacy nunca se mezclan con las cuentas de SISV: van con
+    ``origen="LEGACY"``.
+    """
+
+    PERIODOS = ("dia", "semana", "mes")
+    COLUMNAS = [
+        "usuario", "nombre", "cargo", "origen", "modulo", "periodo",
+        "transcritos", "codificados", "pendientes", "dias_trabajados", "promedio_dia",
+    ]
+
+    @staticmethod
+    def _fecha(valor, defecto):
+        try:
+            return date.fromisoformat(str(valor).strip())
+        except (TypeError, ValueError):
+            return defecto
+
+    @staticmethod
+    def _periodo(fecha, agrupar):
+        if agrupar == "dia":
+            return fecha.isoformat()
+        if agrupar == "semana":
+            anio, semana = semana_epidemiologica(fecha)
+            return f"{anio}-S{semana:02d}"
+        return f"{fecha.year:04d}-{fecha.month:02d}"
+
+    @staticmethod
+    def _nombre(first, last, username):
+        nombre = f"{first or ''} {last or ''}".strip()
+        return nombre or username or ""
+
+    @staticmethod
+    def _rol(rol):
+        return dict(Perfil.ROL_CHOICES).get(rol, rol or "")
+
+    @staticmethod
+    def _cargo_legacy(logins):
+        """Login legacy → (nombre, cargo) del catálogo `sismai.USUARIOS`.
+
+        Deduplica por `LOGIN` (el catálogo tiene logins repetidos: MARIANAT 9 veces) y se
+        queda con el más reciente. Si el espejo no está (sqlite, tests), devuelve vacío en
+        vez de romper el reporte: el login sigue siendo la atribución.
+        """
+        if not logins:
+            return {}
+        try:
+            with connection.cursor() as cur:
+                cur.execute(
+                    'SELECT DISTINCT ON (btrim("LOGIN")) btrim("LOGIN"), btrim("NOMBRE"), '
+                    'btrim("CARGO") FROM sismai."USUARIOS" '
+                    'WHERE btrim(COALESCE("LOGIN", \'\')) = ANY(%s) '
+                    'ORDER BY btrim("LOGIN"), "FEC_CREA" DESC NULLS LAST, "CREADO" DESC NULLS LAST',
+                    [sorted(logins)],
+                )
+                return {login: (nombre or "", cargo or "") for login, nombre, cargo in cur.fetchall()}
+        except Exception:  # noqa: BLE001 - el espejo legacy no existe en sqlite/tests
+            return {}
+
+    def _filas(self, request, desde, hasta, modulo, agrupar):
+        acumulado = {}
+
+        def fila_de(origen, usuario_id, usuario, nombre, cargo, modulo_, periodo):
+            clave = (origen, usuario_id, usuario, modulo_, periodo)
+            return acumulado.setdefault(clave, {
+                "origen": origen, "usuario_id": usuario_id, "usuario": usuario,
+                "nombre": nombre, "cargo": cargo, "modulo": modulo_, "periodo": periodo,
+                "transcritos": 0, "codificados": 0, "pendientes": 0, "_fechas": set(),
+            })
+
+        for clave, modelo in MODELOS.items():
+            if modulo and clave != modulo:
+                continue
+            qs = _por_alcance(
+                modelo.objects.filter(
+                    transcrito_en__isnull=False,
+                    transcrito_en__date__gte=desde,
+                    transcrito_en__date__lte=hasta,
+                ),
+                request,
+            )
+
+            # -- Altas atribuidas a una cuenta de SISV --
+            for r in (
+                qs.filter(transcrito_por__isnull=False)
+                .values(
+                    "transcrito_por_id", "transcrito_por__username",
+                    "transcrito_por__first_name", "transcrito_por__last_name",
+                    "transcrito_por__perfil__rol", "transcrito_en__date",
+                )
+                .annotate(n=Count("id"), pend=Count("id", filter=Q(codificacion_pendiente=True)))
+            ):
+                fecha = r["transcrito_en__date"]
+                fila = fila_de(
+                    "SISV", r["transcrito_por_id"], r["transcrito_por__username"],
+                    self._nombre(r["transcrito_por__first_name"],
+                                 r["transcrito_por__last_name"],
+                                 r["transcrito_por__username"]),
+                    self._rol(r["transcrito_por__perfil__rol"]),
+                    clave, self._periodo(fecha, agrupar),
+                )
+                fila["transcritos"] += r["n"]
+                fila["pendientes"] += r["pend"]
+                fila["_fechas"].add(fecha)
+
+            # -- Altas del histórico de natalidad: login de Oracle, no cuenta de SISV --
+            if any(f.name == "transcrito_legacy" for f in modelo._meta.get_fields()):
+                for r in (
+                    qs.filter(transcrito_legacy__gt="")
+                    .values("transcrito_legacy", "transcrito_en__date")
+                    .annotate(n=Count("id"), pend=Count("id", filter=Q(codificacion_pendiente=True)))
+                ):
+                    fecha = r["transcrito_en__date"]
+                    fila = fila_de(
+                        "LEGACY", None, r["transcrito_legacy"], "", "",
+                        clave, self._periodo(fecha, agrupar),
+                    )
+                    fila["transcritos"] += r["n"]
+                    fila["pendientes"] += r["pend"]
+                    fila["_fechas"].add(fecha)
+
+            # -- Codificaciones confirmadas: otro rol, se mide por su propia fecha --
+            for r in (
+                qs.filter(codificado_por__isnull=False, codificado_en__isnull=False)
+                .values(
+                    "codificado_por_id", "codificado_por__username",
+                    "codificado_por__first_name", "codificado_por__last_name",
+                    "codificado_por__perfil__rol", "codificado_en__date",
+                )
+                .annotate(n=Count("id"))
+            ):
+                fecha = r["codificado_en__date"]
+                fila = fila_de(
+                    "SISV", r["codificado_por_id"], r["codificado_por__username"],
+                    self._nombre(r["codificado_por__first_name"],
+                                 r["codificado_por__last_name"],
+                                 r["codificado_por__username"]),
+                    self._rol(r["codificado_por__perfil__rol"]),
+                    clave, self._periodo(fecha, agrupar),
+                )
+                fila["codificados"] += r["n"]
+
+        logins = {f["usuario"] for f in acumulado.values() if f["origen"] == "LEGACY"}
+        nombres = self._cargo_legacy(logins)
+        filas = []
+        for f in acumulado.values():
+            if f["origen"] == "LEGACY":
+                f["nombre"], f["cargo"] = nombres.get(f["usuario"], ("", ""))
+            dias = len(f.pop("_fechas"))
+            f["dias_trabajados"] = dias
+            f["promedio_dia"] = round(f["transcritos"] / dias, 2) if dias else 0.0
+            if f["transcritos"] or f["codificados"] or f["pendientes"]:
+                filas.append(f)
+        filas.sort(key=lambda f: (-f["transcritos"], -f["codificados"], f["origen"], f["usuario"] or "",
+                                  f["periodo"]))
+        return filas
+
+    def _sin_atribuir(self, request, desde, hasta, modulo):
+        """Registros del periodo que no se pueden atribuir (se informan, no se suman)."""
+        salida = []
+        for clave, modelo in MODELOS.items():
+            if modulo and clave != modulo:
+                continue
+            qs = _por_alcance(
+                modelo.objects.filter(fecha_evento__gte=desde, fecha_evento__lte=hasta), request
+            )
+            atribuidos = qs.filter(transcrito_por__isnull=False)
+            if any(f.name == "transcrito_legacy" for f in modelo._meta.get_fields()):
+                atribuidos = qs.filter(Q(transcrito_por__isnull=False) | Q(transcrito_legacy__gt=""))
+            total = qs.count()
+            con_autor = atribuidos.count()
+            salida.append({
+                "modulo": clave, "total": total, "atribuidos": con_autor,
+                "sin_atribuir": total - con_autor,
+                # El único campo de fecha que tienen todos los registros, con o sin autor.
+                "base_fecha": "fecha_evento",
+            })
+        return salida
+
+    NOTAS = [
+        "El periodo es el de la transcripción: en SISV, el alta real; en el histórico de "
+        "natalidad, la fecha del certificado (CERTNACIMIENTO.FECHACERTIFICADO).",
+        "«Transcritos» (quién dio de alta) y «codificados» (quién confirmó el CIE) son "
+        "roles distintos y pueden ser personas distintas. «Codificados» cuenta solo las "
+        "confirmaciones hechas en SISV: la codificación histórica importada del legacy no "
+        "tiene autor y no se suma.",
+        "Los logins del legacy (p. ej. JUANANAT) no son cuentas de SISV: se muestran aparte "
+        "con origen LEGACY y no se suman con las cuentas del sistema nuevo.",
+        "Las defunciones del sistema anterior no se pueden atribuir (CERTIFICADO no guarda "
+        "usuario y HISTDOC.USUARIO está vacío): aparecen en «sin atribuir» con su total.",
+        "Las filas se cuentan por la fecha de transcripción (o del certificado en el "
+        "histórico); «sin atribuir» se cuenta por fecha del evento, el único campo presente "
+        "en todos los registros, así que sus totales pueden no coincidir.",
+    ]
+
+    def get(self, request):
+        hoy = date.today()
+        defecto_desde = date(hoy.year, 1, 1)
+        desde = self._fecha(request.query_params.get("desde"), defecto_desde)
+        hasta = self._fecha(request.query_params.get("hasta"), hoy)
+        if desde > hasta:
+            desde, hasta = hasta, desde
+        modulo = (request.query_params.get("modulo") or "").strip().lower()
+        if modulo and modulo not in MODELOS:
+            return error(f"Módulo no válido: {modulo}", status=400)
+        agrupar = (request.query_params.get("agrupar") or "mes").strip().lower()
+        if agrupar not in self.PERIODOS:
+            return error(f"Agrupación no válida: {agrupar} (use dia, semana o mes).", status=400)
+
+        filas = self._filas(request, desde, hasta, modulo, agrupar)
+        usuario = (request.query_params.get("usuario") or "").strip().lower()
+        if usuario:
+            filas = [
+                f for f in filas
+                if usuario in (f["usuario"] or "").lower() or usuario in (f["nombre"] or "").lower()
+            ]
+
+        totales = {
+            "transcritos": sum(f["transcritos"] for f in filas),
+            "codificados": sum(f["codificados"] for f in filas),
+            "pendientes": sum(f["pendientes"] for f in filas),
+        }
+        sin_atribuir = self._sin_atribuir(request, desde, hasta, modulo)
+
+        if (request.query_params.get("formato") or "").strip().lower() == "csv":
+            return self._csv(filas, desde, hasta)
+
+        return ok({
+            "desde": desde.isoformat(),
+            "hasta": hasta.isoformat(),
+            "agrupar": agrupar,
+            "modulo": modulo or "todos",
+            "total": totales,
+            "filas": filas,
+            "sin_atribuir": sin_atribuir,
+            "notas": self.NOTAS,
+        })
+
+    def _csv(self, filas, desde, hasta):
+        buffer = io.StringIO()
+        escritor = csv.DictWriter(buffer, fieldnames=self.COLUMNAS)
+        escritor.writeheader()
+        for f in filas:
+            escritor.writerow({c: f.get(c, "") for c in self.COLUMNAS})
+        respuesta = HttpResponse(
+            "\ufeff" + buffer.getvalue(), content_type="text/csv; charset=utf-8"
+        )
+        respuesta["Content-Disposition"] = (
+            f'attachment; filename="productividad_{desde.isoformat()}_{hasta.isoformat()}.csv"'
+        )
+        return respuesta
 
 
 class ReportesExportView(APIView):

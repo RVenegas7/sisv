@@ -4887,7 +4887,7 @@ la auditoría neonatal y el indicador de pantalla ya salen de la misma regla y n
 - Suite backend **382 OK** (`Ran 382 tests in 179 s`, corrida completa desde `backend/`);
   `npm test` (18) y `npm run build` sin errores.
 
-## 45. [PENDIENTE — se implementa después de la prueba del sobre] Productividad por usuario: el legacy ya la guarda para natalidad; SISV no la captura
+## 45. [HECHO 13/11/2026] Productividad por usuario: el legacy ya la guarda para natalidad; SISV no la capturaba
 
 **Pedido:** un reporte de **transcripciones por usuario** («algo así como productividad»): cuántos
 certificados cargó cada persona al sistema. En el legacy **ese reporte ya existe** y su dato está en
@@ -4967,11 +4967,85 @@ de `cargar_lara_2019_2020`/`cargar_mm_mn_roto`).
 6. **Defunciones**: hasta que exista `transcrito_por` en SISV, la pantalla debe mostrar **«Sin
    atribuir»** con el total, no un cero que parezca «no trabajó».
 
-**Decisión pendiente:** si el reporte se hace **leyendo el legacy en vivo** (inmediato, sin migración,
-pero depende del espejo) o **consolidado en SISV** con el campo + backfill (recomendado), y si la
-productividad se mide en **altas** o también en **codificaciones confirmadas** (son roles distintos:
-TRANSCRIPTOR vs CODIFICADOR).
+**Decisión (resuelta el 13/11/2026):** se implementó **consolidado en SISV** (campo + backfill), no
+leyendo el legacy en vivo, y la productividad mide **las dos cosas en columnas separadas**: «transcritos»
+(alta) y «codificados» (confirmación del CIE), porque son roles distintos y pueden ser personas distintas.
+Lo que se construyó está en §45.1.
 
 **Acuerdo (11/11/2026): queda anotado y NO se implementa todavía.** El usuario pidió hacerlo **después
 de cerrar la prueba del sobre** (§34.1), que es lo urgente. Cuando se retome, el orden es: migración
 (`transcrito_por` + `transcrito_legacy`) → backfill → endpoint → pantalla → pruebas.
+
+### 45.1 Implementación (13/11/2026)
+
+**Modelo (migración `registros/0014`).** En `RegistroConCIE` (nacimientos, defunciones y fichas):
+
+- `transcrito_por` — FK a `auth.User`, `null`, `SET_NULL`, `related_name="+"`. Quién **dio de alta** el
+  certificado.
+- `transcrito_en` — `DateTimeField` nulo e indexado (**no estaba en el plan original**, se añadió porque
+  hacía falta un campo de fecha único para agrupar: `creado_en` es del ETL/alta técnica, no del hecho).
+  En SISV es el momento del alta; en el histórico, la **fecha del certificado**.
+- En `Nacimiento`, además, `transcrito_legacy` — `CharField(20)` indexado: el login de
+  `sismai."CERTNACIMIENTO"."USUARIO"`.
+
+Los tres son **read-only en los serializers**: la autoría la pone el servidor, nunca el cliente. El
+`POST` de `_RegistroAPI` graba `transcrito_por=request.user` y `transcrito_en=timezone.now()`; el
+`PATCH`/`PUT` **no los toca** (la transcripción es el alta, no la edición). Los serializers exponen
+también `transcrito_por_nombre` (nombre completo o login, igual que `codificado_por_nombre`).
+
+**Backfill `manage.py completar_transcritor_nacimiento [--ejecutar] [--limite N]`.** Cruce
+`registros_nacimiento.legacy_id` → `sismai."NAC_RNACIDO"."ID"` → `"HCERTIFICADO"` →
+`CERTNACIMIENTO."ID"` → `"USUARIO"`; copia el login y, en `transcrito_en`, `FECHACERTIFICADO` (con
+`COALESCE` a `creado_en`). Dry-run por defecto, **un solo `UPDATE … FROM`**, solo campos vacíos,
+idempotente; informa de los que no unen por separado (`sin NAC_RNACIDO` / `sin certificado enlazado`).
+Añadido a las **dos listas** de `migracion/etl_comandos.sh` (completa y `--solo-certificados`).
+Ejecutado aquí el 13/11/2026 sobre el espejo de casa: **439.282 nacimientos** actualizados, **144** sin
+`NAC_RNACIDO` y **50** sin certificado enlazado (los mismos que ya decía el análisis); la segunda
+corrida informa `0` pendientes y `439.282` ya completos.
+
+**Endpoint `GET /api/registros/productividad/`** (`ProductividadView`, registrado en `registros/urls.py`):
+`?desde=&hasta=&modulo=nacimientos|defunciones|fichas&usuario=&agrupar=dia|semana|mes[&formato=csv]`.
+
+- Una fila por **(origen, persona, módulo, periodo)** con `transcritos`, `codificados`, `pendientes`
+  (transcritos por esa persona que siguen con `codificacion_pendiente`), `dias_trabajados` (días
+  distintos con al menos un alta) y `promedio_dia` (transcritos ÷ días trabajados del periodo).
+- **Origen `SISV`** = cuentas de `auth.User` (`transcrito_por` / `codificado_por`), con nombre y rol.
+  **Origen `LEGACY`** = logins de Oracle (`transcrito_legacy`), **nunca se mezclan ni se suman**; el
+  nombre y el cargo salen de `sismai."USUARIOS"` deduplicado por `LOGIN` (`DISTINCT ON`, porque el
+  catálogo repite logins), y si el espejo no está (sqlite/tests) devuelve vacío en vez de romper.
+- **Codificados se miden por `codificado_en`**, no por la fecha de alta: es otro rol y otra fecha. En la
+  base local dan **0** hasta que se confirmen codificaciones en SISV (el histórico importado no tiene
+  autor); la pantalla lo explica en las notas en vez de fingir que nadie codificó.
+- **`sin_atribuir`** (por módulo: `total`, `atribuidos`, `sin_atribuir`, `base_fecha="fecha_evento"`)
+  informa lo que no se puede atribuir con su total. Se cuenta por **fecha del evento**, que es el único
+  campo de fecha que tienen todos los registros, así que **puede no coincidir** con las filas de arriba
+  (que van por fecha de transcripción/certificado); el endpoint lo dice en `notas` y la pantalla lo
+  advierte bajo la tabla.
+- Respeta `alcance_registros` (se aplica a las tres consultas, incluida la de sin atribuir) y exporta
+  **CSV con BOM** (`Content-Disposition` con las fechas). `?agrupar=` inválido → 400 con el motivo.
+
+**Pantalla `/productividad`** (`frontend/src/pages/Productividad.jsx`, entrada «Productividad por
+usuario» en el menú **Registros**, ruta en `App.jsx`): filtros desde/hasta/módulo/agrupar/usuario,
+tabla por persona con las dos métricas, etiqueta `SISV`/`Legacy`, tabla de «Registros sin atribuir»
+con su aviso, notas del propio endpoint y exportación CSV. **Solo lectura para todos los roles** (no
+llama a ningún permiso de escritura).
+
+**Verificación con datos reales (13/11/2026, PostgreSQL de casa):** 2026, nacimientos, por mes → 200 en
+~0,5 s (el mismo reporte para los tres módulos, ~0,42 s); **13.364 transcritos**, encabezando MARINAT
+con 906 en mayo (18 días, 50,33/día) y nombre/cargo del catálogo legacy («MARIANNIS SILVA — OPERADOR
+ADMINISTRATIVO BACHILLER I»); `sin_atribuir` nacimientos **147 de 10.248** (cuenta por fecha del evento,
+por eso el total no es 13.364), defunciones **6.923 de 6.923** y fichas **338 de 338**. Los 0 de
+`codificados` son reales: `codificado_por_id` está vacío en las tres tablas de la base local.
+
+**Pruebas.** `registros/tests.py::ProductividadTests` (11: alta atribuida, el PATCH no la cambia, agrupación
+por mes/día/semana, promedio y días, codificados aparte, login legacy sin mezclar, defunciones sin
+atribuir, alcance de centro, filtro por usuario, CSV con BOM, `agrupar` inválido) y
+`registros/tests_completar_transcritor.py` (7: tres de la forma del SQL —solo campos vacíos, `--limite`,
+mismo cruce en el `count`— y cuatro del comando: dry-run sin `UPDATE`, aplicación, `--limite` en el
+`UPDATE` e informe de los que no unen). Suite backend **400 OK**; `registros` sola, **226 OK**. Frontend
+`npm test` **20 OK** (2 nuevas de `productividad`/`exportarProductividad`) y `npm run build` sin errores.
+
+**Al desplegar en la oficina:** la migración corre con el `migrate` normal y el backfill va **después del
+refresco del espejo**, ya incluido en `etl_comandos.sh` (no hay que recordarlo). El campo del alta
+(`transcrito_por`) solo empieza a llenarse con los certificados **nuevos** que se carguen en SISV; el
+histórico queda con el login legacy.

@@ -162,13 +162,24 @@ Idioma de trabajo: **responder siempre en español**.
   muertes_maternas (M, `embarazo_o_puerperio=True`) y mmi (fichas `LEGACY-MMI`/`LEGACY-VIOLENTA`),
   respetando alcance; en `/reportes` se renderiza con `GraficoLineas` (SVG propio, anio1 sólido/anio2
   punteado, sin dependencias).
-  **Pendiente (§45 de PENDIENTES.md):** reporte de **productividad por usuario**. El **legacy sí lo
-  guarda para natalidad**: `sismai."CERTNACIMIENTO"."USUARIO"` (login) está lleno en las **439.596**
-  filas (311 logins) y se une por `registros_nacimiento.legacy_id` → `NAC_RNACIDO."HCERTIFICADO"` →
-  `CERTNACIMIENTO`; **defunciones no** (`CERTIFICADO` sin usuario y `HISTDOC.USUARIO` vacío; solo
-  `MOR_ANULADOS` dice quién anuló). En SISV `RegistroConCIE` **no guarda quién transcribió** (solo
-  `codificado_por`/`creado_en`): faltan `transcrito_por` (altas nuevas) y `transcrito_legacy` +
-  backfill (histórico).
+  **Productividad por usuario `(13/11/2026, §45)`:** `RegistroConCIE` guarda ahora **quién transcribió**
+  en `transcrito_por` (FK `auth.User`) + `transcrito_en`, llenados **solo en el POST** (el `PATCH` no los
+  toca; read-only en los serializers), y `Nacimiento.transcrito_legacy` (`CharField(20)`) con el login de
+  `sismai."CERTNACIMIENTO"."USUARIO"` (los logins legacy no son cuentas de SISV y no se mezclan).
+  Backfill **`manage.py completar_transcritor_nacimiento [--ejecutar] [--limite N]`** (dry-run, un solo
+  `UPDATE … FROM` por `legacy_id` → `NAC_RNACIDO."HCERTIFICADO"` → `CERTNACIMIENTO`, `transcrito_en` ←
+  `FECHACERTIFICADO`, idempotente, en las dos listas de `etl_comandos.sh`; ejecutado aquí: **439.282**
+  nacimientos, 144 sin `NAC_RNACIDO` y 50 sin certificado). Endpoint
+  **`GET /api/registros/productividad/?desde=&hasta=&modulo=&usuario=&agrupar=dia|semana|mes[&formato=csv]`**
+  (`ProductividadView`): por **origen** `SISV`/`LEGACY`, persona, módulo y periodo, con **«transcritos»
+  (alta) y «codificados» (`codificado_por`) en columnas separadas** —son roles distintos—, pendientes de
+  CIE, días trabajados y promedio/día; respeta `alcance_registros` y exporta CSV con BOM. Lo que no se
+  puede atribuir se informa en **`sin_atribuir`** (por `fecha_evento`, el único campo de fecha de todos
+  los registros, y por eso puede no cuadrar con las filas) en vez de un cero: **las defunciones del
+  legacy no tienen autor** (`CERTIFICADO` sin usuario, `HISTDOC.USUARIO` vacío). Pantalla
+  **`/productividad`** en el menú Registros, **solo lectura para todos los roles**. Los «codificados» dan
+  0 hasta que se confirmen codificaciones en SISV (el histórico no tiene autor). Pruebas
+  `registros/tests.py::ProductividadTests` (10) y `tests_completar_transcritor.py` (5).
   - **Certificado de defunción = EV-14 oficial (01/10/2026, migración `0005_defuncion_ev14`):**
     `Defuncion` tiene **50 campos más**, todos opcionales (`null`/`blank`) para no romper los certificados
     ya cargados ni el ETL, organizados por las secciones del EV-14: **I** identificación
@@ -864,17 +875,17 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
 - Componentes frontend clave: `CIESearch` (autocomplete + cascada CIE-11 + subgrupos obligatorios),
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
-- **Pruebas automatizadas (11/11/2026):** backend con
+- **Pruebas automatizadas (13/11/2026):** backend con
   `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
   (**correr desde `backend/`** — desde la raíz descubre 0 tests),
-  (**382 pruebas a 11/11/2026** — verificado, `Ran 382 tests`, `OK`):
-  - `registros/tests.py` **135**: CRUD de nacimientos (8), permisos (4), alcance (5), tablero (2),
+  (**400 pruebas a 13/11/2026** — verificado, `Ran 400 tests`, `OK`):
+  - `registros/tests.py` **146**: CRUD de nacimientos (8), permisos (4), alcance (5), tablero (2),
     reportes/configuración (5), año epidemiológico (3), MM (4), defunción y ficha (2),
     **EV-14 (7 + 7 ampliado)**, cobertura del tablero (4), meses degradados (5), `CargarMMMNTests` (20),
     **EV-25 (9)**, **`ReporteSemanalMMITests` (9)**, **`ReportesMMMNTests` (11, §43.4/§44:
     MI 0–364 con desglose, edad declarada sobre `FECHA_N`, cascada semanal, alias de ruta)**,
     sugerencia por catálogo (4), `proponer_codificacion` (5), consulta/confirmación (8),
-    número físico (10) y saneo del `|` de `exportar_rutalara` (3).
+    número físico (10), **`ProductividadTests` (11, §45)** y saneo del `|` de `exportar_rutalara` (3).
   - `despacho/tests.py` **49** (talonarios, cruce, novedades, alcance, reportes 12,
     series deducidas 11, redondeo al corte de decena 7, §36/§37).
   - `conciliacion/tests.py` **34** (ENO 16, neonatal 10, materna 8), `vigilancia/tests.py` **32**
@@ -884,10 +895,11 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
   - Comandos de mantenimiento: `tests_completar_numero_certificado.py` **4**,
     `tests_recuperar_establecimiento.py` **6**, `tests_completar_nacimiento.py` **6**,
     `tests_calidad.py` **9** (§35), `tests_dividir_nombres.py` **10**,
-    **`tests_completar_edad_defuncion.py` 3 (§44)**, `tests_cargar_lara.py` **35** (§27.8.1).
+    **`tests_completar_edad_defuncion.py` 3 (§44)**, **`tests_completar_transcritor.py` 7 (§45)**,
+    `tests_cargar_lara.py` **35** (§27.8.1).
   - Requiere `__init__.py` en las apps — registros, seguridad, territorio y catalogos eran
     namespace packages y por eso el descubrimiento fallaba.
-  - Frontend con `npm test` (Vitest, 18 pruebas en `src/utils/cie.test.js`,
+  - Frontend con `npm test` (Vitest, 20 pruebas en `src/utils/cie.test.js`,
     `src/utils/numero.test.js` y `src/api/sisv.test.js`).
   - Verificación manual: `manage.py check` y `npm run build`.
 - **Seguridad (23/09/2026):** la API exige sesión por defecto (`IsAuthenticated` global; públicos solo

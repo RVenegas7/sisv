@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
-  exportarReportes, iniciarSesion, listarNacimientos, sesionActual,
+  exportarProductividad, exportarReportes, iniciarSesion, listarNacimientos, productividad,
+  sesionActual,
 } from "./sisv"
 
 const { apiMock, setCsrfMock } = vi.hoisted(() => ({
@@ -70,6 +71,24 @@ describe("exportaciones", () => {
     await exportarReportes({ modulo: "nacimientos" })
     expect(apiMock.cliente.get).toHaveBeenCalledWith("/registros/reportes/exportar/", {
       params: { modulo: "nacimientos" },
+      responseType: "blob",
+      timeout: 120000,
+    })
+  })
+
+  it("productividad pide el reporte con sus filtros", async () => {
+    apiMock.cliente.get.mockResolvedValue({ data: { data: { filas: [], total: {} } } })
+    const datos = await productividad({ desde: "2026-01-01", hasta: "2026-12-31", agrupar: "mes" })
+    expect(apiMock.cliente.get).toHaveBeenCalledWith("/registros/productividad/", {
+      params: { desde: "2026-01-01", hasta: "2026-12-31", agrupar: "mes" },
+    })
+    expect(datos).toEqual({ filas: [], total: {} })
+  })
+
+  it("exportarProductividad pide CSV como blob", async () => {
+    await exportarProductividad({ modulo: "nacimientos" })
+    expect(apiMock.cliente.get).toHaveBeenCalledWith("/registros/productividad/", {
+      params: { modulo: "nacimientos", formato: "csv" },
       responseType: "blob",
       timeout: 120000,
     })

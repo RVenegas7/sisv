@@ -73,6 +73,21 @@ class RegistroConCIE(models.Model):
     )
     codificado_en = models.DateTimeField("Codificado en", null=True, blank=True)
 
+    # --- Autoría de la transcripción (reporte de productividad, §45) ---
+    # Quién dio de alta el certificado. No es lo mismo que `codificado_por` (quien
+    # confirmó el CIE): son roles distintos y se miden por separado. Se llena **solo en
+    # el POST**; el PATCH no lo toca, porque la transcripción es el alta.
+    # En los registros importados del legacy no hay cuenta de SISV detrás: el autor real
+    # es el login de Oracle y va en `Nacimiento.transcrito_legacy`.
+    transcrito_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="+", verbose_name="Transcrito por",
+    )
+    transcrito_en = models.DateTimeField(
+        "Transcrito en", null=True, blank=True, db_index=True,
+        help_text="Alta en SISV; en el histórico, la fecha del certificado legacy.",
+    )
+
     creado_en = models.DateTimeField("Creado en", auto_now_add=True)
 
     class Meta:
@@ -174,6 +189,10 @@ class Nacimiento(RegistroConCIE):
 
     registro_numero = models.CharField("Nº de registro", max_length=30, unique=True)
     lote_id = models.CharField("Lote de carga masiva", max_length=40, blank=True, db_index=True)
+    transcrito_legacy = models.CharField(
+        "Login del transcriptor legacy", max_length=20, blank=True, db_index=True,
+        help_text='sismai."CERTNACIMIENTO"."USUARIO"; los logins legacy no son cuentas de SISV.',
+    )
     hora_nacimiento = models.TimeField("Hora de nacimiento", null=True, blank=True)
     sexo = models.CharField("Sexo", max_length=1, choices=SEXO, default="F")
     peso_gramos = models.PositiveIntegerField("Peso al nacer (g)", null=True, blank=True)

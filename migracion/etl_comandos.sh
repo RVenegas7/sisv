@@ -62,6 +62,7 @@ COMANDOS=(
   "completar_numero_certificado --ejecutar"
   "completar_edad_defuncion --ejecutar"
   "completar_nacimiento_legacy --ejecutar"
+  "completar_transcritor_nacimiento --ejecutar"
   "sembrar_registradores_legacy --ejecutar"
 )
 
@@ -74,6 +75,7 @@ if [ "$SOLO_CERT" = 1 ]; then
     "completar_numero_certificado --ejecutar"
     "completar_edad_defuncion --ejecutar"
     "completar_nacimiento_legacy --ejecutar"
+    "completar_transcritor_nacimiento --ejecutar"
     "sembrar_registradores_legacy --ejecutar"
   )
 fi
