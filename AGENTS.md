@@ -200,7 +200,10 @@ Idioma de trabajo: **responder siempre en español**.
   legacy no tienen autor** (`CERTIFICADO` sin usuario, `HISTDOC.USUARIO` vacío). Pantalla
   **`/productividad`** en el menú Registros, **solo lectura para todos los roles**. Los «codificados» dan
   0 hasta que se confirmen codificaciones en SISV (el histórico no tiene autor). Pruebas
-  `registros/tests.py::ProductividadTests` (10) y `tests_completar_transcritor.py` (5).
+  `registros/tests.py::ProductividadTests` (11) y `tests_completar_transcritor.py` (7).
+  **Pendiente §46:** revisar en la importación del legacy el **rol por módulo** de cada usuario
+  (natalidad, mortalidad, vigilancia/fichas, MM, MI); hoy solo se atribuye natalidad
+  (`CERTNACIMIENTO.USUARIO`). Revisar en oficina.
   - **Certificado de defunción = EV-14 oficial (01/10/2026, migración `0005_defuncion_ev14`):**
     `Defuncion` tiene **50 campos más**, todos opcionales (`null`/`blank`) para no romper los certificados
     ya cargados ni el ETL, organizados por las secciones del EV-14: **I** identificación

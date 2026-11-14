@@ -5049,3 +5049,23 @@ mismo cruce en el `count`— y cuatro del comando: dry-run sin `UPDATE`, aplicac
 refresco del espejo**, ya incluido en `etl_comandos.sh` (no hay que recordarlo). El campo del alta
 (`transcrito_por`) solo empieza a llenarse con los certificados **nuevos** que se carguen en SISV; el
 histórico queda con el login legacy.
+
+## 46. [PENDIENTE — revisar en oficina] Rol por módulo de cada usuario legacy en la importación
+
+Cada usuario del legacy tiene un **rol por módulo**: **natalidad**, **mortalidad**,
+**vigilancia (fichas)**, **MM** (muerte materna) y **MI** (muerte infantil). Hoy la atribución de
+productividad (§45) solo recupera el login de **natalidad** (`CERTNACIMIENTO.USUARIO`); falta
+revisar, al traer la información del legacy, **dónde vive el rol por módulo de cada usuario** (tablas
+de permisos/roles del esquema `sismai`, no solo `USUARIOS`) y si la importación lo trae o lo deja
+fuera.
+
+Puntos a verificar en la oficina (con el Oracle / `respaldo` de solo lectura):
+
+- Catálogo `sismai.USUARIOS` (`ESTATUS`, `CARGO`, `HESTABLECIMIENTO`) frente a una tabla de
+  **permisos por módulo** (¿existe? ¿cómo se llama?).
+- Cómo se marca que un usuario puede operar natalidad / mortalidad / vigilancia / MM / MI.
+- Si esa relación entra en el espejo y en el ETL, o se pierde en el refresco semanal.
+
+Relación: §45 (productividad por usuario) y §24 (registradores/roles). De aquí saldría, cuando se
+tenga, un reporte de productividad **por módulo** y la distinción de usuarios **activos vs.
+deshabilitados** (`USUARIOS.ESTATUS`).
