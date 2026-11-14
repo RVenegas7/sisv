@@ -2,6 +2,27 @@
 
 Idioma de trabajo: **responder siempre en español**.
 
+## Premisa del proyecto (marco de gobernanza, 13/11/2026)
+
+- **SISV reemplaza al sistema legacy (SISMAI)**, pero **el nivel central no autorizará usar SISV**
+  por burocracia. La decisión de usarlo es **autonomía del director local**, con una sola condición:
+  **no romper la data ya cargada ni lo que se envía a nivel central**.
+- Por eso se exige un **clon de la información y de la forma de envío al central**: el mismo formato
+  Oracle (sobre `routlar1` con sus archivos comprimidos) que el central espera y usa.
+- **Todo lo que se desarrolla en SISV se basa en la data que el legacy maneja a diario**, mejorando la
+  experiencia de usuario y creando lo que se requiere **sobre la data cargada hasta la fecha**; por eso
+  el espejo se refresca **cada martes o miércoles** (flujo semanal §32 de PENDIENTES.md).
+- **Estado de cumplimiento punta a punta (13/11/2026):** cumple en lo esencial. La clonación de datos
+  (espejo `sismai`/`inbdlar1`/`historico` + `espejo_extra`) y el refresco semanal están operativos; el
+  ETL es fiel, aditivo e idempotente (no toca Oracle) y todos los módulos se construyen sobre el espejo.
+  Quedan **dos condiciones de borde del envío** (detalle en PENDIENTES.md §38/§39/§34):
+  1. **El contenedor del sobre**: SISV produce CSV y el `.dmp` se empaqueta con `exp` de un Oracle
+     intermedio + `sqlldr` (ya escrito: `generar_ctl_sqlldr.py` / `cargar_temp_sqlldr.sh`); falta
+     autorizar la carga de `TEMP` y los logs `bloqlar1`/`copyhistlar1` no se reproducen (el sobre ya
+     viaja con 4 desde el 08/09 sin objeción).
+  2. **El 5.º archivo `repllar1.log`**: se perdió por erratas del cliente (`ID_OLD` / `SPOOL T:`),
+     corregidas en el share de la oficina, no en el repo.
+
 ## Stack del proyecto
 
 - **Backend:** Django REST Framework (operativo, ver sección Backend).
