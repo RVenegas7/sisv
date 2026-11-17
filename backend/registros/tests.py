@@ -6,10 +6,10 @@ import tempfile
 from datetime import date, datetime, timedelta
 from unittest.mock import patch
 
+from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.utils import timezone
-
 from tests_sisv import SISVBase, FECHA_CORTE
 
 from registros.management.commands.exportar_rutalara import _sanear
@@ -2115,3 +2115,92 @@ class ProductividadTests(SISVBase):
         self.login(self.u_admin)
         r = self.client.get(self._url(agrupar="trimestre"))
         self.assertEqual(r.status_code, 400)
+
+    # -- §46: resumen por usuario y módulo ----------------------------------
+    def _ficha(self, codigo, fecha, subtipo="", **extra):
+        datos = dict(
+            codigo_notificacion=codigo, nombre_evento="Dengue", fecha_notificacion=fecha,
+            fecha_evento=fecha, paciente_nombres="Pac", paciente_apellidos="Uno",
+            organizacion=self.org_hcb, subtipo_legacy=subtipo, **extra,
+        )
+        return FichaVigilancia.objects.create(**datos)
+
+    def test_resumen_agrupa_una_fila_por_persona(self):
+        self._nac("R-1", date(2023, 5, 2), transcrito_por=self.u_trans_hcb,
+                  transcrito_en=timezone.make_aware(datetime(2023, 5, 2, 9, 0)))
+        self._def("R-2", date(2023, 5, 3), transcrito_por=self.u_trans_hcb,
+                  transcrito_en=timezone.make_aware(datetime(2023, 5, 3, 9, 0)))
+        self.login(self.u_admin)
+        d = self.client.get(self._url(modulo="", agrupar="mes")).json()["data"]
+        fila = {r["usuario"]: r for r in d["resumen_usuarios"]}["trans_hcb"]
+        self.assertEqual((fila["nacimientos"], fila["defunciones"]), (1, 1))
+        self.assertEqual(fila["transcritos"], 2)
+        self.assertEqual(fila["dias_trabajados"], 2)
+        # Una sola fila por persona, aunque haya varios módulos y periodos.
+        self.assertEqual(len([r for r in d["resumen_usuarios"] if r["usuario"] == "trans_hcb"]), 1)
+
+    def test_resumen_separa_mm_mi_y_violentas(self):
+        for i, subtipo in enumerate(("MM", "MI", "MI", "VIOLENTA", "")):
+            self._ficha(f"F-{i}", date(2023, 5, 2), subtipo=subtipo,
+                        transcrito_por=self.u_trans_hcb,
+                        transcrito_en=timezone.make_aware(datetime(2023, 5, 2, 9, 0)))
+        self.login(self.u_admin)
+        d = self.client.get(self._url(modulo="", agrupar="mes")).json()["data"]
+        fila = {r["usuario"]: r for r in d["resumen_usuarios"]}["trans_hcb"]
+        self.assertEqual((fila["mm"], fila["mi"], fila["violentas"]), (1, 2, 1))
+        # «fichas» suma MM + MI + violentas + las que no tienen subtipo.
+        self.assertEqual(fila["fichas"], 5)
+        self.assertEqual(fila["transcritos"], 5)
+        # El filtro por módulo devuelve solo el subtipo pedido.
+        solo_mi = self.client.get(self._url(modulo="mi", agrupar="mes")).json()["data"]
+        self.assertEqual(solo_mi["total"]["transcritos"], 2)
+        self.assertEqual(solo_mi["total"]["anulaciones"], 0)
+
+    def test_resumen_marca_estado_activo_y_cesante(self):
+        self._nac("E-1", date(2023, 5, 2), transcrito_por=self.u_trans_hcb,
+                  transcrito_en=timezone.make_aware(datetime(2023, 5, 2, 9, 0)))
+        self._nac("E-2", date(2023, 5, 2), transcrito_por=self.u_cod_hcb,
+                  transcrito_en=timezone.make_aware(datetime(2023, 5, 2, 9, 0)))
+        User = get_user_model()
+        User.objects.filter(pk=self.u_cod_hcb.pk).update(is_active=False)
+        self.login(self.u_admin)
+        d = self.client.get(self._url(modulo="", agrupar="mes")).json()["data"]
+        estados = {r["usuario"]: r["estado"] for r in d["resumen_usuarios"]}
+        self.assertEqual(estados["trans_hcb"], "ACTIVO")
+        self.assertEqual(estados["cod_hcb"], "CESANTE")
+
+    def test_resumen_trae_ultima_actividad(self):
+        for dia in (2, 9):
+            self._nac(f"U-{dia}", date(2023, 5, dia), transcrito_por=self.u_trans_hcb,
+                      transcrito_en=timezone.make_aware(datetime(2023, 5, dia, 9, 0)))
+        self.login(self.u_admin)
+        d = self.client.get(self._url(modulo="", agrupar="mes")).json()["data"]
+        fila = {r["usuario"]: r for r in d["resumen_usuarios"]}["trans_hcb"]
+        self.assertEqual(fila["ultima_actividad"], "2023-05-09")
+
+    def test_csv_resumen_lleva_bom_y_columnas_de_modulo(self):
+        self._nac("CS-1", date(2023, 5, 2), transcrito_por=self.u_trans_hcb,
+                  transcrito_en=timezone.make_aware(datetime(2023, 5, 2, 9, 0)))
+        self.login(self.u_admin)
+        r = self.client.get(self._url(formato="csv", resumen=1))
+        self.assertEqual(r.status_code, 200)
+        texto = r.content.decode("utf-8")
+        self.assertTrue(texto.startswith("\ufeff"))
+        cabecera = texto.lstrip("\ufeff").splitlines()[0]
+        for columna in ("nacimientos", "defunciones", "mm", "mi", "violentas", "vigilancia",
+                        "vacunacion", "anulaciones", "ultima_actividad"):
+            self.assertIn(columna, cabecera)
+        self.assertIn("trans_hcb", texto)
+
+    def test_modulos_vivos_del_legacy_no_rompen_sin_espejo(self):
+        # En sqlite no existe el esquema `sismai`: los módulos leídos en vivo devuelven
+        # vacío en vez de romper el reporte (en producción sí traen datos).
+        self.login(self.u_admin)
+        for modulo in ("vigilancia", "vacunacion", "anulaciones"):
+            r = self.client.get(self._url(modulo=modulo))
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()["data"]["filas"], [])
+        # El mapa de ESTATUS viaja confirmado con su evidencia.
+        d = self.client.get(self._url()).json()["data"]
+        self.assertTrue(d["estado_fuente"]["confirmado"])
+        self.assertEqual(d["estado_fuente"]["mapa"], {"1": "ACTIVO", "2": "CESANTE"})

@@ -87,6 +87,14 @@ class RegistroConCIE(models.Model):
         "Transcrito en", null=True, blank=True, db_index=True,
         help_text="Alta en SISV; en el histórico, la fecha del certificado legacy.",
     )
+    # El legacy atribuye la transcripción con el login de Oracle, no con una cuenta de
+    # SISV: se guarda aparte para no mezclar universos (§46). Fuente por módulo:
+    # CERTNACIMIENTO.USUARIO (natalidad), CERTIFICADO.LOGIN (mortalidad),
+    # CASOS_MMI.USUARIO (fichas MM/MI) y M_VIOLENTA.LOGIN (muertes violentas).
+    transcrito_legacy = models.CharField(
+        "Login del transcriptor legacy", max_length=20, blank=True, db_index=True,
+        help_text="Login de Oracle del legacy; no es una cuenta de SISV.",
+    )
 
     creado_en = models.DateTimeField("Creado en", auto_now_add=True)
 
@@ -189,10 +197,6 @@ class Nacimiento(RegistroConCIE):
 
     registro_numero = models.CharField("Nº de registro", max_length=30, unique=True)
     lote_id = models.CharField("Lote de carga masiva", max_length=40, blank=True, db_index=True)
-    transcrito_legacy = models.CharField(
-        "Login del transcriptor legacy", max_length=20, blank=True, db_index=True,
-        help_text='sismai."CERTNACIMIENTO"."USUARIO"; los logins legacy no son cuentas de SISV.',
-    )
     hora_nacimiento = models.TimeField("Hora de nacimiento", null=True, blank=True)
     sexo = models.CharField("Sexo", max_length=1, choices=SEXO, default="F")
     peso_gramos = models.PositiveIntegerField("Peso al nacer (g)", null=True, blank=True)
@@ -610,6 +614,20 @@ class FichaVigilancia(RegistroConCIE):
 
     codigo_notificacion = models.CharField("Código de notificación", max_length=30, unique=True)
     lote_id = models.CharField("Lote de carga masiva", max_length=40, blank=True, db_index=True)
+    SUBTIPOS_LEGACY = [
+        ("", "Sin clasificar"),
+        ("MM", "Muerte materna"),
+        ("MI", "Muerte infantil"),
+        ("VIOLENTA", "Muerte violenta"),
+    ]
+    subtipo_legacy = models.CharField(
+        "Subtipo legacy", max_length=10, blank=True, default="", db_index=True,
+        choices=SUBTIPOS_LEGACY,
+        help_text=(
+            "Clasificación del registro legacy por formulario: MM y MI salen de "
+            'sismai."RENGLON_CASOSMM"/"RENGLON_CASOSMI"; VIOLENTA de "M_VIOLENTA".'
+        ),
+    )
     nombre_evento = models.CharField("Evento de salud", max_length=200)
     fecha_notificacion = models.DateField("Fecha de notificación")
     fecha_inicio_sintomas = models.DateField("Fecha de inicio de síntomas", null=True, blank=True)

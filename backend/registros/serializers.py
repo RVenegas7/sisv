@@ -249,10 +249,10 @@ class DefuncionSerializer(_VaciosANullMixin, _CIEDetalleMixin, _OrganizacionMixi
             "sugerencia_codigo", "sugerencia_titulo", "sugerencia_origen",
             "sugerencia_origen_label", "sugerencia_en",
             "codificado_por", "codificado_por_nombre", "codificado_en",
-            "transcrito_por", "transcrito_por_nombre", "transcrito_en",
+            "transcrito_por", "transcrito_por_nombre", "transcrito_en", "transcrito_legacy",
             "organizacion", "organizacion_id", "organizacion_nombre", "organizacion_nivel",
         ]
-        read_only_fields = ["transcrito_por", "transcrito_en"]
+        read_only_fields = ["transcrito_por", "transcrito_en", "transcrito_legacy"]
 
     def validate(self, attrs):
         _validar_cie(attrs, getattr(self, "partial", False), getattr(self, "instance", None))
@@ -270,6 +270,7 @@ class FichaVigilanciaSerializer(_VaciosANullMixin, _CIEDetalleMixin, _Organizaci
     sugerencia_origen_label = serializers.SerializerMethodField()
     codificado_por_nombre = serializers.SerializerMethodField()
     transcrito_por_nombre = serializers.SerializerMethodField()
+    subtipo_legacy = serializers.CharField(read_only=True)
 
     class Meta:
         model = FichaVigilancia
@@ -278,16 +279,16 @@ class FichaVigilanciaSerializer(_VaciosANullMixin, _CIEDetalleMixin, _Organizaci
             "fecha_evento", "fecha_inicio_sintomas", "clasificacion",
             "establecimiento", "estado", "municipio", "parroquia",
             "paciente_nombres", "paciente_apellidos", "paciente_cedula", "sexo", "edad",
-            "sintomas", "nota",
+            "sintomas", "nota", "subtipo_legacy",
             "version_cie", "cie10", "cie11", "cie10_detalle", "cie11_detalle", "creado_en",
             "cie10_legacy", "codificacion_pendiente", "cie11_sugerido", "cie11_sugerido_detalle",
             "sugerencia_codigo", "sugerencia_titulo", "sugerencia_origen",
             "sugerencia_origen_label", "sugerencia_en",
             "codificado_por", "codificado_por_nombre", "codificado_en",
-            "transcrito_por", "transcrito_por_nombre", "transcrito_en",
+            "transcrito_por", "transcrito_por_nombre", "transcrito_en", "transcrito_legacy",
             "organizacion", "organizacion_id", "organizacion_nombre", "organizacion_nivel",
         ]
-        read_only_fields = ["transcrito_por", "transcrito_en"]
+        read_only_fields = ["transcrito_por", "transcrito_en", "transcrito_legacy"]
 
     def validate(self, attrs):
         _validar_cie(attrs, getattr(self, "partial", False), getattr(self, "instance", None))

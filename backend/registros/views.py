@@ -5,6 +5,7 @@ from collections import Counter
 from datetime import date, timedelta
 from statistics import median
 
+from django.contrib.auth import get_user_model
 from django.db import connection
 from django.db.models import Q, Count, Max
 from django.db.models.functions import TruncMonth, ExtractYear, ExtractMonth
@@ -1693,36 +1694,75 @@ class ReportesMMMNView(APIView):
 
 
 class ProductividadView(APIView):
-    """§45 — Certificados transcritos y codificados por persona y periodo.
+    """§45/§46 — Certificados transcritos y codificados por persona, módulo y periodo.
 
-    ``GET /api/registros/productividad/?desde=&hasta=&modulo=&usuario=&agrupar=mes``
-    (``agrupar`` = ``dia`` | ``semana`` | ``mes``; ``formato=csv`` para exportar).
+    ``GET /api/registros/productividad/?desde=&hasta=&modulo=&usuario=&agrupar=dia|semana|mes``
+    (``formato=csv`` para el detalle y ``formato=csv&resumen=1`` para el resumen por usuario).
 
-    **Qué mide.** Dos roles distintos, en dos columnas separadas:
+    **Qué mide.** Dos roles distintos, en columnas separadas:
 
-    - **Transcritos**: quién dio de alta el certificado (SISV: ``transcrito_por``; el
-      histórico de natalidad: ``transcrito_legacy``, el login de
-      ``sismai."CERTNACIMIENTO"."USUARIO"``).
-    - **Codificados**: quién confirmó el CIE (``codificado_por``), que puede ser otra
-      persona. ``pendientes`` son los transcritos por esa persona que siguen sin código.
+    - **Transcritos**: quién dio de alta el registro (SISV: ``transcrito_por``; el histórico
+      trae el login de Oracle en ``transcrito_legacy``).
+    - **Codificados**: quién confirmó el CIE (``codificado_por``), que puede ser otra persona.
+      ``pendientes`` son los transcritos por esa persona que siguen sin código.
 
-    **Fecha del periodo.** ``transcrito_en``: en SISV es el alta real; en el histórico
-    se rellenó con ``CERTNACIMIENTO."FECHACERTIFICADO"``, que es la fecha que usa el
-    reporte de la oficina (el mes de productividad es el de la certificación, no el del
-    nacimiento). ``dias_trabajados`` = días distintos con al menos una transcripción y
-    ``promedio_dia`` = transcritos / días trabajados del periodo.
+    **Módulos y su fuente legacy** (§46):
 
-    **Lo que no se puede atribuir se dice, no se inventa.** Las defunciones del legacy no
-    guardan usuario (``CERTIFICADO`` no tiene la columna y ``HISTDOC.USUARIO`` está vacío),
-    así que aparecen en ``sin_atribuir`` con su total en vez de un cero que parezca «no
-    trabajó». Los logins legacy nunca se mezclan con las cuentas de SISV: van con
-    ``origen="LEGACY"``.
+    ==========  =========================================================  ================
+    Módulo      Fuente                                                     Atribución
+    ==========  =========================================================  ================
+    nacimientos ``sismai."CERTNACIMIENTO"."USUARIO"``                     100 % (313 logins)
+    defunciones ``sismai."CERTIFICADO"."LOGIN"``                          100 % (172 logins)
+    MM / MI     ``sismai."CASOS_MMI"."USUARIO"`` + renglones MM/MI       100 % (38 logins)
+    violentas   ``sismai."M_VIOLENTA"."LOGIN"``                           100 % (115 logins)
+    vigilancia  ``sismai."DOCUMENTO"."USUARIO"`` (sin documentos MMI)     100 % (99 logins)
+    vacunación  ``sismai."REG_VACUNACION"."USUARIO"``                     100 % (3 logins)
+    anulaciones ``sismai."MOR_ANULADOS"`` / ``"NAC_ANULADOS"."USUARIO"``  100 % (36/48)
+    ==========  =========================================================  ================
+
+    Los tres primeros viven en tablas de SISV (con ``transcrito_legacy``); vigilancia,
+    vacunación y anulaciones **no tienen modelo en SISV** y se leen del espejo en vivo, solo
+    lectura. `DOCUMENTO` es la cabecera de varios formularios: se excluyen los tipos 22/23
+    (MMI), que ya se cuentan como fichas, para no duplicar.
+
+    **Estado del usuario.** ``sismai."USUARIOS"."ESTATUS"``: ``1`` = vigente/activa y
+    ``2`` = cesante, **confirmado con la oficina el 16/11/2026** (las cuentas activas de
+    transcripción de MM-MMI y mortalidad traen 1 y su cuenta vieja trae 2). La respuesta
+    publica el mapa en ``estado_fuente``. ``cargo`` es el ``CARGO`` del catálogo, que en el
+    legacy dice el módulo («TRANSCRIPCIÓN MM-MMI», «APOYO TRANSCIPCION NATALIDAD»).
+    ``ultima_actividad`` es la fecha real más reciente de ese login en cualquier módulo, así
+    que el reporte sirve aunque se revise el mapa.
+
+    **Lo que no se puede atribuir se dice, no se inventa.** Queda en ``sin_atribuir`` con su
+    total: las 17.371 defunciones de ``lara_2019_2020`` no existen en ``CERTIFICADO`` y por eso
+    no tienen autor. Los logins legacy nunca se mezclan con las cuentas de SISV.
     """
 
     PERIODOS = ("dia", "semana", "mes")
+    # Subtipo legacy de la ficha → nombre del módulo en el reporte.
+    SUBTIPOS = {"MM": "mm", "MI": "mi", "VIOLENTA": "violentas"}
+    MODULOS_LEGACY_VIVO = ("vigilancia", "vacunacion", "anulaciones")
+    MODULOS_VALIDOS = ("nacimientos", "defunciones", "fichas", "mm", "mi", "violentas") + MODULOS_LEGACY_VIVO
+    MODULOS_RESUMEN = [
+        "nacimientos", "defunciones", "mm", "mi", "violentas", "fichas",
+        "vigilancia", "vacunacion", "anulaciones",
+    ]
+    # Confirmado por la oficina el 16/11/2026: 1 = vigente/activa, 2 = cesante
+    # (p. ej. THANIAMORB «TRANSCRIPCIÓN MM-MMI», THANIAMORT y YOLISIMORT tienen 1;
+    # YOLISINAT, su cuenta vieja de natalidad, tiene 2).
+    ESTATUS_LEGACY = {1: "ACTIVO", 2: "CESANTE"}
+    ESTATUS_CONFIRMADO = True
+
     COLUMNAS = [
-        "usuario", "nombre", "cargo", "origen", "modulo", "periodo",
+        "usuario", "nombre", "cargo", "estado", "origen", "modulo", "periodo",
         "transcritos", "codificados", "pendientes", "dias_trabajados", "promedio_dia",
+        "ultima_actividad",
+    ]
+    COLUMNAS_RESUMEN = [
+        "usuario", "nombre", "cargo", "estado", "origen", "ultima_actividad",
+        "nacimientos", "defunciones", "mm", "mi", "violentas", "fichas", "vigilancia",
+        "vacunacion", "anulaciones", "transcritos", "codificados", "pendientes",
+        "dias_trabajados", "promedio_dia",
     ]
 
     @staticmethod
@@ -1750,13 +1790,35 @@ class ProductividadView(APIView):
     def _rol(rol):
         return dict(Perfil.ROL_CHOICES).get(rol, rol or "")
 
-    @staticmethod
-    def _cargo_legacy(logins):
-        """Login legacy → (nombre, cargo) del catálogo `sismai.USUARIOS`.
+    # ------------------------------------------------------------------ catálogo legacy
+    _SQL_ULTIMA_ACTIVIDAD = """
+        SELECT login, max(fecha) FROM (
+            SELECT btrim("USUARIO") AS login, max("FECHACERTIFICADO") AS fecha
+              FROM sismai."CERTNACIMIENTO" GROUP BY 1
+            UNION ALL
+            SELECT btrim("LOGIN"), max("FECHAOPERACION") FROM sismai."CERTIFICADO" GROUP BY 1
+            UNION ALL
+            SELECT btrim("USUARIO"), max("FECHAOPERACION") FROM sismai."CASOS_MMI" GROUP BY 1
+            UNION ALL
+            SELECT btrim("LOGIN"), max("FECHAOPERACION") FROM sismai."M_VIOLENTA" GROUP BY 1
+            UNION ALL
+            SELECT btrim("USUARIO"), max("FECHA") FROM sismai."DOCUMENTO" GROUP BY 1
+            UNION ALL
+            SELECT btrim("USUARIO"), max("FECHA") FROM sismai."REG_VACUNACION" GROUP BY 1
+            UNION ALL
+            SELECT btrim("USUARIO"), max("FECHA_ANULADO") FROM sismai."MOR_ANULADOS" GROUP BY 1
+            UNION ALL
+            SELECT btrim("USUARIO"), max("FECHA_ANULADO") FROM sismai."NAC_ANULADOS" GROUP BY 1
+        ) t WHERE login = ANY(%s) GROUP BY login
+    """
 
-        Deduplica por `LOGIN` (el catálogo tiene logins repetidos: MARIANAT 9 veces) y se
-        queda con el más reciente. Si el espejo no está (sqlite, tests), devuelve vacío en
-        vez de romper el reporte: el login sigue siendo la atribución.
+    @classmethod
+    def _catalogo_legacy(cls, logins):
+        """Login legacy → nombre, cargo, estado y última actividad (catálogo `USUARIOS`).
+
+        Deduplica por `LOGIN` (el catálogo repite logins) prefiriendo la fila con `ESTATUS`
+        no nulo y la más reciente. Si el espejo no está (sqlite/tests), devuelve vacío en vez
+        de romper el reporte: el login sigue siendo la atribución.
         """
         if not logins:
             return {}
@@ -1764,37 +1826,164 @@ class ProductividadView(APIView):
             with connection.cursor() as cur:
                 cur.execute(
                     'SELECT DISTINCT ON (btrim("LOGIN")) btrim("LOGIN"), btrim("NOMBRE"), '
-                    'btrim("CARGO") FROM sismai."USUARIOS" '
+                    'btrim("CARGO"), "ESTATUS" FROM sismai."USUARIOS" '
                     'WHERE btrim(COALESCE("LOGIN", \'\')) = ANY(%s) '
-                    'ORDER BY btrim("LOGIN"), "FEC_CREA" DESC NULLS LAST, "CREADO" DESC NULLS LAST',
+                    'ORDER BY btrim("LOGIN"), ("ESTATUS" IS NULL), "FEC_CREA" DESC NULLS LAST, '
+                    '"CREADO" DESC NULLS LAST',
                     [sorted(logins)],
                 )
-                return {login: (nombre or "", cargo or "") for login, nombre, cargo in cur.fetchall()}
+                datos = {}
+                for login, nombre, cargo, estatus in cur.fetchall():
+                    try:
+                        estado = cls.ESTATUS_LEGACY.get(int(estatus)) if estatus is not None else None
+                    except (TypeError, ValueError):
+                        estado = None
+                    datos[login] = {
+                        "nombre": nombre or "",
+                        "cargo": cargo or "",
+                        "estado": estado or "SIN_DATO",
+                        "ultima_actividad": None,
+                    }
+                cur.execute(cls._SQL_ULTIMA_ACTIVIDAD, [sorted(logins)])
+                for login, ultimo in cur.fetchall():
+                    if login in datos and ultimo is not None:
+                        datos[login]["ultima_actividad"] = ultimo.date().isoformat()
+                return datos
         except Exception:  # noqa: BLE001 - el espejo legacy no existe en sqlite/tests
             return {}
 
-    def _filas(self, request, desde, hasta, modulo, agrupar):
+    # ------------------------------------------------------------------ alcance legacy vivo
+    @staticmethod
+    def _establecimientos_alcance(request):
+        """Filtro de establecimientos legacy para los módulos que se leen en vivo.
+
+        - ``None`` → sin filtro (ve todo o es regional de Lara, el único estado del espejo).
+        - ``[]`` → el alcance es de centro pero el nombre no cruza con el legacy: no se
+          muestran datos ajenos.
+        - lista de IDs → filtrar por ``HORIGEN``/``HESTABLECIMIENTO``.
+        """
+        alc = alcance_registros(request.user)
+        if not isinstance(alc, dict):
+            return None
+        if alc["tipo"] == "REGIONAL":
+            estado = (alc.get("estado") or "").strip()
+            return None if not estado or estado.lower() == "lara" else []
+        org = Organizacion.objects.filter(pk=alc["organizacion_id"]).only("nombre").first()
+        if org is None:
+            return []
+        try:
+            with connection.cursor() as cur:
+                cur.execute(
+                    'SELECT "ID" FROM sismai."ESTABLECIMIENTO" '
+                    'WHERE upper(btrim("NOMBRE")) = upper(btrim(%s))',
+                    [org.nombre],
+                )
+                return [int(r[0]) for r in cur.fetchall()]
+        except Exception:  # noqa: BLE001
+            return []
+
+    @classmethod
+    def _legacy_extra(cls, desde, hasta, modulo, establecimientos):
+        """Filas (módulo, login, fecha, n) de los módulos que solo existen en el legacy."""
+        if establecimientos == []:
+            return []
+        modulos = [
+            m for m in cls.MODULOS_LEGACY_VIVO
+            if not modulo or modulo == m
+        ]
+        if not modulos:
+            return []
+        filtro = ""
+        params_extra = []
+        if establecimientos:
+            filtro = " AND {col} = ANY(%s)"
+            params_extra = [establecimientos]
+
+        def _sql(col):
+            return filtro.replace("{col}", col)
+
+        consultas = {
+            "vigilancia": (
+                'SELECT \'vigilancia\', btrim("USUARIO"), "FECHA"::date, count(*) '
+                'FROM sismai."DOCUMENTO" WHERE "FECHA"::date BETWEEN %s AND %s '
+                'AND ("TIPO" IS NULL OR "TIPO" NOT IN (22, 23))'
+                + _sql('"HORIGEN"')
+                + ' GROUP BY 1, 2, 3 HAVING btrim("USUARIO") <> \'\''
+            ),
+            "vacunacion": (
+                'SELECT \'vacunacion\', btrim("USUARIO"), "FECHA"::date, count(*) '
+                'FROM sismai."REG_VACUNACION" WHERE "FECHA"::date BETWEEN %s AND %s'
+                + _sql('"HESTABLECIMIENTO"')
+                + ' GROUP BY 1, 2, 3 HAVING btrim("USUARIO") <> \'\''
+            ),
+            "anulaciones": (
+                'SELECT \'anulaciones\', btrim("USUARIO"), "FECHA_ANULADO"::date, count(*) '
+                'FROM sismai."MOR_ANULADOS" WHERE "FECHA_ANULADO"::date BETWEEN %s AND %s'
+                + _sql('"HESTABLECIMIENTO"')
+                + ' GROUP BY 1, 2, 3 HAVING btrim("USUARIO") <> \'\' '
+                'UNION ALL '
+                'SELECT \'anulaciones\', btrim("USUARIO"), "FECHA_ANULADO"::date, count(*) '
+                'FROM sismai."NAC_ANULADOS" WHERE "FECHA_ANULADO"::date BETWEEN %s AND %s'
+                + _sql('"HESTABLECIMIENTO"')
+                + ' GROUP BY 1, 2, 3 HAVING btrim("USUARIO") <> \'\''
+            ),
+        }
+        salida = []
+        try:
+            with connection.cursor() as cur:
+                for m in modulos:
+                    sql = consultas[m]
+                    n = sql.count("%s")
+                    params = [desde, hasta] * (n // (2 + bool(establecimientos)))
+                    if establecimientos:
+                        params = []
+                        for _ in range(n // 3):
+                            params += [desde, hasta, establecimientos]
+                    cur.execute(sql, params)
+                    salida.extend(cur.fetchall())
+        except Exception:  # noqa: BLE001 - sin espejo no hay módulos en vivo
+            return []
+        return salida
+
+    # ------------------------------------------------------------------ detalle
+    def _filas(self, request, desde, hasta, modulo, agrupar, establecimientos):
         acumulado = {}
 
-        def fila_de(origen, usuario_id, usuario, nombre, cargo, modulo_, periodo):
+        def fila_de(origen, usuario_id, usuario, modulo_, periodo):
             clave = (origen, usuario_id, usuario, modulo_, periodo)
             return acumulado.setdefault(clave, {
                 "origen": origen, "usuario_id": usuario_id, "usuario": usuario,
-                "nombre": nombre, "cargo": cargo, "modulo": modulo_, "periodo": periodo,
-                "transcritos": 0, "codificados": 0, "pendientes": 0, "_fechas": set(),
+                "nombre": "", "cargo": "", "estado": "", "modulo": modulo_, "periodo": periodo,
+                "transcritos": 0, "codificados": 0, "pendientes": 0,
+                "_fechas": set(), "ultima_actividad": None,
             })
 
+        def _fecha_max(actual, nueva):
+            iso = nueva.isoformat()
+            return iso if actual is None or iso > actual else actual
+
         for clave, modelo in MODELOS.items():
-            if modulo and clave != modulo:
-                continue
-            qs = _por_alcance(
-                modelo.objects.filter(
-                    transcrito_en__isnull=False,
-                    transcrito_en__date__gte=desde,
-                    transcrito_en__date__lte=hasta,
-                ),
-                request,
+            if modulo:
+                if clave == "fichas":
+                    if modulo not in ("fichas", "mm", "mi", "violentas"):
+                        continue
+                elif modulo != clave:
+                    continue
+            base = _por_alcance(modelo.objects.all(), request)
+            es_ficha = clave == "fichas"
+            if es_ficha and modulo in ("mm", "mi", "violentas"):
+                base = base.filter(subtipo_legacy={v: k for k, v in self.SUBTIPOS.items()}[modulo])
+            qs = base.filter(
+                transcrito_en__isnull=False,
+                transcrito_en__date__gte=desde,
+                transcrito_en__date__lte=hasta,
             )
+            extra = ["subtipo_legacy"] if es_ficha else []
+
+            def _modulo_de(r):
+                if not es_ficha:
+                    return clave
+                return self.SUBTIPOS.get(r.get("subtipo_legacy"), "fichas")
 
             # -- Altas atribuidas a una cuenta de SISV --
             for r in (
@@ -1802,42 +1991,50 @@ class ProductividadView(APIView):
                 .values(
                     "transcrito_por_id", "transcrito_por__username",
                     "transcrito_por__first_name", "transcrito_por__last_name",
-                    "transcrito_por__perfil__rol", "transcrito_en__date",
+                    "transcrito_por__perfil__rol", "transcrito_en__date", *extra,
                 )
                 .annotate(n=Count("id"), pend=Count("id", filter=Q(codificacion_pendiente=True)))
             ):
                 fecha = r["transcrito_en__date"]
                 fila = fila_de(
                     "SISV", r["transcrito_por_id"], r["transcrito_por__username"],
-                    self._nombre(r["transcrito_por__first_name"],
-                                 r["transcrito_por__last_name"],
-                                 r["transcrito_por__username"]),
-                    self._rol(r["transcrito_por__perfil__rol"]),
-                    clave, self._periodo(fecha, agrupar),
+                    _modulo_de(r), self._periodo(fecha, agrupar),
                 )
+                fila["nombre"] = self._nombre(
+                    r["transcrito_por__first_name"], r["transcrito_por__last_name"],
+                    r["transcrito_por__username"],
+                )
+                fila["cargo"] = self._rol(r["transcrito_por__perfil__rol"])
                 fila["transcritos"] += r["n"]
                 fila["pendientes"] += r["pend"]
                 fila["_fechas"].add(fecha)
+                fila["ultima_actividad"] = _fecha_max(fila["ultima_actividad"], fecha)
 
-            # -- Altas del histórico de natalidad: login de Oracle, no cuenta de SISV --
+            # -- Altas del histórico: login de Oracle, no cuenta de SISV --
             if any(f.name == "transcrito_legacy" for f in modelo._meta.get_fields()):
                 for r in (
-                    qs.filter(transcrito_legacy__gt="")
-                    .values("transcrito_legacy", "transcrito_en__date")
+                    qs.filter(transcrito_por__isnull=True, transcrito_legacy__gt="")
+                    .values("transcrito_legacy", "transcrito_en__date", *extra)
                     .annotate(n=Count("id"), pend=Count("id", filter=Q(codificacion_pendiente=True)))
                 ):
                     fecha = r["transcrito_en__date"]
                     fila = fila_de(
-                        "LEGACY", None, r["transcrito_legacy"], "", "",
-                        clave, self._periodo(fecha, agrupar),
+                        "LEGACY", None, r["transcrito_legacy"],
+                        _modulo_de(r), self._periodo(fecha, agrupar),
                     )
                     fila["transcritos"] += r["n"]
                     fila["pendientes"] += r["pend"]
                     fila["_fechas"].add(fecha)
+                    fila["ultima_actividad"] = _fecha_max(fila["ultima_actividad"], fecha)
 
             # -- Codificaciones confirmadas: otro rol, se mide por su propia fecha --
             for r in (
-                qs.filter(codificado_por__isnull=False, codificado_en__isnull=False)
+                base.filter(
+                    codificado_por__isnull=False,
+                    codificado_en__isnull=False,
+                    codificado_en__date__gte=desde,
+                    codificado_en__date__lte=hasta,
+                )
                 .values(
                     "codificado_por_id", "codificado_por__username",
                     "codificado_por__first_name", "codificado_por__last_name",
@@ -1848,21 +2045,44 @@ class ProductividadView(APIView):
                 fecha = r["codificado_en__date"]
                 fila = fila_de(
                     "SISV", r["codificado_por_id"], r["codificado_por__username"],
-                    self._nombre(r["codificado_por__first_name"],
-                                 r["codificado_por__last_name"],
-                                 r["codificado_por__username"]),
-                    self._rol(r["codificado_por__perfil__rol"]),
                     clave, self._periodo(fecha, agrupar),
                 )
+                fila["nombre"] = self._nombre(
+                    r["codificado_por__first_name"], r["codificado_por__last_name"],
+                    r["codificado_por__username"],
+                )
+                fila["cargo"] = self._rol(r["codificado_por__perfil__rol"])
                 fila["codificados"] += r["n"]
+                fila["ultima_actividad"] = _fecha_max(fila["ultima_actividad"], fecha)
+
+        # -- Módulos que solo existen en el legacy (vigilancia, vacunación, anulaciones) --
+        for mod, login, fecha, n in self._legacy_extra(desde, hasta, modulo, establecimientos):
+            fila = fila_de("LEGACY", None, login, mod, self._periodo(fecha, agrupar))
+            fila["transcritos"] += n
+            fila["_fechas"].add(fecha)
+            fila["ultima_actividad"] = _fecha_max(fila["ultima_actividad"], fecha)
 
         logins = {f["usuario"] for f in acumulado.values() if f["origen"] == "LEGACY"}
-        nombres = self._cargo_legacy(logins)
+        catalogo = self._catalogo_legacy(logins)
+        ids_sisv = {f["usuario_id"] for f in acumulado.values()
+                    if f["origen"] == "SISV" and f["usuario_id"]}
+        activos = {}
+        if ids_sisv:
+            Usuario = get_user_model()
+            activos = dict(Usuario.objects.filter(id__in=ids_sisv).values_list("id", "is_active"))
+
         filas = []
         for f in acumulado.values():
             if f["origen"] == "LEGACY":
-                f["nombre"], f["cargo"] = nombres.get(f["usuario"], ("", ""))
-            dias = len(f.pop("_fechas"))
+                datos = catalogo.get(f["usuario"], {})
+                f["nombre"] = f["nombre"] or datos.get("nombre", "")
+                f["cargo"] = f["cargo"] or datos.get("cargo", "")
+                f["estado"] = datos.get("estado", "SIN_DATO")
+                if not f["ultima_actividad"]:
+                    f["ultima_actividad"] = datos.get("ultima_actividad")
+            else:
+                f["estado"] = "ACTIVO" if activos.get(f["usuario_id"]) else "CESANTE"
+            dias = len(f["_fechas"])
             f["dias_trabajados"] = dias
             f["promedio_dia"] = round(f["transcritos"] / dias, 2) if dias else 0.0
             if f["transcritos"] or f["codificados"] or f["pendientes"]:
@@ -1871,15 +2091,63 @@ class ProductividadView(APIView):
                                   f["periodo"]))
         return filas
 
+    # ------------------------------------------------------------------ resumen por usuario
+    def _resumen(self, filas):
+        """Una fila por persona con una columna por módulo (lo que se pidió en §46).
+
+        ``transcritos`` suma los módulos de transcripción; **anulaciones va aparte** porque no
+        es transcribir, es anular, y sumarla inflaría la productividad. ``dias_trabajados`` es
+        el número de días **distintos** en que la persona trabajó en cualquier módulo (no la
+        suma de los días de cada módulo, que contaría dos veces un día con dos módulos).
+        """
+        acumulado = {}
+        for f in filas:
+            clave = (f["origen"], f["usuario_id"], f["usuario"])
+            r = acumulado.setdefault(clave, {
+                "origen": f["origen"], "usuario_id": f["usuario_id"], "usuario": f["usuario"],
+                "nombre": f["nombre"], "cargo": f["cargo"], "estado": f["estado"],
+                "ultima_actividad": f["ultima_actividad"],
+                **{m: 0 for m in self.MODULOS_RESUMEN},
+                "transcritos": 0, "codificados": 0, "pendientes": 0,
+                "dias_trabajados": 0, "_fechas": set(), "promedio_dia": 0.0,
+            })
+            if f["modulo"] in self.MODULOS_RESUMEN:
+                r[f["modulo"]] += f["transcritos"]
+            r["codificados"] += f["codificados"]
+            r["pendientes"] += f["pendientes"]
+            r["_fechas"] |= f.get("_fechas", set())
+            if f["ultima_actividad"] and (
+                r["ultima_actividad"] is None or f["ultima_actividad"] > r["ultima_actividad"]
+            ):
+                r["ultima_actividad"] = f["ultima_actividad"]
+
+        salida = []
+        for r in acumulado.values():
+            r["dias_trabajados"] = len(r.pop("_fechas"))
+            r["fichas"] = r["mm"] + r["mi"] + r["violentas"] + r["fichas"]
+            r["transcritos"] = (
+                r["nacimientos"] + r["defunciones"] + r["fichas"]
+                + r["vigilancia"] + r["vacunacion"]
+            )
+            dias = r["dias_trabajados"]
+            r["promedio_dia"] = round(r["transcritos"] / dias, 2) if dias else 0.0
+            if r["transcritos"] or r["codificados"] or r["anulaciones"]:
+                salida.append(r)
+        salida.sort(key=lambda r: (-r["transcritos"], -r["codificados"], r["origen"], r["usuario"] or ""))
+        return salida
+
+    # ------------------------------------------------------------------ sin atribuir
     def _sin_atribuir(self, request, desde, hasta, modulo):
         """Registros del periodo que no se pueden atribuir (se informan, no se suman)."""
         salida = []
         for clave, modelo in MODELOS.items():
-            if modulo and clave != modulo:
+            if modulo and modulo != clave and not (clave == "fichas" and modulo in ("mm", "mi", "violentas")):
                 continue
             qs = _por_alcance(
                 modelo.objects.filter(fecha_evento__gte=desde, fecha_evento__lte=hasta), request
             )
+            if modulo in ("mm", "mi", "violentas") and clave == "fichas":
+                qs = qs.filter(subtipo_legacy={v: k for k, v in self.SUBTIPOS.items()}[modulo])
             atribuidos = qs.filter(transcrito_por__isnull=False)
             if any(f.name == "transcrito_legacy" for f in modelo._meta.get_fields()):
                 atribuidos = qs.filter(Q(transcrito_por__isnull=False) | Q(transcrito_legacy__gt=""))
@@ -1894,19 +2162,28 @@ class ProductividadView(APIView):
         return salida
 
     NOTAS = [
-        "El periodo es el de la transcripción: en SISV, el alta real; en el histórico de "
-        "natalidad, la fecha del certificado (CERTNACIMIENTO.FECHACERTIFICADO).",
-        "«Transcritos» (quién dio de alta) y «codificados» (quién confirmó el CIE) son "
-        "roles distintos y pueden ser personas distintas. «Codificados» cuenta solo las "
-        "confirmaciones hechas en SISV: la codificación histórica importada del legacy no "
-        "tiene autor y no se suma.",
-        "Los logins del legacy (p. ej. JUANANAT) no son cuentas de SISV: se muestran aparte "
-        "con origen LEGACY y no se suman con las cuentas del sistema nuevo.",
-        "Las defunciones del sistema anterior no se pueden atribuir (CERTIFICADO no guarda "
-        "usuario y HISTDOC.USUARIO está vacío): aparecen en «sin atribuir» con su total.",
-        "Las filas se cuentan por la fecha de transcripción (o del certificado en el "
-        "histórico); «sin atribuir» se cuenta por fecha del evento, el único campo presente "
-        "en todos los registros, así que sus totales pueden no coincidir.",
+        "El periodo es el de la transcripción: en SISV, el alta real; en el histórico, la fecha "
+        "de trabajo del legacy (certificado de nacimiento, FECHAOPERACION de la defunción y de la ficha).",
+        "«Transcritos» (quién dio de alta) y «codificados» (quién confirmó el CIE) son roles "
+        "distintos y pueden ser personas distintas. «Codificados» cuenta solo las confirmaciones "
+        "hechas en SISV: la codificación histórica importada del legacy no tiene autor.",
+        "Los logins del legacy (p. ej. YOLISIMORT) no son cuentas de SISV: se muestran aparte con "
+        "origen LEGACY y no se suman con las cuentas del sistema nuevo.",
+        "Atribución por módulo (§46): natalidad por CERTNACIMIENTO.USUARIO; defunciones por "
+        "CERTIFICADO.LOGIN; fichas por CASOS_MMI.USUARIO y M_VIOLENTA.LOGIN; MM y MI se separan con "
+        "los renglones del formulario (RENGLON_CASOSMM / RENGLON_CASOSMI), y 2 fichas que no están "
+        "en ningún renglón quedan «sin clasificar». Las violentas son las 12.409 de M_VIOLENTA, "
+        "que el legacy dejó de alimentar el 26/01/2022.",
+        "Vigilancia, vacunación y anulaciones no tienen modelo en SISV y se leen del espejo en "
+        "vivo (solo lectura). Vigilancia excluye los documentos MMI (tipos 22/23) porque ya se "
+        "cuentan como fichas. Anulaciones no se suma al total: anular no es transcribir.",
+        "Estado del usuario: sale de sismai.USUARIOS.ESTATUS con el mapa 1 = vigente/activa y "
+        "2 = cesante, **confirmado con la oficina el 16/11/2026** (YOLISIMORT y THANIAMORB, "
+        "activas, traen 1; YOLISINAT, cuenta vieja de natalidad, trae 2). «Última actividad» es "
+        "la fecha real más reciente de ese login en cualquier módulo.",
+        "«Sin atribuir» no es «no trabajó»: las 17.371 defunciones de lara_2019_2020 no existen en "
+        "CERTIFICADO y no tienen autor. Se cuenta por fecha del evento, el único campo de fecha "
+        "presente en todos los registros, así que sus totales pueden no coincidir con las filas.",
     ]
 
     def get(self, request):
@@ -1917,29 +2194,37 @@ class ProductividadView(APIView):
         if desde > hasta:
             desde, hasta = hasta, desde
         modulo = (request.query_params.get("modulo") or "").strip().lower()
-        if modulo and modulo not in MODELOS:
+        if modulo and modulo not in self.MODULOS_VALIDOS:
             return error(f"Módulo no válido: {modulo}", status=400)
         agrupar = (request.query_params.get("agrupar") or "mes").strip().lower()
         if agrupar not in self.PERIODOS:
             return error(f"Agrupación no válida: {agrupar} (use dia, semana o mes).", status=400)
 
-        filas = self._filas(request, desde, hasta, modulo, agrupar)
+        establecimientos = self._establecimientos_alcance(request)
+        filas = self._filas(request, desde, hasta, modulo, agrupar, establecimientos)
         usuario = (request.query_params.get("usuario") or "").strip().lower()
         if usuario:
             filas = [
                 f for f in filas
                 if usuario in (f["usuario"] or "").lower() or usuario in (f["nombre"] or "").lower()
             ]
+        resumen = self._resumen(filas)
+        # `_fechas` es un set interno (días distintos) para el resumen; no viaja en la respuesta.
+        for f in filas:
+            f.pop("_fechas", None)
 
         totales = {
             "transcritos": sum(f["transcritos"] for f in filas),
             "codificados": sum(f["codificados"] for f in filas),
             "pendientes": sum(f["pendientes"] for f in filas),
+            "anulaciones": sum(f["transcritos"] for f in filas if f["modulo"] == "anulaciones"),
         }
         sin_atribuir = self._sin_atribuir(request, desde, hasta, modulo)
 
         if (request.query_params.get("formato") or "").strip().lower() == "csv":
-            return self._csv(filas, desde, hasta)
+            if (request.query_params.get("resumen") or "").strip().lower() in ("1", "si", "sí", "true"):
+                return self._csv(resumen, desde, hasta, self.COLUMNAS_RESUMEN, "resumen")
+            return self._csv(filas, desde, hasta, self.COLUMNAS, "detalle")
 
         return ok({
             "desde": desde.isoformat(),
@@ -1948,24 +2233,29 @@ class ProductividadView(APIView):
             "modulo": modulo or "todos",
             "total": totales,
             "filas": filas,
+            "resumen_usuarios": resumen,
             "sin_atribuir": sin_atribuir,
+            "estado_fuente": {
+                "campo": "sismai.USUARIOS.ESTATUS",
+                "confirmado": self.ESTATUS_CONFIRMADO,
+                "mapa": {str(k): v for k, v in self.ESTATUS_LEGACY.items()},
+            },
             "notas": self.NOTAS,
         })
 
-    def _csv(self, filas, desde, hasta):
+    def _csv(self, filas, desde, hasta, columnas, sufijo):
         buffer = io.StringIO()
-        escritor = csv.DictWriter(buffer, fieldnames=self.COLUMNAS)
+        escritor = csv.DictWriter(buffer, fieldnames=columnas)
         escritor.writeheader()
         for f in filas:
-            escritor.writerow({c: f.get(c, "") for c in self.COLUMNAS})
+            escritor.writerow({c: f.get(c, "") for c in columnas})
         respuesta = HttpResponse(
             "\ufeff" + buffer.getvalue(), content_type="text/csv; charset=utf-8"
         )
         respuesta["Content-Disposition"] = (
-            f'attachment; filename="productividad_{desde.isoformat()}_{hasta.isoformat()}.csv"'
+            f'attachment; filename="productividad_{sufijo}_{desde.isoformat()}_{hasta.isoformat()}.csv"'
         )
         return respuesta
-
 
 class ReportesExportView(APIView):
     COLUMNAS = [

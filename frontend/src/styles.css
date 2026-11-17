@@ -953,6 +953,19 @@ main.contenido {
   font-weight: 600;
 }
 
+/* Tablas anchas (p. ej. el resumen de productividad con una columna por módulo). */
+.tabla-scroll {
+  overflow-x: auto;
+}
+
+.campo-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--tinta);
+}
+
 .lista tr:hover td {
   background: #f0faf5;
 }
