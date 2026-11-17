@@ -1,19 +1,28 @@
 version: '3.8'
 
-services:
-  db:
-    image: postgres:18.6-alpine
-    container_name: sis_postgres_dev
-    restart: always
-    environment:
-      POSTGRES_DB: sis_salud_db
-      POSTGRES_USER: sis_user
-      POSTGRES_PASSWORD: sis_password
-      TZ: America/Caracas
-    ports:
-      - "5436:5432"
-    volumes:
-      - sis_postgres_data:/var/lib/postgresql
+# Despliegue de SISV con Docker.
+#
+# Este equipo NO tiene el plugin `docker compose` (solo el binario `docker`), así que la
+# vía real es `./docker/levantar.sh` (docker build + docker run). Este archivo queda como
+# documentación equivalente y para equipos que sí tengan compose:
+#
+#   docker compose up -d --build
+#
+# La base de datos NO se define aquí a propósito: es el contenedor `sis_postgres_dev`
+# (puerto 5436) con su volumen `sis_postgres_data`, donde vive la data real y el espejo
+# `sismai`. Ese contenedor ya corre con `--restart always`; definirlo otra vez aquí
+# chocaría con el nombre y, si se recreara, arrancaría con un volumen vacío.
 
-volumes:
-  sis_postgres_data:
+services:
+  app:
+    build: .
+    image: sisv:latest
+    container_name: sisv_app
+    restart: always
+    env_file:
+      - docker/sisv.env
+    ports:
+      - "8020:8000"
+    # En Linux, permite llegar al PostgreSQL que corre en el host (DB_HOST=host.docker.internal).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

@@ -1,0 +1,45 @@
+# Contexto de construcción de la imagen SISV.
+# Sin esto, Docker enviaría el virtualenv (600 MB), node_modules, los dumps del legacy y
+# las copias de la oficina: la imagen tardaría minutos en construirse sin ganar nada.
+
+.git
+.gitignore
+.venv
+**/__pycache__
+**/*.pyc
+frontend/node_modules
+frontend/dist
+backend/staticfiles
+backend/db.sqlite3
+
+# Datos del legacy y respaldos (nunca dentro de la imagen)
+*.dump
+*.dmp
+*.zip
+*.xlsx
+*.xls
+*.log
+descarga/
+dumps/
+respaldo/
+salida_mm_mn_*/
+auditoria/
+legancy_conf/
+legancy/
+docs/
+capturas/
+sincronizado/
+
+# Copias de trabajo en la raíz
+centros_duplicados_*.csv
+nacimientos_semana38_*.csv
+numeros_certificado_*.csv
+notas_rafa
+nota_importantes.md
+Por_correir.md
+revision_analista.md
+PENDIENTES.md
+AGENTS.md
+quedo_pendiente.md
+codificador.md
+routlar1_*.ZIP

@@ -12,6 +12,8 @@ npm-debug.log*
 # Entorno / secretos
 .env
 .env.local
+# Entorno del contenedor (clave real de Django): solo se versiona la plantilla
+docker/sisv.env
 # Credenciales del sistema legacy (solo plantillas versionadas)
 legancy_conf/*.env
 legancy_conf/tnsnames.ora

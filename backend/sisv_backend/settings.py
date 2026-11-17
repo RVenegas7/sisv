@@ -23,8 +23,14 @@ if not DEBUG and SECRET_KEY == _SECRET_DEV:
         "Defina DJANGO_SECRET_KEY en producción (no se permite el valor de desarrollo)."
     )
 # Las cookies solo viajan por HTTPS fuera de depuración (en desarrollo local van por HTTP).
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
+# En un despliegue en red local por HTTP (p. ej. el contenedor Docker del §47) hay que poner
+# DJANGO_COOKIE_SECURE=0, o el navegador no enviará la cookie de sesión y el login fallará.
+_cookie_segura = os.environ.get("DJANGO_COOKIE_SECURE")
+if _cookie_segura is None:
+    SESSION_COOKIE_SECURE = not DEBUG
+    CSRF_COOKIE_SECURE = not DEBUG
+else:
+    SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = _cookie_segura == "1"
 
 
 
@@ -110,7 +116,8 @@ ROOT_URLCONF = "sisv_backend.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        # 404.html/500.html en español (las de Django vienen en inglés).
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -158,7 +165,22 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Frontend compilado (`npm run build`). En desarrollo se sirve con Vite y esta carpeta no
+# existe; en el contenedor Docker (o tras un build local) Django sirve el index.html y los
+# assets con WhiteNoise, así el frontend y el API comparten origen y no hay CORS.
+FRONTEND_DIST = Path(os.environ.get("SISV_FRONTEND_DIST", BASE_DIR / "frontend_dist"))
+if FRONTEND_DIST.is_dir():
+    WHITENOISE_ROOT = FRONTEND_DIST
+    WHITENOISE_INDEX_FILE = True
+
+# WhiteNoise solo hace falta cuando hay frontend compilado o estáticos recolectados (el
+# contenedor). En desarrollo los sirve `runserver`; sin esta condición, WhiteNoise avisa de
+# que STATIC_ROOT no existe porque nunca se corrió collectstatic.
+if (BASE_DIR / "staticfiles").is_dir() or FRONTEND_DIST.is_dir():
+    MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
 
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
