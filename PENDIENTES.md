@@ -5050,22 +5050,108 @@ refresco del espejo**, ya incluido en `etl_comandos.sh` (no hay que recordarlo).
 (`transcrito_por`) solo empieza a llenarse con los certificados **nuevos** que se carguen en SISV; el
 histórico queda con el login legacy.
 
-## 46. [PENDIENTE — revisar en oficina] Rol por módulo de cada usuario legacy en la importación
+## 46. [HECHO 17/11/2026] Rol por módulo de cada usuario legacy en la importación
 
 Cada usuario del legacy tiene un **rol por módulo**: **natalidad**, **mortalidad**,
-**vigilancia (fichas)**, **MM** (muerte materna) y **MI** (muerte infantil). Hoy la atribución de
-productividad (§45) solo recupera el login de **natalidad** (`CERTNACIMIENTO.USUARIO`); falta
-revisar, al traer la información del legacy, **dónde vive el rol por módulo de cada usuario** (tablas
-de permisos/roles del esquema `sismai`, no solo `USUARIOS`) y si la importación lo trae o lo deja
-fuera.
+**vigilancia (fichas)**, **MM** (muerte materna) y **MI** (muerte infantil). La atribución de
+productividad (§45) solo recuperaba el login de **natalidad** (`CERTNACIMIENTO.USUARIO`) y quedaba
+pendiente averiguar de dónde sale el autor de los demás módulos.
 
-Puntos a verificar en la oficina (con el Oracle / `respaldo` de solo lectura):
+**Resultado: no hace falta ninguna tabla de permisos por módulo.** El autor está en la propia fila
+del hecho, así que la atribución se resolvió leyendo tres columnas distintas y un backfill por módulo:
 
-- Catálogo `sismai.USUARIOS` (`ESTATUS`, `CARGO`, `HESTABLECIMIENTO`) frente a una tabla de
-  **permisos por módulo** (¿existe? ¿cómo se llama?).
-- Cómo se marca que un usuario puede operar natalidad / mortalidad / vigilancia / MM / MI.
-- Si esa relación entra en el espejo y en el ETL, o se pierde en el refresco semanal.
+| Módulo | Origen del autor | Backfill | Resultado |
+| --- | --- | --- | --- |
+| Natalidad | `sismai."CERTNACIMIENTO"."USUARIO"` | `completar_transcritor_nacimiento --ejecutar` | **439.282** |
+| Mortalidad | `sismai."CERTIFICADO"."LOGIN"` | `completar_transcritor_defuncion --ejecutar` | **175.259** |
+| Fichas MM/MI | `sismai."CASOS_MMI"."USUARIO"` | `completar_transcritor_ficha --ejecutar` | **10.798** |
+| Fichas violentas | `sismai."M_VIOLENTA"."LOGIN"` | ídem | **12.409** |
 
-Relación: §45 (productividad por usuario) y §24 (registradores/roles). De aquí saldría, cuando se
-tenga, un reporte de productividad **por módulo** y la distinción de usuarios **activos vs.
-deshabilitados** (`USUARIOS.ESTATUS`).
+Lo que queda fuera y por qué:
+
+- **17.371 defunciones sin certificado en el espejo**: vienen del respaldo `lara_2019_2020`, que no
+  está en `sismai."CERTIFICADO"`. No es un fallo del cruce; el dato no existe en el origen montado.
+- **2 fichas sin renglón**: no están ni en `RENGLON_CASOSMM` ni en `RENGLON_CASOSMI`, quedan con
+  `subtipo_legacy=""` («sin clasificar») y su autor sí se recuperó de `CASOS_MMI.USUARIO`.
+- **Antes de 2019-08 no hay `HISTDOC`**: `"INSTANCIA"` es la estación de trabajo y `"USUARIO"` está
+  vacío en las 58.596 filas, así que ese campo no sirve para atribuir. La columna falsa de la nota
+  anterior («`CERTIFICADO` sin usuario») se corrigió: **`"LOGIN"` sí está** y cubre el 100 % de los
+  certificados del espejo.
+
+Otros dos puntos que se cerraron con evidencia:
+
+- **`sismai.USUARIOS."ESTATUS"`: `1` = vigente/activa, `2` = cesante** (confirmado con la oficina el
+  16/11/2026: YOLISIMORT y THANIAMORB, en funciones, traen 1; YOLISINAT, cuenta vieja de natalidad,
+  trae 2). El endpoint lo publica en `estado_fuente` con `confirmado: True`.
+- **No existe una tabla aparte de permisos por módulo**: el rol funcional se deduce de lo que la
+  persona transcribió (`CARGO` en `USUARIOS` es descriptivo, p. ej. «APOYO TRANSCRIPTORA MORTALIDAD»),
+  y eso es justo lo que mide el reporte.
+
+Efecto medido: `sin_atribuir` pasa de **8.084 a 0** en defunciones y de **378 a 0** en fichas (queda 1
+nacimiento sin certificado), y el resumen trae **59 personas** con **40.950 transcritos** en 2026.
+Pruebas: 6 nuevas en `ProductividadTests`, 8 en `tests_completar_transcritor_defuncion.py` y 8 en
+`tests_completar_transcritor_ficha.py` (suite backend **422 OK**).
+
+Queda como tarea de oficina, no de código, **revisar el rol declarado** de algún usuario dudoso contra
+la persona real si aparece una discrepancia en el reporte.
+
+Puntos que quedaron verificados en la oficina (con el Oracle / `respaldo` de solo lectura):
+
+- `sismai.USUARIOS` (`ESTATUS`, `CARGO`, `HESTABLECIMIENTO`) **no** tiene una tabla de permisos por
+  módulo: el rol funcional se deduce de lo que la persona transcribió y `CARGO` es descriptivo.
+- El autor se marca en la propia fila del hecho, no en el catálogo de usuarios (ver tabla arriba).
+- Esas columnas ya viajan en el espejo, así que la atribución se rehace en cada refresco con los
+  backfills de `etl_comandos.sh` y no se pierde.
+
+Relación: §45 (productividad por usuario) y §24 (registradores/roles). De aquí salió el reporte de
+productividad **por módulo** y la distinción de usuarios **activos vs. cesantes** (`USUARIOS.ESTATUS`,
+1 = activo, 2 = cesante).
+
+## 47. [HECHO 17/11/2026] Despliegue en un solo contenedor y mensajes de la aplicación en español
+
+Dos cosas que faltaban para que el sistema se pueda entregar sin depender de una sesión de
+desarrollo abierta y sin que el usuario vea texto en inglés.
+
+**Despliegue.** El requisito era una **sola imagen** que arranque con Docker y quede disponible al
+iniciar el equipo. La solución es una imagen multi-stage: `node:22-alpine` compila el frontend y
+`python:3.13-slim` corre Django con **gunicorn**, sirviendo el `dist` con **WhiteNoise**. Así el API y
+la interfaz comparten origen y desaparecen el proxy de Vite y el CORS.
+
+- **Un contenedor** `sisv_app` (`--restart always`) en el puerto **8020** del host, más el
+  `sis_postgres_dev` de siempre (5436, `--restart always`) alcanzado por `host.docker.internal`.
+  Al iniciar el daemon de Docker suben los dos: **no hay que levantar nada a mano**.
+- `docker/entrypoint.sh` espera a PostgreSQL, aplica migraciones, recolecta estáticos y arranca
+  gunicorn; el `HEALTHCHECK` consulta `/api/`.
+- La clave de Django **no viaja en la imagen**: se pasa con `--env-file docker/sisv.env` (ignorado
+  por git, plantilla en `docker/sisv.env.example`) y la imagen deja `DJANGO_SECRET_KEY` vacía a
+  propósito para que un arranque sin entorno falle con un mensaje claro.
+- **`DJANGO_COOKIE_SECURE=0` es obligatorio** en este despliegue: sin él la cookie de sesión sale con
+  `Secure` y el login por HTTP de la red local no funciona.
+- `docker-compose.yml` queda como documentación **solo del servicio `app`**: volver a declarar la BD
+  ahí podría recrear el contenedor y arrancarlo con un volumen vacío (se perdería la copia de la data
+  viva y del espejo). Este equipo no tiene el plugin `docker compose`; la vía real es
+  `./docker/levantar.sh`.
+- Revés del camino: el catch-all de la SPA en `sisv_backend/urls.py` (para que recargar
+  `/productividad` no dé 404) y `FRONTEND_DIST`/WhiteNoise condicional en `settings.py`, que en
+  desarrollo no se activa porque esa carpeta no existe.
+
+Verificado: contenedor arriba con `gunicorn 23.0.0`, `/api/` 200, `/productividad` 200 sirviendo el
+`index.html`, `/api/nada/` 404 **en español**, login y `/api/registros/productividad/` respondiendo con
+los datos reales (40.950 transcritos, 59 personas).
+
+**Mensajes en español.** El usuario reportó «Network Error» en pantalla. Ese texto lo genera axios,
+no la aplicación. `frontend/src/api/axios.js` ahora exporta `mensajeDeError()`, que resuelve el mensaje
+por prioridad: **texto del servidor** (si viene en español) → **mensaje por código HTTP**
+(400/401/403/404/409/413/429/500/502/503/504) → **conexión/tiempo agotado**. Hay dos detalles que
+importan:
+
+- El HTML de error de Django (`<!DOCTYPE html>…<title>Not Found</title>`) **no se muestra**: se
+  descarta y cae al texto del código.
+- El interceptor marca el rechazo con `__normalizado` para no traducir dos veces lo ya traducido, y
+  sigue reintentando una vez cuando el 403 es por CSRF rotado.
+
+Del lado del servidor se añadieron `handler404`/`handler500`: JSON en español para `/api/…` y
+plantillas `backend/templates/404.html` y `500.html` (con `lang="es"`) para el resto.
+
+Pruebas: `frontend/src/api/axios.test.js` (8, incluidos «Network Error», timeout y que no se filtre el
+HTML). Frontend **28 OK**; backend **422 OK**.

@@ -64,6 +64,35 @@ Idioma de trabajo: **responder siempre en español**.
   `VITE_API_PROXY=http://127.0.0.1:8001`.
 - Arrancar frontend: `npm run dev` dentro de `frontend/` (proxy `/api` → `VITE_API_PROXY` o 8000 por
   defecto; puerto 5173).
+- **Docker: imagen única, arranca sola (`./docker/levantar.sh`, 17/11/2026).** Un solo contenedor
+  `sisv_app` con **gunicorn + WhiteNoise**: sirve el API y el **frontend compilado** en el mismo origen
+  (sin CORS, sin nginx). Se publica en el **puerto 8020** del host (`8020:8000`) y queda con
+  `--restart always`, así que al iniciar el daemon de Docker sube por sí solo; la BD es el contenedor
+  `sis_postgres_dev` (5436, `--restart always`), alcanzado por `host.docker.internal:host-gateway`.
+  - `Dockerfile` multi-stage (`node:22-alpine` compila `frontend/` → `python:3.13-slim` corre Django),
+    usuario sin privilegios `sisv`, `HEALTHCHECK` contra `/api/`. `docker/entrypoint.sh` espera a
+    PostgreSQL (hasta 120 s), aplica migraciones, corre `collectstatic` y arranca gunicorn.
+  - `docker/sisv.env` (ignorado por git; plantilla en `docker/sisv.env.example`) lleva
+    `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS=*`, `DJANGO_CSRF_TRUSTED_ORIGINS` con la IP y
+    **`DJANGO_COOKIE_SECURE=0`** (sin eso la cookie de sesión no viaja por HTTP y el login falla).
+    La imagen **deja `DJANGO_SECRET_KEY` vacía a propósito**: sin `--env-file` el arranque falla con un
+    mensaje claro en vez de correr con una clave de construcción.
+  - `docker-compose.yml` define **solo** el servicio `app` (no la BD: definirla chocaría con
+    `sis_postgres_dev` y podría recrearla con un volumen vacío). Este equipo **no tiene el plugin
+    `docker compose`**, así que la vía real es `./docker/levantar.sh` (`docker build` + `docker run`);
+    en sesiones viejas de OpenCode hay que envolverlo: `newgrp docker -c "./docker/levantar.sh"`.
+  - `settings.py` sirve el frontend compilado desde `FRONTEND_DIST` (`backend/frontend_dist`, o
+    `SISV_FRONTEND_DIST`) y monta WhiteNoise **solo** si esa carpeta o `staticfiles` existen; el
+    catch-all de `sisv_backend/urls.py` devuelve `index.html` para las rutas del React Router (recargar
+    `/productividad` en el contenedor funciona) excluyendo `/api`, `/admin`, `/static` y `/assets`.
+- **La aplicación habla español, también en los errores.** `frontend/src/api/axios.js` exporta
+  `mensajeDeError()`, que traduce lo que axios entrega en inglés (**«Network Error»**, «timeout of
+  20000ms exceeded», «Request failed with status code …»), respeta el mensaje del servidor si ya viene
+  en español y descarta el HTML de error de Django. El interceptor normaliza el rechazo
+  (`__normalizado`) para no traducir dos veces y reintenta una vez tras un 403 de CSRF rotado. Del lado
+  del servidor, `sisv_backend/views.py` define `handler404`/`handler500` con JSON en español para
+  `/api/…` y plantillas `backend/templates/404.html` y `500.html` para el resto. Pruebas:
+  `frontend/src/api/axios.test.js` (8).
 - Mover el servidor en segundo plano dentro de una llamada a Bash de OpenCode **cuelga la sesión
   de hasta 120s**: verificar endpoints con el cliente de pruebas de Django
   (`manage.py shell -c "from django.test import Client; ..."`), no con `curl` a un proceso `&`.
@@ -196,14 +225,34 @@ Idioma de trabajo: **responder siempre en español**.
   (alta) y «codificados» (`codificado_por`) en columnas separadas** —son roles distintos—, pendientes de
   CIE, días trabajados y promedio/día; respeta `alcance_registros` y exporta CSV con BOM. Lo que no se
   puede atribuir se informa en **`sin_atribuir`** (por `fecha_evento`, el único campo de fecha de todos
-  los registros, y por eso puede no cuadrar con las filas) en vez de un cero: **las defunciones del
-  legacy no tienen autor** (`CERTIFICADO` sin usuario, `HISTDOC.USUARIO` vacío). Pantalla
+  los registros, y por eso puede no cuadrar con las filas) en vez de un cero. Pantalla
   **`/productividad`** en el menú Registros, **solo lectura para todos los roles**. Los «codificados» dan
   0 hasta que se confirmen codificaciones en SISV (el histórico no tiene autor). Pruebas
-  `registros/tests.py::ProductividadTests` (11) y `tests_completar_transcritor.py` (7).
-  **Pendiente §46:** revisar en la importación del legacy el **rol por módulo** de cada usuario
-  (natalidad, mortalidad, vigilancia/fichas, MM, MI); hoy solo se atribuye natalidad
-  (`CERTNACIMIENTO.USUARIO`). Revisar en oficina.
+  `registros/tests.py::ProductividadTests` (17) y `tests_completar_transcritor.py` (7).
+  **Cierre del §46 (17/11/2026) — atribución por módulo completa:** el rol por módulo ya se lee del
+  legacy para los tres módulos, con su propio backfill idempotente (dry-run por defecto, lecturas fuera
+  del bloque `transaction.atomic()`, en `etl_comandos.sh` el general y los de certificados):
+  - **defunciones** ← `sismai."CERTIFICADO"."LOGIN"`: `manage.py completar_transcritor_defuncion
+    --ejecutar` → **175.259** actualizadas; **17.371 quedan sin certificado en el espejo** (vienen de
+    `lara_2019_2020`, fuera del espejo). ⚠ La nota anterior («las defunciones del legacy no tienen
+    autor, `CERTIFICADO` sin usuario») **era falsa**: `"LOGIN"` sí está; lo que está vacío en las
+    58.596 filas es `HISTDOC."USUARIO"` (ahí solo hay `INSTANCIA`, la estación de trabajo).
+  - **fichas** ← `sismai."CASOS_MMI"."USUARIO"` (10.798) + `sismai."M_VIOLENTA"."LOGIN"` (12.409):
+    `manage.py completar_transcritor_ficha --ejecutar` → **23.207** actualizadas y además clasifica
+    `subtipo_legacy` con los renglones del formulario: **MM 749 / MI 10.047 / VIOLENTA 12.409 /
+    SIN_CLASIFICAR 2** (esas 2 no están en ningún renglón). Las violentas dejan de existir después del
+    **26/01/2022** porque el legacy dejó de alimentar `M_VIOLENTA`.
+  - Resultado: `sin_atribuir` baja a **0 en defunciones y fichas** (quedaba 8.084 y 378) y a 1 en
+    nacimientos; `resumen_usuarios` trae **59 personas** y 40.950 transcritos en 2026.
+  - **`ESTATUS` confirmado (16/11/2026): `1` = vigente/activa, `2` = cesante.** La evidencia: YOLISIMORT
+    y THANIAMORB, en funciones, traen 1; YOLISINAT, cuenta vieja de natalidad, trae 2. El endpoint lo
+    publica en `estado_fuente` con `confirmado: True` y la pantalla rotula Activo/Cesante.
+  - La pantalla `/productividad` muestra el **resumen por usuario y módulo** (una fila por persona, con
+    columnas nacimientos/defunciones/MM/MI/violentas/fichas/vigilancia/vacunación/anulaciones, estado,
+    última actividad y promedio/día), filtro «Solo usuarios activos» y **dos exportaciones CSV**
+    (detalle y `resumen=1`). «Anulaciones» va aparte y **no** suma a «transcritos»: anular no es
+    transcribir. Pruebas nuevas: `tests_completar_transcritor_defuncion.py` (8) y
+    `tests_completar_transcritor_ficha.py` (8), más **6** en `ProductividadTests`.
   - **Certificado de defunción = EV-14 oficial (01/10/2026, migración `0005_defuncion_ev14`):**
     `Defuncion` tiene **50 campos más**, todos opcionales (`null`/`blank`) para no romper los certificados
     ya cargados ni el ETL, organizados por las secciones del EV-14: **I** identificación
@@ -899,17 +948,17 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
 - Componentes frontend clave: `CIESearch` (autocomplete + cascada CIE-11 + subgrupos obligatorios),
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
-- **Pruebas automatizadas (13/11/2026):** backend con
+- **Pruebas automatizadas (17/11/2026):** backend con
   `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
   (**correr desde `backend/`** — desde la raíz descubre 0 tests),
-  (**400 pruebas a 13/11/2026** — verificado, `Ran 400 tests`, `OK`):
-  - `registros/tests.py` **146**: CRUD de nacimientos (8), permisos (4), alcance (5), tablero (2),
+  (**422 pruebas a 17/11/2026** — verificado, `Ran 422 tests`, `OK`):
+  - `registros/tests.py` **152**: CRUD de nacimientos (8), permisos (4), alcance (5), tablero (2),
     reportes/configuración (5), año epidemiológico (3), MM (4), defunción y ficha (2),
     **EV-14 (7 + 7 ampliado)**, cobertura del tablero (4), meses degradados (5), `CargarMMMNTests` (20),
     **EV-25 (9)**, **`ReporteSemanalMMITests` (9)**, **`ReportesMMMNTests` (11, §43.4/§44:
     MI 0–364 con desglose, edad declarada sobre `FECHA_N`, cascada semanal, alias de ruta)**,
     sugerencia por catálogo (4), `proponer_codificacion` (5), consulta/confirmación (8),
-    número físico (10), **`ProductividadTests` (11, §45)** y saneo del `|` de `exportar_rutalara` (3).
+    número físico (10), **`ProductividadTests` (17, §45/§46)** y saneo del `|` de `exportar_rutalara` (3).
   - `despacho/tests.py` **49** (talonarios, cruce, novedades, alcance, reportes 12,
     series deducidas 11, redondeo al corte de decena 7, §36/§37).
   - `conciliacion/tests.py` **34** (ENO 16, neonatal 10, materna 8), `vigilancia/tests.py` **32**
@@ -920,11 +969,12 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
     `tests_recuperar_establecimiento.py` **6**, `tests_completar_nacimiento.py` **6**,
     `tests_calidad.py` **9** (§35), `tests_dividir_nombres.py` **10**,
     **`tests_completar_edad_defuncion.py` 3 (§44)**, **`tests_completar_transcritor.py` 7 (§45)**,
-    `tests_cargar_lara.py` **35** (§27.8.1).
+    **`tests_completar_transcritor_defuncion.py` 8** y **`tests_completar_transcritor_ficha.py` 8
+    (§46)**, `tests_cargar_lara.py` **35** (§27.8.1).
   - Requiere `__init__.py` en las apps — registros, seguridad, territorio y catalogos eran
     namespace packages y por eso el descubrimiento fallaba.
-  - Frontend con `npm test` (Vitest, 20 pruebas en `src/utils/cie.test.js`,
-    `src/utils/numero.test.js` y `src/api/sisv.test.js`).
+  - Frontend con `npm test` (Vitest, **28 pruebas** en `src/utils/cie.test.js`,
+    `src/utils/numero.test.js`, `src/api/sisv.test.js` y `src/api/axios.test.js`).
   - Verificación manual: `manage.py check` y `npm run build`.
 - **Seguridad (23/09/2026):** la API exige sesión por defecto (`IsAuthenticated` global; públicos solo
   `/api/auth/login|logout|me|csrf` y `/api/`). Rate limiting del login en `seguridad/throttle.py`
