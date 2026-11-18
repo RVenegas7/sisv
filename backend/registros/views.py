@@ -1,6 +1,7 @@
 import csv
 import io
 import re
+import unicodedata
 from collections import Counter
 from datetime import date, timedelta
 from statistics import median
@@ -2099,6 +2100,10 @@ class ProductividadView(APIView):
         es transcribir, es anular, y sumarla inflaría la productividad. ``dias_trabajados`` es
         el número de días **distintos** en que la persona trabajó en cualquier módulo (no la
         suma de los días de cada módulo, que contaría dos veces un día con dos módulos).
+
+        El orden es el que pidió la oficina: **activos primero** y, dentro de cada grupo, **por
+        persona en orden alfabético**. No se ordena por volumen para que la lista no se mueva
+        cada vez que entra un certificado.
         """
         acumulado = {}
         for f in filas:
@@ -2133,8 +2138,33 @@ class ProductividadView(APIView):
             r["promedio_dia"] = round(r["transcritos"] / dias, 2) if dias else 0.0
             if r["transcritos"] or r["codificados"] or r["anulaciones"]:
                 salida.append(r)
-        salida.sort(key=lambda r: (-r["transcritos"], -r["codificados"], r["origen"], r["usuario"] or ""))
+        salida.sort(key=self._clave_orden_persona)
         return salida
+
+    # Activo primero, después cesante y al final los que no tienen estado conocido.
+    ORDEN_ESTADO = {"ACTIVO": 0, "CESANTE": 1}
+
+    @staticmethod
+    def _sin_acentos(texto):
+        """Minúsculas y sin tildes, para que «Ángel» quede junto a «Ana» y antes de «Berta»."""
+        descompuesto = unicodedata.normalize("NFKD", str(texto or ""))
+        return "".join(c for c in descompuesto if not unicodedata.combining(c)).casefold().strip()
+
+    @classmethod
+    def _clave_orden_persona(cls, r):
+        """Activos primero y, dentro del grupo, por persona en orden alfabético.
+
+        «Persona» es el nombre cuando se conoce (cuentas de SISV) y el login cuando no (usuarios
+        del legacy); el login va como segundo criterio para desempatar homónimos.
+        """
+        nombre = r.get("nombre") or ""
+        login = r.get("usuario") or ""
+        return (
+            cls.ORDEN_ESTADO.get(r.get("estado") or "", 2),
+            cls._sin_acentos(nombre or login),
+            cls._sin_acentos(login),
+            r.get("origen") or "",
+        )
 
     # ------------------------------------------------------------------ sin atribuir
     def _sin_atribuir(self, request, desde, hasta, modulo):
@@ -2184,6 +2214,9 @@ class ProductividadView(APIView):
         "«Sin atribuir» no es «no trabajó»: las 17.371 defunciones de lara_2019_2020 no existen en "
         "CERTIFICADO y no tienen autor. Se cuenta por fecha del evento, el único campo de fecha "
         "presente en todos los registros, así que sus totales pueden no coincidir con las filas.",
+        "El resumen por usuario va con los **activos primero** y, dentro de cada grupo (activos, "
+        "cesantes, sin dato), **por persona en orden alfabético**; el mismo orden se exporta en el "
+        "CSV de resumen.",
     ]
 
     def get(self, request):

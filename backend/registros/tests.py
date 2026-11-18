@@ -2169,6 +2169,31 @@ class ProductividadTests(SISVBase):
         self.assertEqual(estados["trans_hcb"], "ACTIVO")
         self.assertEqual(estados["cod_hcb"], "CESANTE")
 
+    def test_resumen_ordena_activos_primero_y_por_persona(self):
+        # Lo que pidió la oficina: activos arriba y, dentro del grupo, alfabético por persona
+        # (sin que las tildes cambien el sitio).
+        User = get_user_model()
+        casos = [("zulema", "Zulema", True), ("angel", "Ángel", True),
+                 ("beatriz", "Beatriz", False), ("ana", "Ana", True)]
+        for login, nombre, activo in casos:
+            u = User.objects.create_user(username=login, password="clave.test.123", first_name=nombre)
+            User.objects.filter(pk=u.pk).update(is_active=activo)
+            self._nac(f"O-{login}", date(2023, 5, 2), transcrito_por=u,
+                      transcrito_en=timezone.make_aware(datetime(2023, 5, 2, 9, 0)))
+        self.login(self.u_admin)
+        d = self.client.get(self._url(modulo="", agrupar="mes")).json()["data"]
+        # «Ana» va antes que «Ángel» (a-n-a < a-n-g) y la tilde no manda «Ángel» al final,
+        # que es lo que haría el orden por byte.
+        self.assertEqual(
+            [(r["nombre"], r["estado"]) for r in d["resumen_usuarios"]],
+            [("Ana", "ACTIVO"), ("Ángel", "ACTIVO"), ("Zulema", "ACTIVO"), ("Beatriz", "CESANTE")],
+        )
+        # El CSV de resumen respeta el mismo orden: la cesante queda al final.
+        csv_resumen = self.client.get(self._url(formato="csv", resumen=1)).content.decode("utf-8")
+        lineas = [l for l in csv_resumen.lstrip("\ufeff").splitlines() if l.strip()]
+        self.assertIn("Beatriz", lineas[-1])
+        self.assertIn("Ana", lineas[1])
+
     def test_resumen_trae_ultima_actividad(self):
         for dia in (2, 9):
             self._nac(f"U-{dia}", date(2023, 5, dia), transcrito_por=self.u_trans_hcb,

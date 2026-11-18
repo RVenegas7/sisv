@@ -319,6 +319,8 @@ export default function Productividad() {
               «Fichas» suma MM + MI + violentas + las fichas sin clasificar; «Anulaciones» va
               aparte y <strong>no</strong> se suma a «Transcritos», porque anular no es
               transcribir. Los días son los días distintos con actividad en cualquier módulo.
+              La tabla va con los <strong>activos primero</strong> y, dentro de cada grupo, por
+              persona en orden alfabético.
             </p>
           </section>
 
