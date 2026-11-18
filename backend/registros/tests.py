@@ -1388,16 +1388,21 @@ class ReportesMMMNTests(SISVBase):
     defunción; cada semana se asigna al mes de su domingo.
     """
 
-    def _def(self, uid, fecha, org=None, nacimiento=None, embarazo=False, edad=None, unidad=""):
+    def _def(self, uid, fecha, org=None, nacimiento=None, embarazo=False, edad=None,
+             unidad="", numero_certificado=""):
         return Defuncion.objects.create(
             registro_numero=uid, fecha_evento=fecha, organizacion=org or self.org_hcb,
             fallecido_nombres="Test", fallecido_apellidos="Uno", sexo="F",
             fecha_nacimiento=nacimiento, embarazo_o_puerperio=embarazo,
-            edad=edad, edad_unidad=unidad,
+            edad=edad, edad_unidad=unidad, numero_certificado=numero_certificado,
         )
 
     def _url(self, anio=2023):
         return f"/api/registros/reportes/mm-mn-mensual/?anio={anio}"
+
+    def _detalle(self, desde, hasta, tipo=""):
+        url = f"/api/registros/reportes/mm-mi-detalle/?desde={desde}&hasta={hasta}"
+        return f"{url}&tipo={tipo}" if tipo else url
 
     def _violenta(self, uid, fecha, org=None):
         return FichaVigilancia.objects.create(
@@ -1554,6 +1559,94 @@ class ReportesMMMNTests(SISVBase):
         self.client.logout()
         r = self.client.get(self._url())
         self.assertIn(r.status_code, (401, 403))
+
+    # --- Detalle de la semana: qué certificados componen el número de la tabla ---
+
+    def test_detalle_semana_lista_certificados_y_cuadra_con_el_contador(self):
+        """Semana del domingo 12/02/2023 al sábado 18/02/2023."""
+        self._def("MI-NEO", date(2023, 2, 14), nacimiento=date(2023, 2, 1),
+                  numero_certificado="7001")
+        self._def("MI-POST", date(2023, 2, 15), nacimiento=date(2022, 6, 1),
+                  numero_certificado="7002")
+        self._def("MM-1", date(2023, 2, 16), embarazo=True, numero_certificado="7003")
+        self._violenta("VIOL-1", date(2023, 2, 17))
+        self._def("FUERA", date(2023, 3, 1), nacimiento=date(2023, 2, 20),
+                  numero_certificado="7004")
+        self.login(self.u_admin)
+
+        # Lo que dice la tabla semanal...
+        d = self.client.get(self._url(anio=2023)).json()["data"]
+        semana = next(s for m in d["meses"] for s in m["semanas"] if s["desde"] == "2023-02-12")
+
+        # ...es exactamente lo que lista el detalle.
+        det = self.client.get(self._detalle("2023-02-12", "2023-02-18")).json()["data"]
+        self.assertEqual(det["mm_fuente"], "CERTIFICADO")
+        self.assertEqual(det["total"]["mi"], semana["mi"])
+        self.assertEqual(det["total"]["mi_neonatal"], semana["mi_neonatal"])
+        self.assertEqual(det["total"]["mi_postneonatal"], semana["mi_postneonatal"])
+        self.assertEqual(det["total"]["mm"], semana["mm"])
+        self.assertEqual(det["total"]["mv"], semana["mv"])
+        self.assertEqual(det["total"]["mi"], 2)
+        self.assertEqual(det["total"]["mm"], 1)
+        self.assertEqual(det["total"]["mv"], 1)
+        self.assertEqual(det["total"]["mm_mv"], 2)
+
+        self.assertEqual(len(det["filas"]), 4)
+        numeros = {
+            f["numero_certificado"] for f in det["filas"] if f["modulo"] == "defunciones"
+        }
+        self.assertEqual(numeros, {"7001", "7002", "7003"})
+        # Orden: primero la MI neonatal, después la post-neonatal, luego MM y la violenta.
+        self.assertEqual(
+            [f["tipo"] for f in det["filas"]],
+            ["MI_NEONATAL", "MI_POSTNEONATAL", "MM", "VIOLENTA"],
+        )
+        primera = det["filas"][0]
+        self.assertEqual(primera["nombres"], "Test")
+        self.assertEqual(primera["apellidos"], "Uno")
+        self.assertEqual(primera["dias_vida"], 13)
+        self.assertTrue(primera["consultable"])
+        self.assertEqual(primera["id"], Defuncion.objects.get(registro_numero="MI-NEO").pk)
+
+        # El filtro por tipo deja solo la serie de la pantalla.
+        solo_mi = self.client.get(self._detalle("2023-02-12", "2023-02-18", "MI")).json()["data"]
+        self.assertEqual(
+            [f["tipo"] for f in solo_mi["filas"]], ["MI_NEONATAL", "MI_POSTNEONATAL"]
+        )
+        solo_mm = self.client.get(self._detalle("2023-02-12", "2023-02-18", "MM")).json()["data"]
+        self.assertEqual([f["tipo"] for f in solo_mm["filas"]], ["MM", "VIOLENTA"])
+
+    def test_detalle_respeta_alcance(self):
+        self._def("MI-HCB", date(2023, 2, 14), org=self.org_hcb, nacimiento=date(2023, 2, 1))
+        self._def("MI-CAB", date(2023, 2, 15), org=self.org_cabudare, nacimiento=date(2023, 2, 1))
+        self._violenta("VIOL-HCB", date(2023, 2, 16), org=self.org_hcb)
+        self._violenta("VIOL-CAB", date(2023, 2, 17), org=self.org_cabudare)
+        self.login(self.u_trans_hcb)
+        det = self.client.get(self._detalle("2023-02-12", "2023-02-18")).json()["data"]
+        self.assertEqual(det["total"]["mi"], 1)
+        self.assertEqual(det["total"]["mv"], 1)
+        self.assertEqual(
+            {f["centro"] for f in det["filas"]}, {"Hospital Central de Barquisimeto"}
+        )
+
+    def test_detalle_semana_sin_casos(self):
+        self.login(self.u_admin)
+        det = self.client.get(self._detalle("2023-02-12", "2023-02-18")).json()["data"]
+        self.assertEqual(det["filas"], [])
+        self.assertEqual(det["total"]["mi"], 0)
+        self.assertEqual(det["total"]["mm"], 0)
+
+    def test_detalle_exige_rango_y_tipo_validos(self):
+        self.login(self.u_admin)
+        self.assertEqual(
+            self.client.get("/api/registros/reportes/mm-mi-detalle/").status_code, 400
+        )
+        self.assertEqual(
+            self.client.get(self._detalle("2023-02-18", "2023-02-12")).status_code, 400
+        )
+        self.assertEqual(
+            self.client.get(self._detalle("2023-02-12", "2023-02-18", "XX")).status_code, 400
+        )
 
 
 class SugerenciaCatalogoTests(SISVBase):
@@ -1727,6 +1820,28 @@ class ConsultaYConfirmacionTests(SISVBase):
     def test_numero_inexistente_es_404(self):
         self.login(self.u_cod_hcb)
         self.assertEqual(self._consulta("NO-EXISTE").status_code, 404)
+
+    def test_consulta_por_id_abre_ese_registro_y_no_el_mas_reciente(self):
+        """El detalle semanal abre por id: el número impreso se repite en el histórico."""
+        self.login(self.u_trans_hcb)
+        self._defuncion("D-0008", numero_certificado="7001")
+        self._defuncion("D-0009", numero_certificado="7001")
+        self.login(self.u_cod_hcb)
+        objetivo = Defuncion.objects.get(registro_numero="D-0009")
+        r = self.client.get(f"/api/registros/consulta/?modulo=defunciones&id={objetivo.pk}")
+        self.assertEqual(r.status_code, 200)
+        data = r.json()["data"]
+        self.assertEqual(data["numero"], "D-0009")
+        self.assertEqual(data["numero_origen"], "id")
+        self.assertEqual(data["numero_fisico"], "7001")
+
+    def test_consulta_por_id_fuera_de_alcance_es_404(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion("D-0010")
+        objetivo = Defuncion.objects.get(registro_numero="D-0010")
+        self.login(self.u_trans_cabudare)
+        r = self.client.get(f"/api/registros/consulta/?modulo=defunciones&id={objetivo.pk}")
+        self.assertEqual(r.status_code, 404)
 
     def test_confirmar_registra_auditoria_y_codigo(self):
         self.login(self.u_trans_hcb)

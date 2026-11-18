@@ -21,6 +21,7 @@ urlpatterns = [
     # El nombre viejo se conserva (clientes desplegados); el módulo ya es MM / MI.
     path("reportes/mm-mi-mensual/", views.ReportesMMMNView.as_view()),
     path("reportes/mm-mn-mensual/", views.ReportesMMMNView.as_view()),
+    path("reportes/mm-mi-detalle/", views.ReportesMMMNDetalleView.as_view()),
     path("reportes/exportar/", views.ReportesExportView.as_view()),
     path("configuracion/", views.ConfiguracionView.as_view()),
 ]

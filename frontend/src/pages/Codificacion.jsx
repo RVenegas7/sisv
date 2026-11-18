@@ -8,6 +8,7 @@ import {
   listarCodificacion,
 } from "../api/sisv"
 import CIESearch from "../components/CIESearch"
+import DetalleCertificado from "../components/DetalleCertificado"
 import SeccionCIE from "../components/SeccionCIE"
 import { Boton, Campo, Input, Select } from "../components/ui"
 import { seleccionDesdeRegistro, validarCIE } from "../utils/cie"
@@ -62,26 +63,6 @@ function seleccionDesdeConsulta(data) {
     return { cie10: null, cie11: { codigo: sug.codigo, titulo: sug.titulo, nivel: null }, subgrupo: null }
   }
   return CERO
-}
-
-function BloqueDetalle({ bloques }) {
-  return (
-    <div className="detalle-certificado">
-      {bloques.map((b) => (
-        <section key={b.grupo} className="seccion">
-          <h3>{b.grupo}</h3>
-          <dl className="grid-detalle">
-            {b.campos.map((c) => (
-              <div key={c.campo}>
-                <dt>{c.etiqueta}</dt>
-                <dd>{c.valor}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      ))}
-    </div>
-  )
 }
 
 export default function Codificacion({ usuario }) {
@@ -374,7 +355,7 @@ export default function Codificacion({ usuario }) {
             )}
           </header>
 
-          <BloqueDetalle bloques={consulta.detalle} />
+          <DetalleCertificado bloques={consulta.detalle} />
 
           <section className="seccion">
             <h3>Sugerencia de codificación</h3>

@@ -183,7 +183,7 @@ export default function App() {
           <Route path="/defunciones" element={<CargaDefunciones usuario={usuario} multicentro={esMulticentro} />} />
           <Route path="/registros/mm" element={<RegistroMMMN tipo="MM" />} />
           <Route path="/registros/mi" element={<RegistroMMMN tipo="MI" />} />
-          {/* Alias heredado: el módulo se llamaba MN (0–30 días) y pasó a MI (<1 año). */}
+          {/* Alias heredado: el módulo se llamaba MN (0–30 días) y pasó a MI (Muerte Infantil). */}
           <Route path="/registros/mn" element={<RegistroMMMN tipo="MI" />} />
           <Route path="/codificacion" element={<Codificacion usuario={usuario} />} />
           <Route path="/productividad" element={<Productividad />} />

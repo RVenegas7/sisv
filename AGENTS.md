@@ -371,7 +371,16 @@ Idioma de trabajo: **responder siempre en español**.
     establecimiento**, así que un usuario de centro solo ve las atribuidas. Datos al 05/11/2026 (con la
     definición MN 0–30 de entonces; ahora la pantalla cuenta MI <1 año): 2026 → MM 18 / violentas 0 /
     MN 269; 2025 → MM 39 / MN 395; 2021 → MM 58 / violentas 409 / MN 418.
-    Pruebas `registros/tests.py::ReportesMMMNTests` (11).
+    **Detalle de la semana (§48, 18/11/2026):** cada fila de la cascada tiene «Ver certificados (N)»,
+    que llama a **`GET /api/registros/reportes/mm-mi-detalle/?desde=&hasta=[&tipo=MI|MM|MV]`**
+    (`ReportesMMMNDetalleView`) y lista, con las **mismas reglas y el mismo alcance que el contador**,
+    los certificados de esa semana: número impreso, nombres, apellidos, cédula, fecha, centro y `id`;
+    clic abre el certificado completo en una ventana de solo lectura (sin salir del reporte). Los casos
+    del registro de investigación (`CASOS_MMI`) **no traen número de certificado** y se marcan
+    `sin_certificado`; las violentas son fichas `M_VIOLENTA`. Como el número impreso está repetido en
+    el histórico, `GET /api/registros/consulta/` acepta **`&id=`** para abrir ese registro exacto
+    (`numero_origen: "id"`). El rótulo «MI (<1 año)» pasó a **«MI (Muerte Infantil)»**.
+    Pruebas `registros/tests.py::ReportesMMMNTests` (15).
 - **Limpiar legacy fuera de Lara / demo (24/09/2026):** `manage.py limpiar_legacy_no_lara` (criterio
   **centro Lara + domicilio Lara**, economía del árbol DES LARA=67754/DPS LARA=3441583108; dry-run por
   defecto, `--ejecutar` aplica). Ejecutado: **Nacimientos 438.577, Defunciones 171.115, Fichas 0,
@@ -948,17 +957,18 @@ El sistema heredado solo soportaba CIE-10 (4 dígitos). Intentaron registrar CIE
 - Componentes frontend clave: `CIESearch` (autocomplete + cascada CIE-11 + subgrupos obligatorios),
   `SeccionCIE` (selector de versión por fecha + buscador), `src/utils/cie.js` (`validarCIE`).
 - Extracción del servidor heredado se ejecuta como usuario `oracle` en openSUSE.
-- **Pruebas automatizadas (17/11/2026):** backend con
+- **Pruebas automatizadas (18/11/2026):** backend con
   `DJANGO_DB_ENGINE=sqlite DJANGO_SECRET_KEY=test-key manage.py test`
   (**correr desde `backend/`** — desde la raíz descubre 0 tests),
-  (**422 pruebas a 17/11/2026** — verificado, `Ran 422 tests`, `OK`):
-  - `registros/tests.py` **152**: CRUD de nacimientos (8), permisos (4), alcance (5), tablero (2),
+  (**429 pruebas a 18/11/2026** — verificado, `Ran 429 tests`, `OK`):
+  - `registros/tests.py` **159**: CRUD de nacimientos (8), permisos (4), alcance (5), tablero (2),
     reportes/configuración (5), año epidemiológico (3), MM (4), defunción y ficha (2),
     **EV-14 (7 + 7 ampliado)**, cobertura del tablero (4), meses degradados (5), `CargarMMMNTests` (20),
-    **EV-25 (9)**, **`ReporteSemanalMMITests` (9)**, **`ReportesMMMNTests` (11, §43.4/§44:
-    MI 0–364 con desglose, edad declarada sobre `FECHA_N`, cascada semanal, alias de ruta)**,
-    sugerencia por catálogo (4), `proponer_codificacion` (5), consulta/confirmación (8),
-    número físico (10), **`ProductividadTests` (17, §45/§46)** y saneo del `|` de `exportar_rutalara` (3).
+    **EV-25 (9)**, **`ReporteSemanalMMITests` (9)**, **`ReportesMMMNTests` (15, §43.4/§44/§48:
+    MI 0–364 con desglose, edad declarada sobre `FECHA_N`, cascada semanal, alias de ruta, detalle
+    de la semana con sus certificados)**, sugerencia por catálogo (4), `proponer_codificacion` (5),
+    consulta/confirmación (10), número físico (10), **`ProductividadTests` (18, §45/§46)** y saneo
+    del `|` de `exportar_rutalara` (3).
   - `despacho/tests.py` **49** (talonarios, cruce, novedades, alcance, reportes 12,
     series deducidas 11, redondeo al corte de decena 7, §36/§37).
   - `conciliacion/tests.py` **34** (ENO 16, neonatal 10, materna 8), `vigilancia/tests.py` **32**

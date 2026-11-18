@@ -5155,3 +5155,43 @@ plantillas `backend/templates/404.html` y `500.html` (con `lang="es"`) para el r
 
 Pruebas: `frontend/src/api/axios.test.js` (8, incluidos «Network Error», timeout y que no se filtre el
 HTML). Frontend **28 OK**; backend **422 OK**.
+
+## 48. [HECHO 18/11/2026] Detalle de la semana MM / MI: qué certificados la componen
+
+La oficina pidió poder **cotejar el número de la tabla contra los soportes físicos**: ver qué
+certificados están detrás de cada semana del «Detalle por semana epidemiológica», con su **número
+impreso**, nombres y apellidos, y abrir el certificado completo al hacer clic. También corregir el
+rótulo «MI (<1 año)» por **«MI (Muerte Infantil)»**.
+
+**Endpoint nuevo** `GET /api/registros/reportes/mm-mi-detalle/?desde=&hasta=[&tipo=MI|MM|MV]`
+(`ReportesMMMNDetalleView`). Recibe el domingo–sábado que ya devuelve la semana en el reporte, así
+que **el listado cae en la misma clave que el contador**: usa `dias_de_vida` para MI,
+`muerte_materna_detalle`/`embarazo_o_puerperio` para MM, `LEGACY-VIOLENTA` para las violentas y el
+alcance del usuario. Si un día la lista no cuadra con el número de la tabla, es un defecto, no una
+diferencia de criterio; la prueba lo fija.
+
+- Cada fila trae `tipo` (`MI_NEONATAL`, `MI_POSTNEONATAL`, `MM`, `VIOLENTA`), `id`, `modulo`,
+  `numero_certificado` (impreso), `numero` (registro), nombres, apellidos, cédula, fecha, edad/días,
+  centro y **`consultable`**.
+- **Los casos del registro de investigación no identifican certificado** (`CASOS_MMI` no guarda el
+  número): se marcan `sin_certificado: true` y `consultable: false` y viaja la nota para que la
+  pantalla no prometa un papel que el legacy no enlaza. Las violentas son fichas `M_VIOLENTA`
+  (`consultable` abre la ficha).
+- `tipo` filtra la lista como la pantalla: `MI` (neonatal + post-neonatal), `MM` (maternas y
+  violentas, como las reporta la oficina) y `MV`. Los totales vuelven siempre completos.
+
+**Consulta por `id`.** `GET /api/registros/consulta/` acepta ahora `&id=` además de `&numero=` y
+abre **ese** registro, no «el más reciente con ese número»: el número impreso se repite en el
+histórico (61 defunciones y 343 planillas al 29/10/2026) y el detalle semanal tiene que mostrar el
+certificado que se está cotejando.
+
+**Pantalla** (`RegistroMMMN.jsx`): columna «Certificados» con «Ver certificados (N)» por semana; al
+abrir, sub-tabla con tipo, número, nombres, apellidos, cédula, fecha y centro, y un botón que abre
+**la ventana de solo lectura con el certificado completo** (mismo `DetalleCertificado` de la
+codificación, extraído a `components/DetalleCertificado.jsx`), sin salir del reporte. La ventana se
+cierra con Escape o al hacer clic fuera. Rótulos corregidos a **«MI (Muerte Infantil)»** en las dos
+tablas.
+
+Pruebas: `ReportesMMMNTests` +4 (el listado cuadra con el contador, respeta alcance, semana vacía y
+parámetros inválidos) y `ConsultaYConfirmacionTests` +2 (consulta por `id` y alcance). Backend
+**429 OK**; frontend 28 OK; `npm run build` correcto.

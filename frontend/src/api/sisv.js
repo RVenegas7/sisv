@@ -156,6 +156,12 @@ export async function reportesMMMN(params = {}) {
   return r.data.data
 }
 
+// Qué certificados componen una semana del reporte MM / MI (para cotejar los soportes).
+export async function reportesMMMNDetalle(params = {}) {
+  const r = await api.get("/registros/reportes/mm-mi-detalle/", { params })
+  return r.data.data
+}
+
 // §45: certificados transcritos (alta) y codificados (confirmación CIE) por persona.
 export async function productividad(params = {}) {
   const r = await api.get("/registros/productividad/", { params })
@@ -331,8 +337,11 @@ export async function listarCodificacion(params = {}) {
   return r.data
 }
 
-export async function consultarCertificado(modulo, numero) {
-  const r = await api.get("/registros/consulta/", { params: { modulo, numero } })
+// `numero` busca por el número impreso (con respaldo al de registro); `id` abre ese
+// registro exacto, que es lo que necesita el detalle semanal (los números se repiten).
+export async function consultarCertificado(modulo, numero, id) {
+  const params = id ? { modulo, id } : { modulo, numero }
+  const r = await api.get("/registros/consulta/", { params })
   return r.data.data
 }
 

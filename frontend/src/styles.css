@@ -1168,6 +1168,69 @@ main.contenido {
   background: #eef4ff;
 }
 
+/* Detalle de una semana de MM / MI: los certificados que la componen. */
+.detalle-semana {
+  margin-top: 1rem;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+  background: var(--tarjeta);
+}
+
+.detalle-semana .cabecera-lista {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.detalle-semana h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--verde-oscuro);
+}
+
+/* Ventana de solo lectura con el certificado completo (no cambia de pantalla). */
+.modal-fondo {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.55);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.modal-caja {
+  background: var(--tarjeta);
+  border-radius: 12px;
+  border: 1px solid var(--borde);
+  padding: 1rem 1.2rem;
+  width: min(960px, 100%);
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+  box-shadow: 0 18px 40px rgba(16, 24, 40, 0.25);
+}
+
+.modal-cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--borde);
+  padding-bottom: 0.6rem;
+  margin-bottom: 0.8rem;
+}
+
+.modal-cabecera h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--verde-oscuro);
+}
+
 /* Vigilancia — matriz del consolidado semanal (EPI-12/EPI-14) */
 .btn-mini.activo {
   background: var(--verde);

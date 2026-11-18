@@ -37,6 +37,8 @@ def _int_param(valor, defecto=None):
         return int(str(valor).strip())
     except (TypeError, ValueError):
         return defecto
+
+
 from catalogos.models import CIE10, CIE11, MapeoCIE
 from seguridad.models import Organizacion, Perfil
 from vigilancia.models import ConsolidadoSemanal
@@ -177,6 +179,14 @@ def _residentes_otros_estados(qs, estado_evento):
         .order_by("-n")
         .values_list("estado", "n")
     }
+
+
+def _fecha_param(valor):
+    """date() tolerante a partir de `AAAA-MM-DD`; `None` si no se puede leer."""
+    try:
+        return date.fromisoformat(str(valor or "").strip())
+    except ValueError:
+        return None
 
 
 def _filtro_anio(anio):
@@ -756,12 +766,18 @@ class ConsultaCertificadoView(APIView):
     """Consulta un certificado por número: todo lo registrado + la sugerencia CIE.
 
     GET /api/registros/consulta/?modulo=defunciones&numero=5143453
+    GET /api/registros/consulta/?modulo=defunciones&id=123456
 
     El número puede ser el **impreso en el certificado** (`numero_certificado` /
     `numero_planilla`, §31) o el `registro_numero` legacy (`DEF-2026-000003`,
     `LEG-CERT-999473093`); se busca por el físico primero. La respuesta trae
     `numero_origen` (`fisico`/`registro`), `numero_fisico`, `coincidencias` y `aviso`
     cuando el número físico está repetido en el histórico.
+
+    ``id`` abre **ese** registro exacto, sin pasar por el número. Lo usa el detalle
+    semanal de MM / MI, donde el número impreso no sirve como llave (hay certificados
+    con el mismo número y filas del legacy sin número): buscar por id muestra el
+    certificado que se está cotejando y no «el más reciente con ese número».
 
     Solo lectura: el detalle agrupado lo arma `presentacion.detalle_certificado`. Si el
     certificado aún no está confirmado, se (re)calcula la sugerencia con el catálogo
@@ -770,9 +786,33 @@ class ConsultaCertificadoView(APIView):
 
     def get(self, request):
         modulo = (request.query_params.get("modulo", "defunciones") or "").strip().lower()
-        registro, meta = _buscar_certificado(modulo, request.query_params.get("numero"), request)
-        if registro is None:
-            return meta
+        if modulo not in MODELOS:
+            return error(f"Módulo no válido: {modulo}", status=400)
+        pk = _int_param(request.query_params.get("id"))
+        if pk is not None:
+            registro = _por_alcance(
+                MODELOS[modulo].objects.select_related(
+                    "organizacion", "cie10", "cie11", "codificado_por"
+                ),
+                request,
+            ).filter(pk=pk).first()
+            if registro is None:
+                return error(
+                    "Certificado no encontrado o fuera de su alcance.", status=404
+                )
+            meta = {
+                "origen": "id",
+                "numero_buscado": str(pk),
+                "coincidencias": 1,
+                "aviso": "",
+                "candidatos": [],
+            }
+        else:
+            registro, meta = _buscar_certificado(
+                modulo, request.query_params.get("numero"), request
+            )
+            if registro is None:
+                return meta
         if not registro.codificado_en:
             _guardar_sugerencia(registro, sugerir(registro))
         serializer = SERIALIZADORES[modulo]
@@ -1692,6 +1732,209 @@ class ReportesMMMNView(APIView):
                 ],
             }
         )
+
+
+TIPOS_DETALLE = {
+    "MI_NEONATAL": "MI neonatal (0–30 d)",
+    "MI_POSTNEONATAL": "MI post-neonatal (31–364 d)",
+    "MM": "Muerte materna",
+    "VIOLENTA": "Muerte violenta",
+}
+
+_ORDEN_TIPO_DETALLE = {"MI_NEONATAL": 0, "MI_POSTNEONATAL": 1, "MM": 2, "VIOLENTA": 3}
+
+
+class ReportesMMMNDetalleView(APIView):
+    """Qué certificados (y casos) componen una semana del reporte MM / MI.
+
+    ``GET /api/registros/reportes/mm-mi-detalle/?desde=AAAA-MM-DD&hasta=AAAA-MM-DD``
+    ``[&tipo=MI|MM|MV]``
+
+    Es el complemento del detalle semanal de ``ReportesMMMNView``: la persona de la
+    oficina ve el número de casos de una semana y con esto **coteja contra los soportes
+    físicos**, porque cada fila trae el **número impreso del certificado**, los nombres y
+    apellidos, la fecha y el centro, más el `id` para abrir el certificado completo.
+
+    Las reglas son **las mismas** que las del contador (``dias_de_vida`` para MI,
+    ``muerte_materna_detalle``/`embarazo_o_puerperio` para MM, ``LEGACY-VIOLENTA`` para
+    las violentas, y el alcance del usuario), y la semana que llega por parámetro es
+    exactamente la que devolvió el reporte (domingo–sábado); por eso el listado tiene
+    que cuadrar uno a uno con el número de la tabla. Si no cuadra es un defecto, no una
+    diferencia de criterio.
+
+    ``tipo`` filtra la lista: ``MI`` (neonatal + post-neonatal), ``MM`` (maternas y
+    violentas, como las reporta la oficina) o ``MV`` (solo violentas). Los totales se
+    devuelven siempre completos, para poder contrastarlos.
+
+    Los casos del **registro de investigación** (`CASOS_MMI`) no traen número de
+    certificado —ese registro no lo guarda— y se marcan con ``sin_certificado: true`` y
+    ``consultable: false``: se muestran igual, porque son los que la oficina reporta,
+    pero no se puede abrir un certificado que ese registro no identifica.
+    """
+
+    @staticmethod
+    def _fila_certificado(registro, tipo, dias=None):
+        """Fila de un certificado de defunción (MI, o MM cuando la fuente es el certificado)."""
+        return {
+            "tipo": tipo,
+            "tipo_label": TIPOS_DETALLE[tipo],
+            "modulo": "defunciones",
+            "id": registro.id,
+            "numero_certificado": registro.numero_certificado or "",
+            "numero": registro.registro_numero,
+            "nombres": registro.fallecido_nombres,
+            "apellidos": registro.fallecido_apellidos,
+            "cedula": registro.fallecido_cedula or "",
+            "fecha_evento": registro.fecha_evento.isoformat() if registro.fecha_evento else "",
+            "dias_vida": dias,
+            "edad": registro.edad,
+            "edad_unidad": registro.edad_unidad or "",
+            "centro": registro.organizacion.nombre if registro.organizacion_id else "",
+            "centro_id": registro.organizacion_id,
+            "origen": "SISV",
+            "consultable": True,
+            "sin_certificado": False,
+            "nota": "",
+        }
+
+    @staticmethod
+    def _fila_caso_mm(caso, centro):
+        """Fila de un caso del registro de investigación (no identifica certificado)."""
+        return {
+            "tipo": "MM",
+            "tipo_label": TIPOS_DETALLE["MM"],
+            "modulo": "casos_mmi",
+            "id": caso["legacy_id"],
+            "numero_certificado": "",
+            "numero": "",
+            "nombres": caso["nombres"],
+            "apellidos": caso["apellidos"],
+            "cedula": caso["cedula"],
+            "fecha_evento": caso["fecha"],
+            "dias_vida": None,
+            "edad": caso["edad"],
+            "edad_unidad": caso["unidad_edad"],
+            "centro": centro,
+            "centro_id": caso["organizacion_id"],
+            "origen": "REGISTRO_INVESTIGACION",
+            "consultable": False,
+            "sin_certificado": True,
+            "nota": (
+                "Caso del registro de investigación de la oficina (SISMAI). Ese registro "
+                "no guarda el número del certificado."
+            ),
+        }
+
+    @staticmethod
+    def _fila_violenta(ficha):
+        return {
+            "tipo": "VIOLENTA",
+            "tipo_label": TIPOS_DETALLE["VIOLENTA"],
+            "modulo": "fichas",
+            "id": ficha.id,
+            "numero_certificado": "",
+            "numero": ficha.codigo_notificacion,
+            "nombres": ficha.paciente_nombres,
+            "apellidos": ficha.paciente_apellidos,
+            "cedula": ficha.paciente_cedula or "",
+            "fecha_evento": ficha.fecha_evento.isoformat() if ficha.fecha_evento else "",
+            "dias_vida": None,
+            "edad": ficha.edad,
+            "edad_unidad": "",
+            "centro": ficha.organizacion.nombre if ficha.organizacion_id else "",
+            "centro_id": ficha.organizacion_id,
+            "origen": "LEGACY",
+            "consultable": True,
+            "sin_certificado": True,
+            "nota": (
+                "Ficha del registro legacy de muertes violentas (M_VIOLENTA); el certificado "
+                "de defunción no guarda ese registro."
+            ),
+        }
+
+    def get(self, request):
+        desde = _fecha_param(request.query_params.get("desde"))
+        hasta = _fecha_param(request.query_params.get("hasta"))
+        if desde is None or hasta is None:
+            return error("Indique el rango de la semana: desde y hasta (AAAA-MM-DD).", status=400)
+        if desde > hasta:
+            return error("La fecha «desde» no puede ser posterior a «hasta».", status=400)
+        tipo = (request.query_params.get("tipo") or "").strip().upper()
+        if tipo not in ("", "MI", "MM", "MV"):
+            return error("Tipo no válido: use MI, MM o MV (o vacío para todos).", status=400)
+
+        qs_def = _por_alcance(
+            Defuncion.objects.select_related("organizacion"), request
+        ).filter(fecha_evento__gte=desde, fecha_evento__lte=hasta)
+
+        # --- MI (<1 año): misma regla de edad que el contador ---
+        filas_mi = []
+        for d in qs_def:
+            dias = dias_de_vida(d.edad, d.edad_unidad, d.fecha_evento, d.fecha_nacimiento)
+            if dias is None or dias > 364:
+                continue
+            filas_mi.append(
+                self._fila_certificado(
+                    d, "MI_NEONATAL" if dias <= 30 else "MI_POSTNEONATAL", dias=dias
+                )
+            )
+
+        # --- MM: registro de investigación, con el certificado como respaldo ---
+        certificadas = list(qs_def.filter(embarazo_o_puerperio=True))
+        detalle = muerte_materna_detalle(desde, hasta, _organizaciones_del_alcance(request))
+        if detalle is None or (not detalle and _alcance_acotado(request.user)):
+            fuente = "CERTIFICADO"
+            filas_mm = [self._fila_certificado(d, "MM") for d in certificadas]
+        else:
+            fuente = "REGISTRO_INVESTIGACION"
+            ids = {c["organizacion_id"] for c in detalle if c["organizacion_id"]}
+            centros = dict(Organizacion.objects.filter(id__in=ids).values_list("id", "nombre"))
+            filas_mm = [self._fila_caso_mm(c, centros.get(c["organizacion_id"], "")) for c in detalle]
+
+        # --- Violentas del registro MMI del legacy ---
+        filas_mv = [
+            self._fila_violenta(f)
+            for f in _por_alcance(
+                FichaVigilancia.objects.select_related("organizacion"), request
+            ).filter(
+                lote_id="LEGACY-VIOLENTA",
+                fecha_evento__gte=desde,
+                fecha_evento__lte=hasta,
+            )
+        ]
+
+        total = {
+            "mi": len(filas_mi),
+            "mi_neonatal": sum(1 for f in filas_mi if f["tipo"] == "MI_NEONATAL"),
+            "mi_postneonatal": sum(1 for f in filas_mi if f["tipo"] == "MI_POSTNEONATAL"),
+            "mm": len(filas_mm),
+            "mv": len(filas_mv),
+            "mm_mv": len(filas_mm) + len(filas_mv),
+            "mm_certificadas": len(certificadas),
+        }
+
+        filas = {
+            "MI": filas_mi,
+            "MM": filas_mm + filas_mv,
+            "MV": filas_mv,
+        }.get(tipo, filas_mi + filas_mm + filas_mv)
+        filas.sort(
+            key=lambda r: (
+                _ORDEN_TIPO_DETALLE[r["tipo"]],
+                r["fecha_evento"],
+                (r["apellidos"] or "").casefold(),
+                (r["nombres"] or "").casefold(),
+            )
+        )
+
+        return ok({
+            "desde": desde.isoformat(),
+            "hasta": hasta.isoformat(),
+            "tipo": tipo,
+            "mm_fuente": fuente,
+            "total": total,
+            "filas": filas,
+        })
 
 
 class ProductividadView(APIView):
