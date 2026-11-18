@@ -2061,6 +2061,113 @@ class ConsultaPorNumeroFisicoTests(SISVBase):
         self.assertEqual(data["numero"], "FIC-2026-001")
 
 
+class ConsultaPorSufijoRegistroTests(SISVBase):
+    """§49: el Nº de registro se teclea acortado (``998706314`` → ``LEG-CERT-998706314``).
+
+    Aplica a defunciones (`LEG-CERT-<id>`) y nacimientos (`LEG-RN-<id>`). El sufijo exige
+    **8 dígitos** y que antes no haya otro dígito, para no confundir ``998706314`` con
+    ``1998706314``. El número impreso (MSDS/planilla) tiene prioridad.
+    """
+
+    def _defuncion(self, numero, fisico="", fecha="2023-05-01"):
+        return self.client.post(
+            "/api/registros/defunciones/",
+            {
+                "registro_numero": numero,
+                "numero_certificado": fisico,
+                "fecha_evento": fecha,
+                "version_cie": "CIE11",
+                "sexo": "M",
+                "fallecido_nombres": "Juan",
+                "fallecido_apellidos": "Pérez",
+                "causa_primera_parte": "Dengue grave",
+                "cie11": self.cie11_categoria.pk,
+            },
+            content_type="application/json",
+        )
+
+    def _consulta(self, numero, modulo="defunciones"):
+        return self.client.get(f"/api/registros/consulta/?modulo={modulo}&numero={numero}")
+
+    def test_defuncion_por_sufijo_del_numero_de_registro(self):
+        self.login(self.u_trans_hcb)
+        self.assertEqual(self._defuncion("LEG-CERT-998706314", "4959776010").status_code, 201)
+        self.login(self.u_cod_hcb)
+        data = self._consulta("998706314").json()["data"]
+        self.assertEqual(data["numero_origen"], "registro_sufijo")
+        self.assertEqual(data["numero"], "LEG-CERT-998706314")
+        self.assertEqual(data["numero_fisico"], "4959776010")
+        self.assertEqual(data["coincidencias"], 1)
+        self.assertIn("LEG-CERT-998706314", data["aviso"])
+
+    def test_nacimiento_por_sufijo_del_numero_de_registro(self):
+        self.login(self.u_trans_hcb)
+        self.assertEqual(
+            self.crear_nacimiento("LEG-RN-999772242", numero_planilla="12330398").status_code, 201
+        )
+        data = self._consulta("999772242", modulo="nacimientos").json()["data"]
+        self.assertEqual(data["numero_origen"], "registro_sufijo")
+        self.assertEqual(data["numero"], "LEG-RN-999772242")
+        self.assertEqual(data["numero_fisico"], "12330398")
+
+    def test_sufijo_corto_no_inventa_coincidencias(self):
+        """Con menos de 8 dígitos no se busca por sufijo: es donde hay ambigüedad real."""
+        self.login(self.u_trans_hcb)
+        self._defuncion("LEG-CERT-998706314")
+        self.login(self.u_cod_hcb)
+        self.assertEqual(self._consulta("8706314").status_code, 404)
+
+    def test_sufijo_no_confunde_con_un_digito_previo(self):
+        """``998706314`` no debe encontrar ``LEG-CERT-1998706314`` (el 1 va delante)."""
+        self.login(self.u_trans_hcb)
+        self._defuncion("LEG-CERT-1998706314")
+        self.login(self.u_cod_hcb)
+        self.assertEqual(self._consulta("998706314").status_code, 404)
+
+    def test_sufijo_ambiguo_avisa_y_lista_candidatos(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion("LEG-CERT-998706314", fecha="2023-05-01")
+        self._defuncion("DEF-2026-998706314", fecha="2023-07-15")
+        self.login(self.u_cod_hcb)
+        data = self._consulta("998706314").json()["data"]
+        self.assertEqual(data["coincidencias"], 2)
+        self.assertEqual(data["numero"], "DEF-2026-998706314")
+        self.assertIn("2 registros", data["aviso"])
+        self.assertEqual(len(data["candidatos"]), 2)
+
+    def test_numero_impreso_tiene_prioridad_sobre_el_sufijo(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion("LEG-CERT-998706314")
+        self._defuncion("LEG-CERT-123456789", "998706314")
+        self.login(self.u_cod_hcb)
+        data = self._consulta("998706314").json()["data"]
+        self.assertEqual(data["numero_origen"], "fisico")
+        self.assertEqual(data["numero"], "LEG-CERT-123456789")
+
+    def test_el_registro_completo_sigue_funcionando(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion("LEG-CERT-998706314")
+        data = self._consulta("LEG-CERT-998706314").json()["data"]
+        self.assertEqual(data["numero_origen"], "registro")
+        self.assertEqual(data["numero"], "LEG-CERT-998706314")
+
+    def test_sufijo_fuera_de_alcance_es_404(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion("LEG-CERT-998706314")
+        self.login(self.u_trans_cabudare)
+        self.assertEqual(self._consulta("998706314").status_code, 404)
+
+    def test_listado_de_defunciones_busca_por_sufijo(self):
+        self.login(self.u_trans_hcb)
+        self._defuncion("LEG-CERT-998706314")
+        self._defuncion("LEG-CERT-111111111")
+        r = self.client.get("/api/registros/defunciones/?q=998706314")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(
+            [x["registro_numero"] for x in r.json()["data"]], ["LEG-CERT-998706314"]
+        )
+
+
 class ExportarRutalaraSanearTests(SISVBase):
     """§39.6.3: el CSV es `|`-separado sin escapado, así que un `|` dentro de un
     texto (artefacto del legacy) se reemplaza por un espacio al escribir, para

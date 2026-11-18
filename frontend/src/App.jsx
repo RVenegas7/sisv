@@ -18,6 +18,7 @@ import Despacho from "./pages/Despacho"
 import Registradores from "./pages/Registradores"
 import RegistroMMMN from "./pages/RegistroMMMN"
 import Productividad from "./pages/Productividad"
+import ConsultaCertificados from "./pages/ConsultaCertificados"
 import Login from "./pages/Login"
 
 const NAVEGACION = [
@@ -45,6 +46,7 @@ const NAVEGACION = [
   {
     grupo: "Certificados",
     items: [
+      { enlace: "/consulta", rotulo: "Consulta de certificados" },
       { enlace: "/despacho", rotulo: "Despacho de certificados" },
       { enlace: "/registradores", rotulo: "Registradores civiles" },
     ],
@@ -186,6 +188,7 @@ export default function App() {
           {/* Alias heredado: el módulo se llamaba MN (0–30 días) y pasó a MI (Muerte Infantil). */}
           <Route path="/registros/mn" element={<RegistroMMMN tipo="MI" />} />
           <Route path="/codificacion" element={<Codificacion usuario={usuario} />} />
+          <Route path="/consulta" element={<ConsultaCertificados />} />
           <Route path="/productividad" element={<Productividad />} />
           <Route path="/vigilancia" element={<Vigilancia usuario={usuario} />} />
           <Route path="/vigilancia/epi15" element={<Epi15 usuario={usuario} />} />

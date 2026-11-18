@@ -50,6 +50,19 @@ Idioma de trabajo: **responder siempre en español**.
   (`/usr/sbin/mariadbd`) sigue **deshabilitado** (`systemctl disable`).
 - Proxmox 9.2 (producción futura): se correrá PostgreSQL nativo, sin Docker; se exporta con `pg_dump`.
 - El `docker-compose.yml` se mantiene como documentación/despliegue alternativo en otros equipos.
+- **Almacén de Docker y de la VM movidos a `Documentos` (18/11/2026):** la raíz `/` estaba al
+  **97 % (3,2 GB libres)** y el refresco del espejo (`imp` de Oracle) no cabía. Se movió el
+  `data-root` de Docker a `/home/program/Documentos/docker-data` (**12 GB**, con
+  `RequiresMountsFor=/home` en `/etc/systemd/system/docker.service.d/override.conf` para que el
+  demonio no arranque con un `data-root` vacío si `/home` no está montado) y el *pool* `default`
+  de libvirt a `/home/program/Documentos/vm-images` (**54 GB**, VM `win10`; regla de AppArmor en
+  `/etc/apparmor.d/local/abstractions/libvirt-qemu`). Resultado: **`/` pasó a 30 GB usados / 58 GB
+  libres**. El almacén viejo queda en `/var/lib/docker.viejo` (11 GB) como red de seguridad:
+  `sudo rm -rf /var/lib/docker.viejo` cuando se confirme. Ojo: todo está en el **mismo disco
+  HDD** (`sda`), así que el traslado no mejora la velocidad, solo el espacio; una copia grande en
+  `/home` (p. ej. mover la VM) **satura el disco y frena el tablero** (se vio a 99 s con la app
+  esperando), por eso conviene `ionice -c3` / `nice 19` para trabajos pesados en segundo plano.
+  Script usado: `/home/program/Documentos/mover_docker_y_vm.sh` (fuera del repo).
 
 ## Backend (Django REST) y Frontend (React + Vite)
 
@@ -580,6 +593,18 @@ Idioma de trabajo: **responder siempre en español**.
   centro; en el EV-14 lo único «MPPS» es la matrícula del médico. El espejo no tiene columnas `MPPS`/`NUMNAC`
   (son rótulos de la oficina).
 
+- **Consulta de certificados y búsqueda por Nº de registro acortado (18/11/2026, §49):** `GET
+  /api/registros/consulta/` busca en este orden: **Nº impreso** (`numero_certificado`/`numero_planilla`),
+  `registro_numero` **completo** (`LEG-CERT-998706314`) y su **final numérico** (`998706314`); este
+  último solo con **≥ 8 dígitos** y exigiendo que antes no haya otro dígito (regex
+  `(^|[^0-9])<digitos>$`, portable), para no confundir `998706314` con `1998706314`. `numero_origen`
+  gana `registro_sufijo`, y si hay varios registros avisa y lista `candidatos`. Aplica a **defunciones
+  y nacimientos** (fichas siguen por `codigo_notificacion`). Pantalla nueva **`/consulta` — «Consulta
+  de certificados»** (`ConsultaCertificados.jsx`, menú Certificados, solo lectura para todos los
+  roles, respeta el alcance): selector Defunciones/Nacimientos, un campo único y el certificado
+  completo con `DetalleCertificado`, con candidatos clicables (abren por `id`). En `/codificacion` el
+  rótulo pasa a «Nº impreso (MSDS/planilla)» y los candidatos también son clicables. Pruebas
+  `ConsultaPorSufijoRegistroTests` (9).
 - `registradores`: **control de registradores civiles con historial de vigencias** (02/10/2026, §24.2).
   App propia porque el dominio (quién firma) no es el de los talonarios. Modelos: `RegistroCivil`
   (oficina, `organizacion` opcional, `activo`), `RegistradorCivil` (persona: nacionalidad V/E/P/I/O,

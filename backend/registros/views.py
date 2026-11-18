@@ -658,15 +658,40 @@ def _coincidencias_fisicas(qs, campo, variantes):
     return None
 
 
+# Mínimo de dígitos para aceptar un sufijo del Nº de registro (§49). Los ids de Oracle
+# tienen 9–10 dígitos y los números impresos 7–8: con menos de 8 el riesgo de confundir
+# un Nº impreso no encontrado con el final de un registro ajeno es alto.
+MIN_DIGITOS_SUFIJO = 8
+
+
+def _coincidencias_sufijo(qs, campo, variantes):
+    """Registros cuyo ``campo`` **termina** en los dígitos tecleados (§49).
+
+    El operario conoce el Nº de registro completo (`LEG-CERT-998706314`) y teclea solo
+    la parte numérica. Se exige que antes del sufijo **no haya otro dígito**, para que
+    `998706314` no encuentre `1998706314`.
+    """
+    for variante in variantes:
+        digitos = re.sub(r"[\s.\-]", "", variante)
+        if len(digitos) < MIN_DIGITOS_SUFIJO or not digitos.isdigit():
+            continue
+        patron = r"(^|[^0-9])" + digitos + r"$"
+        encontrados = qs.filter(**{f"{campo}__regex": patron}).order_by("-fecha_evento", "-id")
+        if encontrados.exists():
+            return encontrados
+    return None
+
+
 def _buscar_certificado(modulo, numero, request):
     """Busca un certificado por número respetando el alcance.
 
     Devuelve ``(registro, meta)`` o ``(None, respuesta_de_error)``.
 
     Se busca **primero por el número impreso** (§31): `numero_certificado` en las
-    defunciones y `numero_planilla` en los nacimientos, que es el número del papel. Solo
-    si no aparece se cae al `registro_numero`/`codigo_notificacion`, que es el
-    identificador legacy (`LEG-CERT-…`) y sigue siendo la clave de la confirmación.
+    defunciones y `numero_planilla` en los nacimientos, que es el número del papel.
+    Después por el `registro_numero`/`codigo_notificacion` completo (`LEG-CERT-…`) y,
+    por último, por su **sufijo numérico** (§49): `998706314` encuentra
+    `LEG-CERT-998706314`. El número completo sigue siendo la clave de la confirmación.
 
     El número físico **no es único** en el histórico (números repetidos y transcritos mal:
     61 defunciones y 343 planillas duplicadas al 29/10/2026), así que se devuelve el evento
@@ -712,8 +737,33 @@ def _buscar_certificado(modulo, numero, request):
                 "aviso": "",
                 "candidatos": [],
             }
+
+    # §49: el número de registro completo (`LEG-CERT-998706314`) se teclea acortado.
+    encontrados = _coincidencias_sufijo(qs, campo_registro, variantes)
+    if encontrados is not None:
+        total = encontrados.count()
+        primero = encontrados.first()
+        completo = getattr(primero, campo_registro)
+        if total > 1:
+            aviso = (
+                f"Hay {total} registros cuyo Nº de registro termina en «{variantes[0]}»; "
+                f"se muestra el más reciente ({completo}). Compare la fecha y el centro."
+            )
+        else:
+            aviso = (
+                f"Se interpretó «{variantes[0]}» como el final del Nº de registro {completo}."
+            )
+        return primero, {
+            "origen": "registro_sufijo",
+            "numero_buscado": variantes[0],
+            "coincidencias": total,
+            "aviso": aviso,
+            "candidatos": _candidatos(encontrados) if total > 1 else [],
+        }
     return None, error(
-        f"Certificado no encontrado o fuera de su alcance: «{variantes[0]}».", status=404
+        f"Certificado no encontrado o fuera de su alcance: «{variantes[0]}». "
+        "Busque por el Nº impreso (MSDS) o por el Nº de registro, completo o su final numérico.",
+        status=404,
     )
 
 
@@ -769,10 +819,11 @@ class ConsultaCertificadoView(APIView):
     GET /api/registros/consulta/?modulo=defunciones&id=123456
 
     El número puede ser el **impreso en el certificado** (`numero_certificado` /
-    `numero_planilla`, §31) o el `registro_numero` legacy (`DEF-2026-000003`,
-    `LEG-CERT-999473093`); se busca por el físico primero. La respuesta trae
-    `numero_origen` (`fisico`/`registro`), `numero_fisico`, `coincidencias` y `aviso`
-    cuando el número físico está repetido en el histórico.
+    `numero_planilla`, §31), el `registro_numero` legacy completo (`DEF-2026-000003`,
+    `LEG-CERT-999473093`) o **su final numérico** (`999473093`, §49); se busca en ese
+    orden. La respuesta trae `numero_origen` (`fisico`/`registro`/`registro_sufijo`),
+    `numero_fisico`, `coincidencias` y `aviso` cuando el número físico está repetido en
+    el histórico o cuando el sufijo coincide con más de un registro.
 
     ``id`` abre **ese** registro exacto, sin pasar por el número. Lo usa el detalle
     semanal de MM / MI, donde el número impreso no sirve como llave (hay certificados

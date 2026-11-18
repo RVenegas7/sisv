@@ -5195,3 +5195,64 @@ tablas.
 Pruebas: `ReportesMMMNTests` +4 (el listado cuadra con el contador, respeta alcance, semana vacía y
 parámetros inválidos) y `ConsultaYConfirmacionTests` +2 (consulta por `id` y alcance). Backend
 **429 OK**; frontend 28 OK; `npm run build` correcto.
+
+## 49. [HECHO 18/11/2026] Buscar un certificado por su Nº impreso o por el final del Nº de registro, en nacimientos y defunciones
+
+La oficina busca certificados para **validar la información contra el papel**. El operario tiene dos
+números a mano y ninguno es el que el sistema usaba como llave:
+
+- el **Nº impreso del certificado**, que la oficina llama **MSDS** en defunciones
+  (`CERTIFICADO."NUMEROMSDS"` → `numero_certificado`) y **Nº de planilla** en nacimientos
+  (`CERTNACIMIENTO."NROPLANILLA"` → `numero_planilla`);
+- el **Nº de registro** del legacy, que se lee completo en el sistema (`LEG-CERT-998706314`,
+  `LEG-RN-999772242`) pero que se teclea **solo con su parte numérica** (`998706314`).
+
+Antes, `GET /api/registros/consulta/?modulo=&numero=` encontraba el Nº impreso y el `registro_numero`
+**exacto**, pero `998706314` devolvía 404 aunque el registro existiera. El filtro `?q=` de las listas
+sí lo encontraba porque usa `icontains`, pero eso es una lista, no el certificado completo.
+
+**Qué cambió.** `registros/views.py::_buscar_certificado` busca ahora en tres pasos, en este orden:
+
+1. **Nº impreso** (`numero_certificado` / `numero_planilla`), tolerando puntos, guiones y espacios
+   (§31). Tiene prioridad: si el número tecleado está impreso en un papel, se abre ese certificado.
+2. **`registro_numero` completo** (`LEG-CERT-998706314`, `DEF-2026-000003`), sin distinguir mayúsculas.
+3. **Sufijo numérico del `registro_numero`** (`998706314`), con dos guardas:
+   - **mínimo 8 dígitos**: los ids de Oracle son de 9–10 y los Nº impresos de 7–8, así que por debajo
+     de 8 el riesgo de falsos positivos es real (`MIN_DIGITOS_SUFIJO`);
+   - el carácter anterior al sufijo **no puede ser un dígito**, con regex portable
+     `(^|[^0-9])<dígitos>$`, para que `998706314` **no** encuentre `1998706314`.
+
+`numero_origen` gana el valor **`registro_sufijo`**; si hay más de un registro que termina en esos
+dígitos se devuelve el más reciente con `coincidencias`, `aviso` y `candidatos` (abribles por `id`).
+El campo `numero` de la respuesta sigue siendo el **Nº de registro completo**, que es la clave con la
+que se confirma la codificación. El 404 ahora orienta: «Busque por el Nº impreso (MSDS) o por el Nº de
+registro, completo o su final numérico».
+
+**Aplica a los dos módulos.** Nacimientos (`LEG-RN-…`) y defunciones (`LEG-CERT-…`) usan el mismo
+endpoint y la misma regla; las fichas de vigilancia siguen consultándose por `codigo_notificacion`
+(no tienen número impreso).
+
+**Pantalla nueva `/consulta` — «Consulta de certificados»** (`frontend/src/pages/ConsultaCertificados.jsx`,
+menú *Certificados*). Es de **solo lectura para todos los roles** y respeta `alcance_registros`:
+selector Defunciones/Nacimientos, un único campo que acepta el Nº impreso, el Nº de registro completo o
+su final numérico, y el **certificado completo** con `DetalleCertificado` (el mismo componente del
+detalle semanal MM/MI y de la codificación). Si el número está repetido o el sufijo es ambiguo, muestra
+el aviso y los candidatos como botones que abren ese registro exacto por `id`.
+
+En `/codificacion` el rótulo pasa a **«Nº impreso (MSDS/planilla) o Nº de registro»**, el placeholder
+muestra los dos ejemplos y los candidatos también son clicables.
+
+**Verificación con datos reales (PostgreSQL, 18/11/2026):**
+
+| Módulo | Tecleado | Resultado |
+|---|---|---|
+| Defunciones | `998706314` | `LEG-CERT-998706314` · MSDS `4959776010` · origen `registro_sufijo` |
+| Defunciones | `LEG-CERT-998706314` | mismo registro · origen `registro` |
+| Nacimientos | `999772242` | `LEG-RN-999772242` · planilla `12330398` · origen `registro_sufijo` |
+| Defunciones | `8706314` (7 dígitos) | 404, no inventa coincidencias |
+
+Pruebas `registros/tests.py::ConsultaPorSufijoRegistroTests` (**9**): sufijo en defunciones y en
+nacimientos, mínimo de 8 dígitos, no confunde con un dígito previo, sufijo ambiguo con candidatos,
+prioridad del Nº impreso, el registro completo sigue funcionando, alcance y filtro `?q=` del listado.
+Frontend 28 OK y `npm run build` correcto; contenedor `sisv_app` reconstruido y sirviendo el bundle
+nuevo en `:8020`.

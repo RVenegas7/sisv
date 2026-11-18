@@ -157,6 +157,14 @@ export default function Codificacion({ usuario }) {
     }
   }
 
+  function mostrarConsulta(data) {
+    setConsulta(data)
+    setVersionConsulta(data.registro?.version_cie || "CIE11")
+    setVersionManualConsulta(false)
+    setSeleccionConsulta(seleccionDesdeConsulta(data))
+    aviso("", "")
+  }
+
   async function consultarPorNumero() {
     const num = numeroConsulta.trim()
     if (!num) {
@@ -165,12 +173,18 @@ export default function Codificacion({ usuario }) {
     }
     aviso("info", "Consultando certificado…")
     try {
-      const data = await consultarCertificado(modulo, num)
-      setConsulta(data)
-      setVersionConsulta(data.registro?.version_cie || "CIE11")
-      setVersionManualConsulta(false)
-      setSeleccionConsulta(seleccionDesdeConsulta(data))
-      aviso("", "")
+      mostrarConsulta(await consultarCertificado(modulo, num))
+    } catch (err) {
+      setConsulta(null)
+      aviso("error", err.message)
+    }
+  }
+
+  async function abrirCandidato(c) {
+    aviso("info", `Abriendo ${c.registro_numero}…`)
+    try {
+      mostrarConsulta(await consultarCertificado(modulo, "", c.id))
+      if (c.registro_numero) setNumeroConsulta(c.registro_numero)
     } catch (err) {
       setConsulta(null)
       aviso("error", err.message)
@@ -247,7 +261,7 @@ export default function Codificacion({ usuario }) {
 
       <div className="formulario">
         <div className="grid">
-          <Campo label="Consultar certificado por número impreso o de registro" htmlFor="cod-num">
+          <Campo label="Nº impreso (MSDS) o Nº de registro" htmlFor="cod-num">
             <Input
               id="cod-num"
               value={numeroConsulta}
@@ -258,8 +272,12 @@ export default function Codificacion({ usuario }) {
                   consultarPorNumero()
                 }
               }}
-              placeholder="Ej. 5143453 (impreso), DEF-2026-000003…"
+              placeholder="Ej. 4959776010 (MSDS), LEG-CERT-998706314 o 998706314"
             />
+            <span className="ayuda">
+              Acepta el Nº impreso del papel (MSDS o planilla), el Nº de registro completo o
+              solo su final numérico (8 dígitos o más).
+            </span>
           </Campo>
         </div>
         <div className="pie-form">
@@ -311,13 +329,18 @@ export default function Codificacion({ usuario }) {
             </p>
             {consulta.numero_fisico && (
               <p className="ayuda" style={{ margin: "0.2rem 0 0" }}>
-                Nº impreso: <strong>{consulta.numero_fisico}</strong> · Nº de registro:{" "}
-                {consulta.numero}
+                Nº impreso (MSDS/planilla): <strong>{consulta.numero_fisico}</strong> · Nº de
+                registro: {consulta.numero}
               </p>
             )}
             {consulta.numero_origen === "fisico" && consulta.coincidencias === 1 && (
               <p className="ayuda" style={{ margin: "0.2rem 0 0" }}>
                 Encontrado por el número impreso del certificado.
+              </p>
+            )}
+            {consulta.numero_origen === "registro_sufijo" && consulta.coincidencias === 1 && (
+              <p className="ayuda" style={{ margin: "0.2rem 0 0" }}>
+                Encontrado por el final del Nº de registro.
               </p>
             )}
             {consulta.aviso && (
@@ -327,8 +350,15 @@ export default function Codificacion({ usuario }) {
                   <ul style={{ margin: "0.4rem 0 0 1rem" }}>
                     {consulta.candidatos.map((c) => (
                       <li key={c.id}>
-                        {c.fecha_evento} · {c.organizacion_nombre || "Sin centro"} ·{" "}
-                        <span className="ayuda">{c.registro_numero}</span>
+                        <button
+                          type="button"
+                          className="btn-mini"
+                          onClick={() => abrirCandidato(c)}
+                          title="Abrir este certificado"
+                        >
+                          {c.fecha_evento} · {c.organizacion_nombre || "Sin centro"} ·{" "}
+                          <span className="ayuda">{c.registro_numero}</span>
+                        </button>
                       </li>
                     ))}
                   </ul>
